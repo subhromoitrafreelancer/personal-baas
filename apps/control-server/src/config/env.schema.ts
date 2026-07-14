@@ -24,6 +24,14 @@ export const envSchema = z.object({
   // admin query can never starve health checks or admin-auth lookups.
   ADMIN_SQL_POOL_MAX: z.coerce.number().int().positive().default(10),
   ADMIN_SQL_STATEMENT_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
+  // Ed25519 keypair signing application-user access tokens (scope.md §8). Deliberately
+  // asymmetric and separate from ADMIN_SESSION_SECRET: PostgREST (Phase 4) and clients only
+  // ever need the public half. PEM, base64-encoded so a multi-line key survives a single
+  // .env line — generate with `npm run generate:jwt-keys --workspace apps/control-server`.
+  AUTH_JWT_PRIVATE_KEY_BASE64: z.string().min(1, 'AUTH_JWT_PRIVATE_KEY_BASE64 is required'),
+  AUTH_JWT_PUBLIC_KEY_BASE64: z.string().min(1, 'AUTH_JWT_PUBLIC_KEY_BASE64 is required'),
+  AUTH_ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(900),
+  AUTH_REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
