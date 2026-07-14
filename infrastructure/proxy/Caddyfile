@@ -19,7 +19,8 @@
 		reverse_proxy control-server:3000
 	}
 
-	handle /admin/* {
+	@admin path /admin /admin/*
+	handle @admin {
 		reverse_proxy control-server:3000
 	}
 

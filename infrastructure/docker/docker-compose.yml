@@ -41,6 +41,9 @@ services:
       PORT: 3000
       LOG_LEVEL: ${LOG_LEVEL:-info}
       DATABASE_URL: postgres://baas_admin:${BAAS_ADMIN_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET}
+      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
     ports:
       - '3000:3000'
     depends_on:

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Sign in — Personal BaaS Admin</title>
+  <link rel="stylesheet" href="/admin/static/css/admin.css" />
+</head>
+<body class="auth-page">
+  <main class="auth-card">
+    <h1>Personal BaaS</h1>
+    <p class="subtitle">Sign in to the administration console</p>
+    {{#if error}}<p class="error">{{error}}</p>{{/if}}
+    <form method="post" action="/admin/login">
+      <label>
+        Email
+        <input type="email" name="email" required autofocus />
+      </label>
+      <label>
+        Password
+        <input type="password" name="password" required />
+      </label>
+      <button type="submit">Sign in</button>
+    </form>
+  </main>
+</body>
+</html>
