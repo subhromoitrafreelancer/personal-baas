@@ -1,6 +1,12 @@
 const container = document.getElementById('api-objects-container');
 const statusEl = document.getElementById('api-status');
 const refreshBtn = document.getElementById('refresh-api-btn');
+const toggleOpenapiBtn = document.getElementById('toggle-openapi-btn');
+const downloadOpenapiBtn = document.getElementById('download-openapi-btn');
+const openapiPanel = document.getElementById('openapi-panel');
+const openapiJsonEl = document.getElementById('openapi-json');
+
+let openapiSpec = null;
 
 function escapeHtml(value) {
   return String(value).replace(
@@ -181,3 +187,34 @@ async function loadApiObjects() {
 
 refreshBtn.addEventListener('click', loadApiObjects);
 loadApiObjects();
+
+async function loadOpenapiSpec() {
+  openapiJsonEl.textContent = 'Loading…';
+  try {
+    // PostgREST's own root endpoint (proxied at /rest/v1/) doubles as its OpenAPI document —
+    // no control-server endpoint needed, this is a same-origin request through Caddy.
+    const response = await fetch('/rest/v1/');
+    openapiSpec = await response.json();
+    openapiJsonEl.textContent = JSON.stringify(openapiSpec, null, 2);
+  } catch (err) {
+    openapiJsonEl.textContent = `Failed to load OpenAPI spec: ${err instanceof Error ? err.message : err}`;
+  }
+}
+
+toggleOpenapiBtn.addEventListener('click', () => {
+  openapiPanel.hidden = !openapiPanel.hidden;
+  if (!openapiPanel.hidden && !openapiSpec) {
+    loadOpenapiSpec();
+  }
+});
+
+downloadOpenapiBtn.addEventListener('click', () => {
+  if (!openapiSpec) return;
+  const blob = new Blob([JSON.stringify(openapiSpec, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'openapi.json';
+  a.click();
+  URL.revokeObjectURL(url);
+});

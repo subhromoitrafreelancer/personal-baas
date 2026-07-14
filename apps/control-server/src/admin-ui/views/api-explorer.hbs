@@ -24,10 +24,19 @@
   <main class="api-explorer-page">
     <div class="api-explorer-toolbar">
       <button id="refresh-api-btn" type="button">Refresh</button>
-      <a id="openapi-link" href="/rest/v1/" target="_blank" rel="noopener">View raw OpenAPI spec</a>
+      <button id="toggle-openapi-btn" type="button">View OpenAPI Spec</button>
       <span id="api-status" class="run-status"></span>
     </div>
     <div id="api-objects-container"></div>
+
+    <section id="openapi-panel" class="openapi-panel" hidden>
+      <div class="openapi-panel-header">
+        <h2>PostgREST OpenAPI spec</h2>
+        <a href="/rest/v1/" target="_blank" rel="noopener">Open raw in new tab</a>
+        <button id="download-openapi-btn" type="button">Download JSON</button>
+      </div>
+      <pre id="openapi-json"></pre>
+    </section>
   </main>
 
   <script type="module" src="/admin/static/js/api-explorer.js"></script>
