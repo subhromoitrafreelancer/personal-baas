@@ -23,6 +23,10 @@ const rowLimitInput = document.getElementById('row-limit-input');
 const runStatus = document.getElementById('run-status');
 const errorBox = document.getElementById('sql-error');
 const resultsBox = document.getElementById('sql-results');
+const toggleHistoryBtn = document.getElementById('toggle-history-btn');
+const refreshHistoryBtn = document.getElementById('refresh-history-btn');
+const historyPanel = document.getElementById('history-panel');
+const historyList = document.getElementById('history-list');
 
 let currentExecutionId = null;
 
@@ -166,10 +170,12 @@ async function runSql(mode) {
     if (response.ok) {
       renderResults(body.statements);
       runStatus.textContent = `Completed in ${body.totalDurationMs}ms`;
+      loadHistory();
     } else if (response.status === 422 && body.error) {
       renderResults(body.statements ?? []);
       renderError(body.error);
       runStatus.textContent = `Failed after ${body.totalDurationMs}ms`;
+      loadHistory();
     } else {
       errorBox.hidden = false;
       errorBox.textContent = body.message ? JSON.stringify(body.message) : 'Request failed';
@@ -199,3 +205,47 @@ cancelBtn.addEventListener('click', async () => {
     body: JSON.stringify({ executionId: currentExecutionId }),
   });
 });
+
+function formatTimestamp(iso) {
+  const date = new Date(iso);
+  return date.toLocaleString();
+}
+
+async function loadHistory() {
+  const response = await fetch('/admin/v1/sql/history?limit=50');
+  if (response.status === 401) {
+    window.location.href = '/admin/login';
+    return;
+  }
+  if (!response.ok) return;
+
+  const { items } = await response.json();
+  historyList.innerHTML = '';
+  for (const item of items) {
+    const li = document.createElement('li');
+    li.className = `history-item${item.success ? '' : ' failed'}`;
+    li.innerHTML = `
+      <div class="history-sql">${escapeHtml(item.sql)}</div>
+      <div class="history-meta">
+        <span>${formatTimestamp(item.executedAt)}</span>
+        <span>${item.durationMs}ms</span>
+        <span>${item.mode}</span>
+      </div>
+    `;
+    li.addEventListener('click', () => {
+      editor.dispatch({
+        changes: { from: 0, to: editor.state.doc.length, insert: item.sql },
+      });
+    });
+    historyList.appendChild(li);
+  }
+}
+
+toggleHistoryBtn.addEventListener('click', () => {
+  historyPanel.hidden = !historyPanel.hidden;
+  if (!historyPanel.hidden) {
+    loadHistory();
+  }
+});
+
+refreshHistoryBtn.addEventListener('click', loadHistory);

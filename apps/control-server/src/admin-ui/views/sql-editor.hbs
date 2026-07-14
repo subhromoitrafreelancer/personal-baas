@@ -28,14 +28,27 @@
         Row limit
         <input id="row-limit-input" type="number" min="1" max="5000" value="500" />
       </label>
+      <button id="toggle-history-btn" type="button">History</button>
       <span id="run-status" class="run-status"></span>
     </div>
 
-    <div id="sql-editor-cm" class="sql-editor-cm"></div>
+    <div class="sql-editor-layout">
+      <div class="sql-editor-main">
+        <div id="sql-editor-cm" class="sql-editor-cm"></div>
 
-    <div id="sql-error" class="sql-error" hidden></div>
+        <div id="sql-error" class="sql-error" hidden></div>
 
-    <div id="sql-results"></div>
+        <div id="sql-results"></div>
+      </div>
+
+      <aside id="history-panel" class="history-panel" hidden>
+        <div class="history-panel-header">
+          <h2>Execution history</h2>
+          <button id="refresh-history-btn" type="button">Refresh</button>
+        </div>
+        <ul id="history-list" class="history-list"></ul>
+      </aside>
+    </div>
   </main>
 
   <script type="module" src="/admin/static/js/sql-editor.js"></script>

@@ -7,6 +7,7 @@ import { AdminDbModule } from './modules/admin-db/admin-db.module';
 import { DatabaseModule } from './modules/database/database.module';
 import { HealthModule } from './modules/health/health.module';
 import { SqlConsoleModule } from './modules/sql-console/sql-console.module';
+import { SqlHistoryModule } from './modules/sql-history/sql-history.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { SqlConsoleModule } from './modules/sql-console/sql-console.module';
     AdminDbModule,
     HealthModule,
     AdminAuthModule,
+    SqlHistoryModule,
     SqlConsoleModule,
   ],
 })

@@ -2,6 +2,7 @@ import { Injectable, Logger, UnprocessableEntityException } from '@nestjs/common
 import { DatabaseError } from 'pg';
 import { AdminIdentity } from '../admin-auth/admin.types';
 import { AdminQueryService } from '../admin-db/admin-query.service';
+import { SqlHistoryService } from '../sql-history/sql-history.service';
 import { DEFAULT_ROW_LIMIT, ExecuteRequest, ExecuteResponse, StatementResult } from './sql-execute.dto';
 import { redactSensitiveSql } from './sql-redact.util';
 import { locateInScript, splitSqlStatements } from './sql-split.util';
@@ -23,7 +24,10 @@ export class SqlConsoleService {
   // POST /admin/v1/sql/cancel request (a separate HTTP connection) can abort it mid-flight.
   private readonly activeExecutions = new Map<string, number>();
 
-  constructor(private readonly adminQuery: AdminQueryService) {}
+  constructor(
+    private readonly adminQuery: AdminQueryService,
+    private readonly sqlHistory: SqlHistoryService,
+  ) {}
 
   async execute(input: ExecuteRequest, admin: AdminIdentity): Promise<ExecuteResponse> {
     const spans =
@@ -84,7 +88,14 @@ export class SqlConsoleService {
       await result;
     } catch (err) {
       if (err instanceof SqlExecutionError) {
-        this.logExecution(admin, input, false, Date.now() - startedAt, err.details.message);
+        this.recordExecution(
+          admin,
+          input,
+          false,
+          err.details.statementIndex + 1,
+          Date.now() - startedAt,
+          err.details.message,
+        );
         throw new UnprocessableEntityException({
           mode: input.mode,
           statements: err.completed,
@@ -99,7 +110,7 @@ export class SqlConsoleService {
       }
     }
 
-    this.logExecution(admin, input, true, Date.now() - startedAt);
+    this.recordExecution(admin, input, true, completed.length, Date.now() - startedAt);
     return { mode: input.mode, statements: completed, totalDurationMs: Date.now() - startedAt };
   }
 
@@ -111,13 +122,15 @@ export class SqlConsoleService {
     return this.adminQuery.cancel(pid);
   }
 
-  private logExecution(
+  private recordExecution(
     admin: AdminIdentity,
     input: ExecuteRequest,
     success: boolean,
+    statementCount: number,
     durationMs: number,
     errorMessage?: string,
   ) {
+    const sql = redactSensitiveSql(input.sql);
     this.logger.log({
       msg: 'admin sql execution',
       adminId: admin.sub,
@@ -125,8 +138,20 @@ export class SqlConsoleService {
       mode: input.mode,
       success,
       durationMs,
-      sql: redactSensitiveSql(input.sql),
+      sql,
       error: errorMessage,
     });
+    this.sqlHistory
+      .record({
+        adminId: admin.sub,
+        adminEmail: admin.email,
+        mode: input.mode,
+        sql,
+        success,
+        errorMessage,
+        statementCount,
+        durationMs,
+      })
+      .catch((err) => this.logger.error({ msg: 'failed to record sql history', err }));
   }
 }
