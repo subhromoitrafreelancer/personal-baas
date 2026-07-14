@@ -6,6 +6,7 @@ import { AdminAuthModule } from './modules/admin-auth/admin-auth.module';
 import { AdminDbModule } from './modules/admin-db/admin-db.module';
 import { DatabaseModule } from './modules/database/database.module';
 import { HealthModule } from './modules/health/health.module';
+import { SqlConsoleModule } from './modules/sql-console/sql-console.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { HealthModule } from './modules/health/health.module';
     AdminDbModule,
     HealthModule,
     AdminAuthModule,
+    SqlConsoleModule,
   ],
 })
 export class AppModule {}

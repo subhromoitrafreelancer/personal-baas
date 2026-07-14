@@ -1,13 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Pool, QueryResult, QueryResultRow } from 'pg';
+import { PoolClient, Pool, QueryResult, QueryResultRow } from 'pg';
 import { EnvConfig } from '../../config/env.schema';
 import { ADMIN_QUERY_POOL } from './admin-db.constants';
 
-export interface AdminQueryHandle<T extends QueryResultRow = QueryResultRow> {
+export interface AdminQueryHandle<T> {
   /** Backend process id of the connection running this query — pass to cancel() to abort it. */
   pid: number;
-  result: Promise<QueryResult<T>>;
+  result: Promise<T>;
 }
 
 @Injectable()
@@ -18,13 +18,13 @@ export class AdminQueryService {
   ) {}
 
   /**
-   * Runs a single admin-issued SQL statement on its own connection with a statement_timeout
-   * applied. The connection is released back to the pool once the query settles (success,
-   * error, or cancellation) — never left holding a SET statement_timeout for the next borrower.
+   * Borrows a connection, applies a statement_timeout to it, and hands it to `fn` — releasing it
+   * back to the pool once `fn` settles, regardless of outcome. Used by the SQL console to run a
+   * sequence of statements on one session (so explicit BEGIN/COMMIT or SET in a script script
+   * behaves as expected) while still exposing a single pid for cancellation.
    */
-  async runQuery<T extends QueryResultRow = QueryResultRow>(
-    sql: string,
-    params: unknown[] = [],
+  async withConnection<T>(
+    fn: (client: PoolClient) => Promise<T>,
     statementTimeoutMs = this.config.get('ADMIN_SQL_STATEMENT_TIMEOUT_MS', { infer: true }),
   ): Promise<AdminQueryHandle<T>> {
     if (!Number.isInteger(statementTimeoutMs) || statementTimeoutMs <= 0) {
@@ -38,9 +38,22 @@ export class AdminQueryService {
     // statement_timeout takes no bind parameters; the value is validated above, not user SQL.
     await client.query(`SET statement_timeout = ${statementTimeoutMs}`);
 
-    const result = client.query<T>(sql, params).finally(() => client.release());
+    const result = fn(client).finally(() => client.release());
 
     return { pid, result };
+  }
+
+  /**
+   * Runs a single admin-issued SQL statement on its own connection with a statement_timeout
+   * applied. The connection is released back to the pool once the query settles (success,
+   * error, or cancellation) — never left holding a SET statement_timeout for the next borrower.
+   */
+  async runQuery<T extends QueryResultRow = QueryResultRow>(
+    sql: string,
+    params: unknown[] = [],
+    statementTimeoutMs?: number,
+  ): Promise<AdminQueryHandle<QueryResult<T>>> {
+    return this.withConnection((client) => client.query<T>(sql, params), statementTimeoutMs);
   }
 
   /** Cancels an in-flight query by backend pid (scope.md §5.2: "Cancel long-running queries"). */
