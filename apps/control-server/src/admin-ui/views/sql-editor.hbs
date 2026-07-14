@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>SQL Editor — Personal BaaS Admin</title>
+  <link rel="stylesheet" href="/admin/static/css/admin.css" />
+  <link rel="stylesheet" href="/admin/static/css/sql-editor.css" />
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">Personal BaaS Admin</span>
+    <nav class="topnav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/sql" class="active">SQL Editor</a>
+    </nav>
+    <form method="post" action="/admin/logout" class="logout-form">
+      <span class="signed-in-as">{{email}}</span>
+      <button type="submit">Sign out</button>
+    </form>
+  </header>
+
+  <main class="sql-editor-page">
+    <div class="sql-toolbar">
+      <button id="run-statement-btn" type="button">Run statement</button>
+      <button id="run-script-btn" type="button">Run script</button>
+      <button id="cancel-btn" type="button" hidden>Cancel</button>
+      <label class="row-limit-label">
+        Row limit
+        <input id="row-limit-input" type="number" min="1" max="5000" value="500" />
+      </label>
+      <span id="run-status" class="run-status"></span>
+    </div>
+
+    <div id="sql-editor-cm" class="sql-editor-cm"></div>
+
+    <div id="sql-error" class="sql-error" hidden></div>
+
+    <div id="sql-results"></div>
+  </main>
+
+  <script type="module" src="/admin/static/js/sql-editor.js"></script>
+</body>
+</html>

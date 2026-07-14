@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "description": "NestJS control service: admin API, admin UI, application auth, PostgREST configuration",
   "scripts": {
-    "build": "nest build",
+    "build:vendor": "node scripts/build-vendor.mjs",
+    "build": "npm run build:vendor && nest build",
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
@@ -32,6 +33,10 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@codemirror/commands": "^6.7.1",
+    "@codemirror/lang-sql": "^6.8.0",
+    "@codemirror/state": "^6.5.0",
+    "@codemirror/view": "^6.35.0",
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
@@ -40,6 +45,8 @@
     "@types/jest": "^29.5.14",
     "@types/node": "^22.10.2",
     "@types/pg": "^8.11.10",
+    "codemirror": "^6.0.1",
+    "esbuild": "^0.24.2",
     "jest": "^29.7.0",
     "node-pg-migrate": "^7.9.1",
     "pino-pretty": "^13.0.0",

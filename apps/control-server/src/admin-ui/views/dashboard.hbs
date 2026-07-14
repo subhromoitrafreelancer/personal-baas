@@ -8,6 +8,10 @@
 <body>
   <header class="topbar">
     <span class="brand">Personal BaaS Admin</span>
+    <nav class="topnav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/sql">SQL Editor</a>
+    </nav>
     <form method="post" action="/admin/logout" class="logout-form">
       <span class="signed-in-as">{{email}}</span>
       <button type="submit">Sign out</button>
@@ -15,7 +19,7 @@
   </header>
   <main class="dashboard">
     <h1>Dashboard</h1>
-    <p>SQL editor and database explorer are coming in the next PRs.</p>
+    <p>Database object explorer is coming in a later PR.</p>
   </main>
 </body>
 </html>

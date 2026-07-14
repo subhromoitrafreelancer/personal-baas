@@ -1,0 +1,149 @@
+.topnav {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.9rem;
+}
+
+.topnav a {
+  color: #444;
+  text-decoration: none;
+}
+
+.topnav a.active,
+.topnav a:hover {
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+.sql-editor-page {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.sql-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.sql-toolbar button {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid #1a1a1a;
+  background: #1a1a1a;
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.sql-toolbar button:hover {
+  background: #333;
+}
+
+.sql-toolbar button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+#cancel-btn {
+  background: #a13b2f;
+  border-color: #a13b2f;
+}
+
+.row-limit-label,
+.upload-label {
+  font-size: 0.85rem;
+  color: #555;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+#row-limit-input {
+  width: 5rem;
+  padding: 0.3rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.run-status {
+  font-size: 0.85rem;
+  color: #555;
+  margin-left: auto;
+}
+
+.sql-editor-cm {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  min-height: 220px;
+}
+
+.sql-editor-cm .cm-editor {
+  height: 100%;
+}
+
+.sql-error {
+  background: #fdecea;
+  color: #a13b2f;
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+}
+
+.result-block {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+.result-block-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 0.75rem;
+  background: #fafafa;
+  border-bottom: 1px solid #ddd;
+  font-size: 0.85rem;
+  color: #444;
+}
+
+.result-block-header button {
+  margin-left: auto;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  border: 1px solid #999;
+  background: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.result-table-wrap {
+  overflow-x: auto;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+table.result-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.85rem;
+}
+
+table.result-table th,
+table.result-table td {
+  border-bottom: 1px solid #eee;
+  padding: 0.35rem 0.6rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+table.result-table th {
+  background: #f5f5f7;
+  position: sticky;
+  top: 0;
+}
