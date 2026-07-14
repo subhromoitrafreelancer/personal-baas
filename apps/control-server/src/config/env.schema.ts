@@ -19,6 +19,11 @@ export const envSchema = z.object({
   // platform.platform_admins is empty. Safe to leave unset after that.
   INITIAL_ADMIN_EMAIL: z.string().email().optional(),
   INITIAL_ADMIN_PASSWORD: z.string().min(8).optional(),
+  // Dedicated connection pool for admin-issued SQL (SQL console, catalog explorer) — kept
+  // separate from the control service's own internal-query pool so a runaway or cancelled
+  // admin query can never starve health checks or admin-auth lookups.
+  ADMIN_SQL_POOL_MAX: z.coerce.number().int().positive().default(10),
+  ADMIN_SQL_STATEMENT_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
