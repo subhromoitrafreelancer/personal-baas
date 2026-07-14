@@ -56,4 +56,27 @@ export class AuthUsersRepository {
       [id, passwordHash],
     );
   }
+
+  async setStatus(id: string, status: 'active' | 'disabled'): Promise<AuthUserRow | null> {
+    const { rows } = await this.pool.query<AuthUserRow>(
+      'UPDATE auth.users SET status = $2, updated_at = now() WHERE id = $1 RETURNING *',
+      [id, status],
+    );
+    return rows[0] ?? null;
+  }
+
+  async list(search: string | null, limit: number, offset: number): Promise<{ rows: AuthUserRow[]; total: number }> {
+    const { rows } = await this.pool.query<AuthUserRow>(
+      `SELECT * FROM auth.users
+       WHERE $1::text IS NULL OR email ILIKE '%' || $1 || '%'
+       ORDER BY created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [search, limit, offset],
+    );
+    const { rows: countRows } = await this.pool.query<{ count: string }>(
+      `SELECT count(*) FROM auth.users WHERE $1::text IS NULL OR email ILIKE '%' || $1 || '%'`,
+      [search],
+    );
+    return { rows, total: Number(countRows[0].count) };
+  }
 }

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Users — Personal BaaS Admin</title>
+  <link rel="stylesheet" href="/admin/static/css/admin.css" />
+  <link rel="stylesheet" href="/admin/static/css/admin-users.css" />
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">Personal BaaS Admin</span>
+    <nav class="topnav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/sql">SQL Editor</a>
+      <a href="/admin/database">Database</a>
+      <a href="/admin/api">API Explorer</a>
+      <a href="/admin/users" class="active">Users</a>
+    </nav>
+    <form method="post" action="/admin/logout" class="logout-form">
+      <span class="signed-in-as">{{email}}</span>
+      <button type="submit">Sign out</button>
+    </form>
+  </header>
+
+  <main class="admin-users-page">
+    <div class="admin-users-toolbar">
+      <input id="search-input" type="search" placeholder="Search by email…" />
+      <button id="search-btn" type="button">Search</button>
+      <button id="create-user-btn" type="button">Create user</button>
+      <span id="users-status" class="run-status"></span>
+    </div>
+
+    <div id="secret-banner" class="secret-banner" hidden></div>
+
+    <form id="create-user-form" class="create-user-form" hidden>
+      <label>Email <input id="new-user-email" type="email" required /></label>
+      <label>Password (optional — leave blank to auto-generate) <input id="new-user-password" type="text" /></label>
+      <button type="submit">Create</button>
+      <button type="button" id="cancel-create-btn">Cancel</button>
+    </form>
+
+    <table class="users-table">
+      <thead>
+        <tr>
+          <th>Email</th>
+          <th>Status</th>
+          <th>Email verified</th>
+          <th>Created</th>
+          <th>Last sign-in</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="users-tbody"></tbody>
+    </table>
+
+    <div class="pagination">
+      <button id="prev-page-btn" type="button">Previous</button>
+      <span id="page-info"></span>
+      <button id="next-page-btn" type="button">Next</button>
+    </div>
+  </main>
+
+  <script src="/admin/static/js/admin-users.js"></script>
+</body>
+</html>

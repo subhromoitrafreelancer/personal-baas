@@ -4,6 +4,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { validateEnv, EnvConfig } from './config/env.schema';
 import { AdminAuthModule } from './modules/admin-auth/admin-auth.module';
 import { AdminDbModule } from './modules/admin-db/admin-db.module';
+import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 import { ApiExplorerModule } from './modules/api-explorer/api-explorer.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { DatabaseModule } from './modules/database/database.module';
@@ -39,6 +40,7 @@ import { SqlHistoryModule } from './modules/sql-history/sql-history.module';
     DbExplorerModule,
     ApiExplorerModule,
     AuthModule,
+    AdminUsersModule,
   ],
 })
 export class AppModule {}
