@@ -33,6 +33,9 @@ services:
       # PostgREST's asymmetric jwt-secret only accepts JWK for non-HMAC keys.
       PGRST_JWT_SECRET: '${AUTH_JWT_PUBLIC_KEY_JWK}'
       PGRST_JWT_AUD: authenticated
+      # Enforces API key revocation (Phase 4.4) — runs before every request; a no-op for
+      # ordinary user JWTs, which carry no `kid` claim.
+      PGRST_DB_PRE_REQUEST: platform.check_api_key_revocation
     depends_on:
       postgres:
         condition: service_healthy

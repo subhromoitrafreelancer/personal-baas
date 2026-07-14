@@ -6,6 +6,7 @@ import { AdminAuthModule } from './modules/admin-auth/admin-auth.module';
 import { AdminDbModule } from './modules/admin-db/admin-db.module';
 import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 import { ApiExplorerModule } from './modules/api-explorer/api-explorer.module';
+import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { DatabaseModule } from './modules/database/database.module';
@@ -43,6 +44,7 @@ import { SqlHistoryModule } from './modules/sql-history/sql-history.module';
     AuthModule,
     AdminUsersModule,
     AuditModule,
+    ApiKeysModule,
   ],
 })
 export class AppModule {}

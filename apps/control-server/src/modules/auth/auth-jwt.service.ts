@@ -7,6 +7,10 @@ import { AppAccessTokenClaims } from './auth.types';
 const ISSUER = 'personal-baas';
 const AUDIENCE = 'authenticated';
 const ALG = 'EdDSA';
+// API keys (Phase 4.4) are long-lived, stable credentials by design (publishable/secret keys
+// meant to be pasted into a client's config once) rather than short-lived session tokens —
+// 10 years is "effectively non-expiring" without special-casing a missing `exp` claim.
+const API_KEY_TTL_SECONDS = 10 * 365 * 24 * 60 * 60;
 
 @Injectable()
 export class AuthJwtService implements OnModuleInit {
@@ -45,6 +49,19 @@ export class AuthJwtService implements OnModuleInit {
       .setSubject(claims.sub)
       .setIssuedAt()
       .setExpirationTime(`${this.accessTokenTtlSeconds}s`)
+      .sign(this.privateKey);
+  }
+
+  // `kid` points back to the platform.api_keys row so revocation can be enforced via
+  // PostgREST's db-pre-request hook (platform.check_api_key_revocation) — there's no `sub` or
+  // `email` here since a publishable/secret key isn't tied to an application user.
+  async signApiKeyToken(role: 'anon' | 'service_role', kid: string): Promise<string> {
+    return new SignJWT({ role, kid })
+      .setProtectedHeader({ alg: ALG })
+      .setIssuer(ISSUER)
+      .setAudience(AUDIENCE)
+      .setIssuedAt()
+      .setExpirationTime(`${API_KEY_TTL_SECONDS}s`)
       .sign(this.privateKey);
   }
 
