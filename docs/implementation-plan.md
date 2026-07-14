@@ -81,12 +81,24 @@ Admin console session: a signed httpOnly cookie JWT, keyed with its **own** sign
 
 ## Phase 2 — Automatic REST Data API
 
-1. **PostgREST config module** — control-server manages `postgrest.conf` (schema locked to `api`), typed config service.
-2. **Immediate schema-reload mechanism** — after SQL execute, heuristically detect DDL, `NOTIFY pgrst, 'reload schema'`.
-3. **Reliable schema-reload mechanism** — migration adding `ddl_command_end`/`sql_drop` event triggers issuing `NOTIFY pgrst` + `NOTIFY baas_schema_change`; control-server holds a dedicated `LISTEN` connection and refreshes its own object-metadata cache on notification.
-4. **API explorer page** — lists exposed `api` tables/views/functions with generated cURL + fetch snippets.
-5. **OpenAPI passthrough** — surface PostgREST's built-in OpenAPI doc in the admin UI.
-   - **Acceptance**: `create table api.tasks (...)` in the SQL editor → `GET/POST /rest/v1/tasks` work immediately, no restart.
+Reconsidered after Phase 1 landed (see docs/implementation-plan.md history / session notes):
+PostgREST is already fully configured via docker-compose env vars (Phase 0), so there's no
+"config module" left to build. And a database-level event trigger fires for *any* DDL regardless
+of source (SQL console, migrations, direct psql), which makes a heuristic "detect DDL in the SQL
+console and NOTIFY" step both redundant and less reliable — dropped in favor of the event trigger
+alone. Creating an event trigger requires Postgres **superuser**, which `baas_admin` is not, so
+this lives in the bootstrap SQL (already run as the real superuser during container init via
+`docker-entrypoint-initdb.d`), not a node-pg-migrate migration.
+
+1. **Schema-reload event trigger** — `packages/database-bootstrap/sql`: idempotent function +
+   event trigger on `ddl_command_end`/`sql_drop` that fires `NOTIFY pgrst, 'reload schema'`.
+   PostgREST v12 listens on the `pgrst` channel by default (`db-channel-enabled`), so no
+   PostgREST config changes are needed.
+2. **API explorer page** — `/admin/api`: lists `api`-schema tables/views/functions (reusing the
+   object-explorer's catalog data) with generated cURL + fetch snippets per object.
+3. **OpenAPI passthrough** — surface PostgREST's built-in OpenAPI doc in the admin UI.
+4. **End-to-end acceptance verification** — `create table api.tasks (...)` in the SQL editor →
+   `GET/POST /rest/v1/tasks` work immediately, no restart.
 
 ## Phase 3 — Application authentication
 
@@ -115,7 +127,7 @@ Admin console session: a signed httpOnly cookie JWT, keyed with its **own** sign
 2. **Query builder** — `client.from(table)` with `select/insert/update/delete/upsert` + filter operators from §15.
 3. **RPC support** — `client.rpc(functionName)`.
 4. **SDK build/packaging** — `tsup`/`tsc` build, unit tests against a mocked fetch layer.
-5. **Copyable snippets** — extend the API explorer (Phase 2 #4) with generated JS-SDK examples alongside cURL.
+5. **Copyable snippets** — extend the API explorer (Phase 2 #2) with generated JS-SDK examples alongside cURL.
 6. **Env file generator** — admin UI action producing a `.env` with `BAAS_URL`/`BAAS_PUBLISHABLE_KEY`/`BAAS_SERVICE_KEY`.
 7. **Sample app** — `examples/html-todo-app`: plain HTML/vanilla JS app using the SDK against `api.tasks`.
 8. **Docs** — install/deploy guide in `docs/`.

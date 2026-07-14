@@ -17,3 +17,6 @@ sed \
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
   -f "${SQL_DIR}/002_schemas.sql"
+
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
+  -f "${SQL_DIR}/003_schema_reload_trigger.sql"
