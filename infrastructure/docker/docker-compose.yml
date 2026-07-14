@@ -28,6 +28,11 @@ services:
       PGRST_DB_SCHEMAS: api
       PGRST_DB_ANON_ROLE: anon
       PGRST_SERVER_PORT: 3001
+      # Verifies application-user JWTs signed by control-server (scope.md §8). Needs the
+      # literal JWK (quoted so its braces/colons aren't parsed as YAML), not a PEM string —
+      # PostgREST's asymmetric jwt-secret only accepts JWK for non-HMAC keys.
+      PGRST_JWT_SECRET: '${AUTH_JWT_PUBLIC_KEY_JWK}'
+      PGRST_JWT_AUD: authenticated
     depends_on:
       postgres:
         condition: service_healthy

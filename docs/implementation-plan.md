@@ -118,12 +118,41 @@ and signup (which issues no token) moves before login.
 
 ## Phase 4 — Database authorization & RLS integration
 
-1. **Role + grants migration** — `authenticator`/`anon`/`authenticated`/`service_role` per §9, `authenticator` configured as PostgREST's login/role-switch role.
-2. **JWT ↔ PostgREST integration** — PostgREST configured with the auth service's public key; verify `request.jwt.claim.*` is visible inside Postgres.
-3. **RLS snippet library** — reusable SQL templates (owner-only, public-read/auth-write, admin-only, authenticated CRUD) selectable from the SQL editor.
-4. **Exposure warnings** — object explorer flags `api` tables lacking RLS or policies.
-5. **API key management** — publishable (`anon`) + secret (`service_role`) keys as signed JWTs with `kid` + rotation; `admin/v1/api-keys` API + page.
-6. **RLS verification** — two test users each see only their own `api.tasks` rows through the same endpoint (manual/scripted check).
+Reconsidered before starting, once Phase 0/3 state was checked and PostgREST's actual JWT
+support was researched: `authenticator`/`anon`/`authenticated`/`service_role` already exist
+from the Phase 0 bootstrap (`packages/database-bootstrap/sql/001_roles.sql.template`), and
+`authenticator` already has `anon`/`authenticated`/`service_role` granted to it — so a
+standalone "role + grants migration" item would be a no-op. Confirmed via
+`jose-jwt` (PostgREST's underlying JWT library) source that `Ed25519PublicJwk` is a real,
+supported key-material constructor — our Ed25519/EdDSA signing choice from Phase 3.2 works
+with PostgREST's `jwt-secret` once the public key is expressed as a JWK (not PEM; PostgREST's
+asymmetric `jwt-secret` config takes a literal JWK object, not a PEM string). Merged the
+original items 1 and 2 into one PR since #1 had no remaining content of its own.
+
+1. **JWT ↔ PostgREST integration** — export the Ed25519 public key as a JWK, wire it into
+   PostgREST via `PGRST_JWT_SECRET` (+ `PGRST_JWT_AUD`), add a small `auth.uid()` SQL helper
+   (reads `request.jwt.claims->>'sub'`) so RLS policies have an ergonomic way to reference the
+   calling user, and verify `request.jwt.claims` / role-switching actually works against a
+   disposable probe table.
+2. **RLS snippet library** — reusable SQL templates (owner-only via `auth.uid()`,
+   public-read/auth-write, admin-only via `service_role`, authenticated CRUD) selectable from
+   the SQL editor, each paired with the `GRANT` statements it needs — table-level grants are
+   never automatic (scope.md §9: "anon: No access unless explicitly granted"), so a policy
+   without a matching grant is a common trap the snippets should avoid by construction.
+3. **Exposure warnings** — the object explorer already returns `rlsEnabled`/`rlsForced`/
+   `policies` per table (Phase 1.7); this item is UI-only — surface a clear warning when an
+   `api`-schema table has RLS off or zero policies, instead of today's plain on/off badge.
+4. **API key management** — `platform.api_keys` bookkeeping table + `admin/v1/api-keys` API
+   and page to issue publishable (`anon`) / secret (`service_role`) long-lived JWTs and mark
+   them revoked in our own records. Full cryptographic rotation/enforcement (`kid`-based
+   multi-key verification, actually rejecting a revoked key before its expiry) stays deferred
+   to Phase 6 #2, which already owns "complete API-key rotation flow."
+5. **RLS verification** — two test users, each created via real `/auth/v1/signup` +
+   `/auth/v1/login`, see only their own rows in a disposable owner-only-RLS table through the
+   same PostgREST endpoint — end to end through the real JWT path, not simulated.
+   - **Acceptance**: two-user RLS isolation test on a disposable table, verified through
+     PostgREST with real signup/login-issued JWTs (the Phase 3 acceptance test's deferred
+     `/rest/v1/tasks`-with-JWT leg is folded into this).
 
 ## Phase 5 — Developer experience
 
