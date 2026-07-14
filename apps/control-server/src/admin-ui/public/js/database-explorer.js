@@ -68,6 +68,22 @@ function renderPolicies(policies) {
     .join('')}</ul>`;
 }
 
+// Only api-schema tables/views are ever reachable through PostgREST, so exposure risk is
+// scoped to those. Two distinct cases, not the same severity: no RLS means any role with a
+// grant has unrestricted row access (the dangerous one); RLS-on-with-zero-policies is
+// default-deny (nothing gets through except bypassrls roles like service_role) — safe, but
+// worth flagging since it usually means the table isn't usable via the API yet either.
+function exposureWarning(table) {
+  if (!table.apiExposed) return '';
+  if (!table.rlsEnabled) {
+    return '<span class="badge exposure-danger">⚠ No RLS — unrestricted for any granted role</span>';
+  }
+  if (table.policies.length === 0) {
+    return '<span class="badge exposure-info">ℹ RLS on, no policies — default-deny</span>';
+  }
+  return '';
+}
+
 function renderTable(table) {
   const block = document.createElement('div');
   block.className = 'table-block';
@@ -79,6 +95,7 @@ function renderTable(table) {
     <span class="badge">${escapeHtml(table.kind)}</span>
     ${table.apiExposed ? '<span class="badge api-exposed">API exposed</span>' : ''}
     <span class="badge ${table.rlsEnabled ? 'rls-on' : 'rls-off'}">${table.rlsEnabled ? 'RLS enabled' : 'RLS disabled'}</span>
+    ${exposureWarning(table)}
   `;
 
   const details = document.createElement('div');

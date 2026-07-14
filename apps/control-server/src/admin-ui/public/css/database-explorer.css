@@ -71,6 +71,17 @@
   color: #a13b2f;
 }
 
+.badge.exposure-danger {
+  background: #a13b2f;
+  color: #fff;
+  font-weight: 600;
+}
+
+.badge.exposure-info {
+  background: #eef0fb;
+  color: #33409e;
+}
+
 .table-details {
   padding: 0 0.9rem 0.9rem 1.5rem;
   font-size: 0.85rem;
