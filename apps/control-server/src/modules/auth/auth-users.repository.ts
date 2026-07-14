@@ -43,4 +43,8 @@ export class AuthUsersRepository {
     );
     return rows[0];
   }
+
+  async updateLastSignIn(id: string): Promise<void> {
+    await this.pool.query('UPDATE auth.users SET last_sign_in_at = now() WHERE id = $1', [id]);
+  }
 }
