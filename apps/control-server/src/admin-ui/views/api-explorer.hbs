@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>API Explorer — Personal BaaS Admin</title>
+  <link rel="stylesheet" href="/admin/static/css/admin.css" />
+  <link rel="stylesheet" href="/admin/static/css/api-explorer.css" />
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">Personal BaaS Admin</span>
+    <nav class="topnav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/sql">SQL Editor</a>
+      <a href="/admin/database">Database</a>
+      <a href="/admin/api" class="active">API Explorer</a>
+    </nav>
+    <form method="post" action="/admin/logout" class="logout-form">
+      <span class="signed-in-as">{{email}}</span>
+      <button type="submit">Sign out</button>
+    </form>
+  </header>
+
+  <main class="api-explorer-page">
+    <div class="api-explorer-toolbar">
+      <button id="refresh-api-btn" type="button">Refresh</button>
+      <a id="openapi-link" href="/rest/v1/" target="_blank" rel="noopener">View raw OpenAPI spec</a>
+      <span id="api-status" class="run-status"></span>
+    </div>
+    <div id="api-objects-container"></div>
+  </main>
+
+  <script type="module" src="/admin/static/js/api-explorer.js"></script>
+</body>
+</html>

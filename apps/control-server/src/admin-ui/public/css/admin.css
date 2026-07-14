@@ -108,3 +108,11 @@ button:hover {
 .dashboard {
   padding: 2rem;
 }
+
+.badge {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: #eee;
+  color: #555;
+}

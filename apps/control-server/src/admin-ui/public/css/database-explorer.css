@@ -56,14 +56,6 @@
   font-weight: 600;
 }
 
-.badge {
-  font-size: 0.7rem;
-  padding: 0.1rem 0.5rem;
-  border-radius: 999px;
-  background: #eee;
-  color: #555;
-}
-
 .badge.api-exposed {
   background: #e3f2e1;
   color: #2e6b2a;
