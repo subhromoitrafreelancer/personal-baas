@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { AuthAuditEventsRepository } from './auth-audit-events.repository';
+import { AuthAuditService } from './auth-audit.service';
 import { AuthJwtService } from './auth-jwt.service';
 import { AuthPasswordResetTokensRepository } from './auth-password-reset-tokens.repository';
 import { AuthRefreshTokensRepository } from './auth-refresh-tokens.repository';
@@ -18,11 +20,19 @@ import { SignupService } from './signup.service';
     AuthSessionsRepository,
     AuthRefreshTokensRepository,
     AuthPasswordResetTokensRepository,
+    AuthAuditEventsRepository,
+    AuthAuditService,
     SignupService,
     LoginService,
     RefreshService,
     SelfServiceService,
   ],
-  exports: [AuthJwtService, AuthUsersRepository, AuthPasswordResetTokensRepository],
+  exports: [
+    AuthJwtService,
+    AuthUsersRepository,
+    AuthPasswordResetTokensRepository,
+    AuthAuditEventsRepository,
+    AuthAuditService,
+  ],
 })
 export class AuthModule {}

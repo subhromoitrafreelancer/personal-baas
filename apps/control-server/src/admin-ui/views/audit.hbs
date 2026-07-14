@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Audit Log — Personal BaaS Admin</title>
+  <link rel="stylesheet" href="/admin/static/css/admin.css" />
+  <link rel="stylesheet" href="/admin/static/css/audit.css" />
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">Personal BaaS Admin</span>
+    <nav class="topnav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/sql">SQL Editor</a>
+      <a href="/admin/database">Database</a>
+      <a href="/admin/api">API Explorer</a>
+      <a href="/admin/users">Users</a>
+      <a href="/admin/audit" class="active">Audit Log</a>
+    </nav>
+    <form method="post" action="/admin/logout" class="logout-form">
+      <span class="signed-in-as">{{email}}</span>
+      <button type="submit">Sign out</button>
+    </form>
+  </header>
+
+  <main class="audit-page">
+    <div class="audit-toolbar">
+      <button id="refresh-audit-btn" type="button">Refresh</button>
+      <span id="audit-status" class="run-status"></span>
+    </div>
+
+    <table class="audit-table">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Event</th>
+          <th>User</th>
+          <th>IP</th>
+          <th>Metadata</th>
+        </tr>
+      </thead>
+      <tbody id="audit-tbody"></tbody>
+    </table>
+
+    <div class="pagination">
+      <button id="prev-page-btn" type="button">Previous</button>
+      <span id="page-info"></span>
+      <button id="next-page-btn" type="button">Next</button>
+    </div>
+  </main>
+
+  <script src="/admin/static/js/audit.js"></script>
+</body>
+</html>

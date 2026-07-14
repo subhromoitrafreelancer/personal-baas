@@ -1,6 +1,7 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EnvConfig } from '../../config/env.schema';
+import { AuthAuditService } from './auth-audit.service';
 import { AuthJwtService } from './auth-jwt.service';
 import { AuthRefreshTokensRepository } from './auth-refresh-tokens.repository';
 import { AuthSessionsRepository } from './auth-sessions.repository';
@@ -24,9 +25,10 @@ export class RefreshService {
     private readonly refreshTokensRepo: AuthRefreshTokensRepository,
     private readonly jwt: AuthJwtService,
     private readonly config: ConfigService<EnvConfig, true>,
+    private readonly audit: AuthAuditService,
   ) {}
 
-  async refresh(rawToken: string): Promise<RefreshResult> {
+  async refresh(rawToken: string, ipAddress: string | null, userAgent: string | null): Promise<RefreshResult> {
     const tokenHash = hashRefreshToken(rawToken);
     const token = await this.refreshTokensRepo.findByHash(tokenHash);
     if (!token) {
@@ -37,6 +39,10 @@ export class RefreshService {
       this.logger.warn({ msg: 'refresh token reuse detected', familyId: token.family_id });
       await this.refreshTokensRepo.revokeFamily(token.family_id);
       await this.sessionsRepo.revoke(token.session_id);
+      const session = await this.sessionsRepo.findById(token.session_id);
+      this.audit.record(session?.user_id ?? null, 'user.refresh_reuse_detected', ipAddress, userAgent, {
+        familyId: token.family_id,
+      });
       throw new UnauthorizedException('Refresh token reuse detected; session revoked');
     }
 

@@ -37,13 +37,18 @@ export class AuthController {
   ) {}
 
   @Post('signup')
-  async signup(@Body() body: unknown) {
+  async signup(@Body() body: unknown, @Req() req: Request) {
     const parsed = signupBodySchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException(parsed.error.issues.map((issue) => issue.message).join('; '));
     }
 
-    return this.signupService.signup(parsed.data.email, parsed.data.password);
+    return this.signupService.signup(
+      parsed.data.email,
+      parsed.data.password,
+      req.ip ?? null,
+      req.headers['user-agent'] ?? null,
+    );
   }
 
   @Post('login')
@@ -62,13 +67,17 @@ export class AuthController {
   }
 
   @Post('token')
-  async token(@Body() body: unknown) {
+  async token(@Body() body: unknown, @Req() req: Request) {
     const parsed = tokenBodySchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException(parsed.error.issues.map((issue) => issue.message).join('; '));
     }
 
-    return this.refreshService.refresh(parsed.data.refreshToken);
+    return this.refreshService.refresh(
+      parsed.data.refreshToken,
+      req.ip ?? null,
+      req.headers['user-agent'] ?? null,
+    );
   }
 
   @Get('user')
@@ -86,13 +95,24 @@ export class AuthController {
       throw new BadRequestException(parsed.error.issues.map((issue) => issue.message).join('; '));
     }
 
-    await this.selfService.changePassword(req.user!.sub, parsed.data.currentPassword, parsed.data.newPassword);
+    await this.selfService.changePassword(
+      req.user!.sub,
+      parsed.data.currentPassword,
+      parsed.data.newPassword,
+      req.ip ?? null,
+      req.headers['user-agent'] ?? null,
+    );
   }
 
   @Post('logout')
   @UseGuards(AccessTokenGuard)
   @HttpCode(204)
   async logout(@Req() req: RequestWithUser): Promise<void> {
-    await this.selfService.logout(req.user!.sessionId);
+    await this.selfService.logout(
+      req.user!.sub,
+      req.user!.sessionId,
+      req.ip ?? null,
+      req.headers['user-agent'] ?? null,
+    );
   }
 }

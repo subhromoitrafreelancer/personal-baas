@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import * as argon2 from 'argon2';
 import { randomUUID } from 'node:crypto';
 import { EnvConfig } from '../../config/env.schema';
+import { AuthAuditService } from './auth-audit.service';
 import { AuthJwtService } from './auth-jwt.service';
 import { AuthRefreshTokensRepository } from './auth-refresh-tokens.repository';
 import { AuthSessionsRepository } from './auth-sessions.repository';
@@ -26,6 +27,7 @@ export class LoginService {
     private readonly refreshTokensRepo: AuthRefreshTokensRepository,
     private readonly jwt: AuthJwtService,
     private readonly config: ConfigService<EnvConfig, true>,
+    private readonly audit: AuthAuditService,
   ) {}
 
   async login(
@@ -68,6 +70,8 @@ export class LoginService {
       email: user.email,
       sessionId: session.id,
     });
+
+    this.audit.record(user.id, 'user.login', ipAddress, userAgent, { sessionId: session.id });
 
     return {
       accessToken,
