@@ -47,4 +47,13 @@ export class AuthUsersRepository {
   async updateLastSignIn(id: string): Promise<void> {
     await this.pool.query('UPDATE auth.users SET last_sign_in_at = now() WHERE id = $1', [id]);
   }
+
+  async updatePasswordHash(id: string, passwordHash: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE auth.users
+       SET password_hash = $2, password_changed_at = now(), updated_at = now()
+       WHERE id = $1`,
+      [id, passwordHash],
+    );
+  }
 }

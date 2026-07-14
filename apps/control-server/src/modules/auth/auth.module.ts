@@ -6,6 +6,7 @@ import { AuthController } from './auth.controller';
 import { AuthUsersRepository } from './auth-users.repository';
 import { LoginService } from './login.service';
 import { RefreshService } from './refresh.service';
+import { SelfServiceService } from './self-service.service';
 import { SignupService } from './signup.service';
 
 @Module({
@@ -18,6 +19,7 @@ import { SignupService } from './signup.service';
     SignupService,
     LoginService,
     RefreshService,
+    SelfServiceService,
   ],
   exports: [AuthJwtService],
 })

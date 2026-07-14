@@ -1,9 +1,12 @@
-import { BadRequestException, Body, Controller, Post, Req } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, Post, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { z } from 'zod';
+import { AccessTokenGuard } from './access-token.guard';
 import { LoginService } from './login.service';
 import { RefreshService } from './refresh.service';
+import { SelfServiceService } from './self-service.service';
 import { SignupService } from './signup.service';
+import { RequestWithUser } from './auth.types';
 
 const signupBodySchema = z.object({
   email: z.string().email(),
@@ -19,12 +22,18 @@ const tokenBodySchema = z.object({
   refreshToken: z.string().min(1),
 });
 
+const changePasswordBodySchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+});
+
 @Controller('auth/v1')
 export class AuthController {
   constructor(
     private readonly signupService: SignupService,
     private readonly loginService: LoginService,
     private readonly refreshService: RefreshService,
+    private readonly selfService: SelfServiceService,
   ) {}
 
   @Post('signup')
@@ -60,5 +69,30 @@ export class AuthController {
     }
 
     return this.refreshService.refresh(parsed.data.refreshToken);
+  }
+
+  @Get('user')
+  @UseGuards(AccessTokenGuard)
+  async getUser(@Req() req: RequestWithUser) {
+    return this.selfService.getCurrentUser(req.user!.sub);
+  }
+
+  @Post('user/password')
+  @UseGuards(AccessTokenGuard)
+  @HttpCode(204)
+  async changePassword(@Body() body: unknown, @Req() req: RequestWithUser): Promise<void> {
+    const parsed = changePasswordBodySchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.issues.map((issue) => issue.message).join('; '));
+    }
+
+    await this.selfService.changePassword(req.user!.sub, parsed.data.currentPassword, parsed.data.newPassword);
+  }
+
+  @Post('logout')
+  @UseGuards(AccessTokenGuard)
+  @HttpCode(204)
+  async logout(@Req() req: RequestWithUser): Promise<void> {
+    await this.selfService.logout(req.user!.sessionId);
   }
 }
