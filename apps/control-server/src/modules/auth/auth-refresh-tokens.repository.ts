@@ -33,4 +33,26 @@ export class AuthRefreshTokensRepository {
     );
     return rows[0];
   }
+
+  async findByHash(tokenHash: string): Promise<AuthRefreshTokenRow | null> {
+    const { rows } = await this.pool.query<AuthRefreshTokenRow>(
+      'SELECT * FROM auth.refresh_tokens WHERE token_hash = $1',
+      [tokenHash],
+    );
+    return rows[0] ?? null;
+  }
+
+  async markConsumed(id: string): Promise<void> {
+    await this.pool.query('UPDATE auth.refresh_tokens SET consumed_at = now() WHERE id = $1', [id]);
+  }
+
+  // Reuse of an already-consumed or revoked token indicates the token was likely stolen
+  // (scope.md §7 family_id/parent_token_id design) — revoke every token in the family so the
+  // legitimate holder is forced to re-authenticate rather than silently keep trusting it.
+  async revokeFamily(familyId: string): Promise<void> {
+    await this.pool.query(
+      'UPDATE auth.refresh_tokens SET revoked_at = now() WHERE family_id = $1 AND revoked_at IS NULL',
+      [familyId],
+    );
+  }
 }

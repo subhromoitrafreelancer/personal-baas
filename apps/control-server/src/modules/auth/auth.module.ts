@@ -5,6 +5,7 @@ import { AuthSessionsRepository } from './auth-sessions.repository';
 import { AuthController } from './auth.controller';
 import { AuthUsersRepository } from './auth-users.repository';
 import { LoginService } from './login.service';
+import { RefreshService } from './refresh.service';
 import { SignupService } from './signup.service';
 
 @Module({
@@ -16,6 +17,7 @@ import { SignupService } from './signup.service';
     AuthRefreshTokensRepository,
     SignupService,
     LoginService,
+    RefreshService,
   ],
   exports: [AuthJwtService],
 })
