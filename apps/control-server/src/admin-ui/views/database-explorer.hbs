@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Admin Console — Personal BaaS</title>
+  <title>Database Explorer — Personal BaaS Admin</title>
   <link rel="stylesheet" href="/admin/static/css/admin.css" />
+  <link rel="stylesheet" href="/admin/static/css/database-explorer.css" />
 </head>
 <body>
   <header class="topbar">
@@ -11,15 +12,22 @@
     <nav class="topnav">
       <a href="/admin">Dashboard</a>
       <a href="/admin/sql">SQL Editor</a>
-      <a href="/admin/database">Database</a>
+      <a href="/admin/database" class="active">Database</a>
     </nav>
     <form method="post" action="/admin/logout" class="logout-form">
       <span class="signed-in-as">{{email}}</span>
       <button type="submit">Sign out</button>
     </form>
   </header>
-  <main class="dashboard">
-    <h1>Dashboard</h1>
+
+  <main class="db-explorer-page">
+    <div class="db-explorer-toolbar">
+      <button id="refresh-objects-btn" type="button">Refresh</button>
+      <span id="objects-status" class="run-status"></span>
+    </div>
+    <div id="schemas-container"></div>
   </main>
+
+  <script type="module" src="/admin/static/js/database-explorer.js"></script>
 </body>
 </html>
