@@ -102,15 +102,19 @@ this lives in the bootstrap SQL (already run as the real superuser during contai
 
 ## Phase 3 — Application authentication
 
-1. **Auth schema migrations** — `auth.users`, `auth.identities`, `auth.sessions`, `auth.refresh_tokens`, `auth.password_reset_tokens`, `auth.audit_events` (node-pg-migrate, per §7).
-2. **Argon2id hashing + signup** — `POST /auth/v1/signup`.
-3. **Login + session/token issuance** — `POST /auth/v1/login`: verify password, create `auth.sessions` row, issue Ed25519-signed access JWT (§8 claims) + opaque refresh token (stored hashed).
-4. **JWT signing module** — Ed25519 keypair loading (env/mounted files), 15-min access-token lifetime.
-5. **Refresh + rotation** — `POST /auth/v1/token`: refresh-token rotation with `family_id`/`parent_token_id` reuse detection.
+Reordered slightly from the original numbering so each item only depends on ones already
+built: the JWT signing module moves before signup/login (both need it indirectly or directly),
+and signup (which issues no token) moves before login.
+
+1. **Auth schema migrations** — `auth.users`, `auth.identities`, `auth.sessions`, `auth.refresh_tokens`, `auth.password_reset_tokens`, `auth.audit_events` (node-pg-migrate, per §7). `identities` is created for schema completeness per §7 but stays unwritten in v1 (no social login yet).
+2. **JWT signing module** — Ed25519 keypair loading (env/mounted files), sign/verify helpers, 15-min access-token lifetime, claims per §8.
+3. **Argon2id hashing + signup** — `POST /auth/v1/signup`.
+4. **Login + session/token issuance** — `POST /auth/v1/login`: verify password, create `auth.sessions` row, issue Ed25519-signed access JWT + opaque refresh token (stored as a SHA-256 hash, never plaintext, per §7).
+5. **Refresh + rotation** — `POST /auth/v1/token`: refresh-token rotation with `family_id`/`parent_token_id` reuse detection (reuse of a consumed/revoked token revokes the whole family + session).
 6. **User self-service** — `GET /auth/v1/user`, change-password, `POST /auth/v1/logout` (session revocation).
-7. **Admin user management** — `admin/v1/users` API + page: list/search, create, disable/enable, admin-generated reset link or temp password.
-8. **Auth audit trail** — write to `auth.audit_events` on signup/login/logout/password-change/revoke; audit list page.
-   - **Acceptance**: register → login → call `/rest/v1/tasks` with the JWT → refresh → revoke session → further refresh fails.
+7. **Admin user management** — `admin/v1/users` API + page: list/search, create, disable/enable, admin-generated reset link or temp password (reset-token *consumption* endpoint is Phase 6 #6, per that item's own note).
+8. **Auth audit trail** — write to `auth.audit_events` on signup/login/logout/refresh-reuse/password-change/admin actions; `/admin/audit` list page.
+   - **Acceptance**: register → login → refresh → revoke session → further refresh fails, all via curl against `/auth/v1/*`. The PostgREST leg ("call `/rest/v1/tasks` with the JWT") is verified once Phase 4 #2 wires PostgREST to verify this service's JWTs — `anon`/`authenticated`/`service_role` roles already exist from the Phase 0 bootstrap, but PostgREST isn't yet configured with the public key.
 
 ## Phase 4 — Database authorization & RLS integration
 
