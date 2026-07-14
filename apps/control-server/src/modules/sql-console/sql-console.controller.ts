@@ -5,11 +5,21 @@ import {
   HttpCode,
   Post,
   Req,
+  UploadedFile,
+  UseFilters,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { AdminSessionGuard } from '../admin-auth/admin-session.guard';
 import { RequestWithAdmin } from '../admin-auth/admin.types';
-import { cancelRequestSchema, executeRequestSchema } from './sql-execute.dto';
+import { MulterErrorFilter } from './multer-error.filter';
+import {
+  cancelRequestSchema,
+  executeRequestSchema,
+  MAX_UPLOAD_BYTES,
+  uploadFieldsSchema,
+} from './sql-execute.dto';
 import { SqlConsoleService } from './sql-console.service';
 
 @Controller('admin/v1/sql')
@@ -37,5 +47,36 @@ export class SqlConsoleController {
     }
     const cancelled = await this.sqlConsole.cancel(parsed.data.executionId);
     return { cancelled };
+  }
+
+  @Post('upload')
+  @HttpCode(200)
+  @UseFilters(MulterErrorFilter)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_BYTES } }))
+  async upload(
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Body() body: unknown,
+    @Req() req: RequestWithAdmin,
+  ) {
+    if (!file) {
+      throw new BadRequestException('A .sql file is required (field name "file")');
+    }
+    const fields = uploadFieldsSchema.safeParse(body);
+    if (!fields.success) {
+      throw new BadRequestException(fields.error.flatten());
+    }
+
+    // Uploaded scripts always run in script mode — feeds straight into the same
+    // split/execute/history/redaction pipeline as POST /admin/v1/sql/execute.
+    return this.sqlConsole.execute(
+      {
+        sql: file.buffer.toString('utf-8'),
+        mode: 'script',
+        rowLimit: fields.data.rowLimit,
+        statementTimeoutMs: fields.data.statementTimeoutMs,
+        executionId: fields.data.executionId,
+      },
+      req.admin!,
+    );
   }
 }

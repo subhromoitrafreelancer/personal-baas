@@ -27,6 +27,8 @@ const toggleHistoryBtn = document.getElementById('toggle-history-btn');
 const refreshHistoryBtn = document.getElementById('refresh-history-btn');
 const historyPanel = document.getElementById('history-panel');
 const historyList = document.getElementById('history-list');
+const uploadBtn = document.getElementById('upload-btn');
+const sqlFileInput = document.getElementById('sql-file-input');
 
 let currentExecutionId = null;
 
@@ -133,12 +135,31 @@ function renderError(error) {
   errorBox.textContent = `Statement #${error.statementIndex + 1} failed${location}: ${error.message}`;
 }
 
-async function runSql(mode) {
-  const sqlText = mode === 'script' ? editor.state.doc.toString() : getEditorText();
-  if (!sqlText.trim()) {
+async function handleExecuteResponse(response, startedAt) {
+  if (response.status === 401) {
+    window.location.href = '/admin/login';
     return;
   }
 
+  const body = await response.json();
+
+  if (response.ok) {
+    renderResults(body.statements);
+    runStatus.textContent = `Completed in ${body.totalDurationMs}ms`;
+    loadHistory();
+  } else if (response.status === 422 && body.error) {
+    renderResults(body.statements ?? []);
+    renderError(body.error);
+    runStatus.textContent = `Failed after ${body.totalDurationMs}ms`;
+    loadHistory();
+  } else {
+    errorBox.hidden = false;
+    errorBox.textContent = body.message ? JSON.stringify(body.message) : 'Request failed';
+    runStatus.textContent = '';
+  }
+}
+
+async function runRequest(sendRequest) {
   errorBox.hidden = true;
   errorBox.textContent = '';
   runStatus.textContent = 'Running…';
@@ -149,38 +170,8 @@ async function runSql(mode) {
   const startedAt = performance.now();
 
   try {
-    const response = await fetch('/admin/v1/sql/execute', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sql: sqlText,
-        mode,
-        rowLimit: Number(rowLimitInput.value) || undefined,
-        executionId,
-      }),
-    });
-
-    if (response.status === 401) {
-      window.location.href = '/admin/login';
-      return;
-    }
-
-    const body = await response.json();
-
-    if (response.ok) {
-      renderResults(body.statements);
-      runStatus.textContent = `Completed in ${body.totalDurationMs}ms`;
-      loadHistory();
-    } else if (response.status === 422 && body.error) {
-      renderResults(body.statements ?? []);
-      renderError(body.error);
-      runStatus.textContent = `Failed after ${body.totalDurationMs}ms`;
-      loadHistory();
-    } else {
-      errorBox.hidden = false;
-      errorBox.textContent = body.message ? JSON.stringify(body.message) : 'Request failed';
-      runStatus.textContent = '';
-    }
+    const response = await sendRequest(executionId);
+    await handleExecuteResponse(response, startedAt);
   } catch (err) {
     errorBox.hidden = false;
     errorBox.textContent = err instanceof Error ? err.message : 'Request failed';
@@ -193,8 +184,45 @@ async function runSql(mode) {
   }
 }
 
+function runSql(mode) {
+  const sqlText = mode === 'script' ? editor.state.doc.toString() : getEditorText();
+  if (!sqlText.trim()) {
+    return;
+  }
+  return runRequest((executionId) =>
+    fetch('/admin/v1/sql/execute', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sql: sqlText,
+        mode,
+        rowLimit: Number(rowLimitInput.value) || undefined,
+        executionId,
+      }),
+    }),
+  );
+}
+
 runStatementBtn.addEventListener('click', () => runSql('statement'));
 runScriptBtn.addEventListener('click', () => runSql('script'));
+
+uploadBtn.addEventListener('click', () => sqlFileInput.click());
+
+sqlFileInput.addEventListener('change', () => {
+  const file = sqlFileInput.files[0];
+  sqlFileInput.value = '';
+  if (!file) return;
+
+  runRequest((executionId) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('executionId', executionId);
+    if (Number(rowLimitInput.value)) {
+      formData.append('rowLimit', rowLimitInput.value);
+    }
+    return fetch('/admin/v1/sql/upload', { method: 'POST', body: formData });
+  });
+});
 
 cancelBtn.addEventListener('click', async () => {
   if (!currentExecutionId) return;
