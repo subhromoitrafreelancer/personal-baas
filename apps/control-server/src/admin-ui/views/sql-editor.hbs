@@ -33,6 +33,16 @@
         <input id="row-limit-input" type="number" min="1" max="5000" value="500" />
       </label>
       <button id="toggle-history-btn" type="button">History</button>
+      <label class="snippet-label">
+        RLS snippet
+        <select id="snippet-select">
+          <option value="">Insert a snippet…</option>
+          <option value="owner-only">Owner-only access</option>
+          <option value="public-read-auth-write">Public read / authenticated write</option>
+          <option value="admin-only">Admin-only (service_role)</option>
+          <option value="authenticated-crud">Authenticated CRUD (no ownership)</option>
+        </select>
+      </label>
       <label class="upload-label">
         <input id="sql-file-input" type="file" accept=".sql,text/plain" hidden />
         <button id="upload-btn" type="button">Upload .sql file</button>

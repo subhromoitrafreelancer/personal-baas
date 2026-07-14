@@ -7,6 +7,7 @@ import {
   indentWithTab,
   keymap,
 } from '/admin/static/js/vendor/codemirror.bundle.js';
+import { RLS_SNIPPETS } from '/admin/static/js/rls-snippets.js';
 
 const editor = new EditorView({
   state: EditorState.create({
@@ -29,6 +30,7 @@ const historyPanel = document.getElementById('history-panel');
 const historyList = document.getElementById('history-list');
 const uploadBtn = document.getElementById('upload-btn');
 const sqlFileInput = document.getElementById('sql-file-input');
+const snippetSelect = document.getElementById('snippet-select');
 
 let currentExecutionId = null;
 
@@ -206,6 +208,19 @@ function runSql(mode) {
 
 runStatementBtn.addEventListener('click', () => runSql('statement'));
 runScriptBtn.addEventListener('click', () => runSql('script'));
+
+snippetSelect.addEventListener('change', () => {
+  const snippet = RLS_SNIPPETS[snippetSelect.value];
+  snippetSelect.value = '';
+  if (!snippet) return;
+
+  const { from, to } = editor.state.selection.main;
+  editor.dispatch({
+    changes: { from, to, insert: snippet },
+    selection: { anchor: from + snippet.length },
+  });
+  editor.focus();
+});
 
 uploadBtn.addEventListener('click', () => sqlFileInput.click());
 

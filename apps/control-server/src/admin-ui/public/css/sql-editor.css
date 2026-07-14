@@ -54,12 +54,19 @@
 }
 
 .row-limit-label,
-.upload-label {
+.upload-label,
+.snippet-label {
   font-size: 0.85rem;
   color: #555;
   display: flex;
   align-items: center;
   gap: 0.4rem;
+}
+
+#snippet-select {
+  padding: 0.3rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
 }
 
 #row-limit-input {
