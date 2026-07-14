@@ -154,7 +154,8 @@ async function handleExecuteResponse(response, startedAt) {
     loadHistory();
   } else {
     errorBox.hidden = false;
-    errorBox.textContent = body.message ? JSON.stringify(body.message) : 'Request failed';
+    errorBox.textContent =
+      typeof body.message === 'string' ? body.message : JSON.stringify(body.message ?? 'Request failed');
     runStatus.textContent = '';
   }
 }

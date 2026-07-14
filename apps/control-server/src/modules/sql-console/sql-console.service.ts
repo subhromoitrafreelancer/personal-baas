@@ -1,4 +1,4 @@
-import { Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
 import { DatabaseError } from 'pg';
 import { AdminIdentity } from '../admin-auth/admin.types';
 import { AdminQueryService } from '../admin-db/admin-query.service';
@@ -30,8 +30,7 @@ export class SqlConsoleService {
   ) {}
 
   async execute(input: ExecuteRequest, admin: AdminIdentity): Promise<ExecuteResponse> {
-    const spans =
-      input.mode === 'script' ? splitSqlStatements(input.sql) : [{ text: input.sql, startOffset: 0 }];
+    const spans = splitSqlStatements(input.sql);
     if (spans.length === 0) {
       throw new UnprocessableEntityException({
         mode: input.mode,
@@ -39,6 +38,16 @@ export class SqlConsoleService {
         error: { message: 'No SQL statements found', statementIndex: 0, sql: input.sql },
         totalDurationMs: 0,
       });
+    }
+    if (input.mode === 'statement' && spans.length > 1) {
+      // Without bind parameters, pg sends this via the simple query protocol, which lets
+      // Postgres execute every ';'-separated command in one round trip — but pg then returns
+      // an array of results instead of a single one, which the rest of this method isn't
+      // shaped to handle. Reject up front rather than letting that crash after Postgres has
+      // already run (and possibly partially committed) every statement.
+      throw new BadRequestException(
+        'Multiple SQL statements detected. Select a single statement to run it individually, or use "Run script" to execute all of them.',
+      );
     }
 
     const rowLimit = input.rowLimit ?? DEFAULT_ROW_LIMIT;
