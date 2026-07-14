@@ -1,0 +1,9 @@
+{
+  "name": "@personal-baas/database-bootstrap",
+  "private": true,
+  "version": "0.1.0",
+  "description": "One-time Postgres role/schema init SQL, consumed by infrastructure/postgres",
+  "files": [
+    "sql"
+  ]
+}

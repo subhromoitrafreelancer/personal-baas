@@ -1,0 +1,46 @@
+{
+  "name": "@personal-baas/control-server",
+  "private": true,
+  "version": "0.1.0",
+  "description": "NestJS control service: admin API, admin UI, application auth, PostgREST configuration",
+  "scripts": {
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "start:dev": "nest start --watch",
+    "start:debug": "nest start --debug --watch",
+    "test": "jest",
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "migrate": "node-pg-migrate --migrations-dir migrations --migrations-schema platform --migrations-table pgmigrations",
+    "migrate:up": "npm run migrate -- up",
+    "migrate:down": "npm run migrate -- down",
+    "migrate:create": "node-pg-migrate create --migrations-dir migrations --migration-file-language ts"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.1",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.0.1",
+    "@nestjs/platform-express": "^11.0.1",
+    "nestjs-pino": "^4.1.0",
+    "pg": "^8.13.1",
+    "pino-http": "^10.3.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/schematics": "^11.0.0",
+    "@nestjs/testing": "^11.0.1",
+    "@types/express": "^5.0.0",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.10",
+    "jest": "^29.7.0",
+    "node-pg-migrate": "^7.9.1",
+    "pino-pretty": "^13.0.0",
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  }
+}

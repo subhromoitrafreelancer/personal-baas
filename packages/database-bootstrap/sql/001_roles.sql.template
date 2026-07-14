@@ -1,0 +1,32 @@
+-- Platform roles (scope.md §9). Run once at container init by
+-- infrastructure/postgres/init/00-bootstrap.sh, which substitutes the password
+-- placeholders from environment variables. Never committed with real credentials.
+
+do $$
+begin
+  if not exists (select from pg_roles where rolname = 'baas_admin') then
+    create role baas_admin with login password '${BAAS_ADMIN_PASSWORD}' createrole createdb;
+  end if;
+
+  if not exists (select from pg_roles where rolname = 'authenticator') then
+    -- Login role used by PostgREST; switches request context to anon/authenticated/service_role.
+    create role authenticator with login noinherit password '${AUTHENTICATOR_PASSWORD}';
+  end if;
+
+  if not exists (select from pg_roles where rolname = 'anon') then
+    create role anon nologin;
+  end if;
+
+  if not exists (select from pg_roles where rolname = 'authenticated') then
+    create role authenticated nologin;
+  end if;
+
+  if not exists (select from pg_roles where rolname = 'service_role') then
+    create role service_role nologin bypassrls;
+  end if;
+end
+$$;
+
+grant anon to authenticator;
+grant authenticated to authenticator;
+grant service_role to authenticator;

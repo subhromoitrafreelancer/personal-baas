@@ -1,0 +1,8 @@
+{
+  "name": "@personal-baas/shared-types",
+  "private": true,
+  "version": "0.1.0",
+  "description": "TypeScript types shared across apps and packages (populated from Phase 3 onward)",
+  "main": "index.ts",
+  "types": "index.ts"
+}
