@@ -15,6 +15,7 @@ import { HealthModule } from './modules/health/health.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
 import { SqlConsoleModule } from './modules/sql-console/sql-console.module';
 import { SqlHistoryModule } from './modules/sql-history/sql-history.module';
+import { StorageModule } from './modules/storage/storage.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { SqlHistoryModule } from './modules/sql-history/sql-history.module';
     AdminUsersModule,
     AuditModule,
     ApiKeysModule,
+    StorageModule,
   ],
 })
 export class AppModule {}

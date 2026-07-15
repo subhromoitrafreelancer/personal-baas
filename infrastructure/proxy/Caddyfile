@@ -1,9 +1,10 @@
 # Single public entry point (scope.md §13). Routes, shared by both the plain-HTTP (:8000, dev
 # convenience) and HTTPS (:443, Phase 6 #1 TLS) entry points below:
-#   /rest/v1/*  -> PostgREST (prefix stripped; PostgREST itself has no /rest/v1 prefix)
-#   /auth/*     -> control-server (application auth API)
-#   /admin/*    -> control-server (admin API + admin UI pages)
-#   /health*    -> control-server (liveness/readiness, also used by container healthchecks)
+#   /rest/v1/*    -> PostgREST (prefix stripped; PostgREST itself has no /rest/v1 prefix)
+#   /auth/*       -> control-server (application auth API)
+#   /storage/v1/* -> control-server (Phase 7 object storage API)
+#   /admin/*      -> control-server (admin API + admin UI pages)
+#   /health*      -> control-server (liveness/readiness, also used by container healthchecks)
 {
 	admin off
 }
@@ -17,6 +18,10 @@
 	}
 
 	handle /auth/* {
+		reverse_proxy control-server:3000
+	}
+
+	handle /storage/* {
 		reverse_proxy control-server:3000
 	}
 

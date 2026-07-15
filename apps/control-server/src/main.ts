@@ -22,11 +22,13 @@ async function bootstrap() {
   app.use(helmet({ hsts: false }));
   app.use(cookieParser());
 
-  // /auth/v1/* is meant to be called from arbitrary developer frontends (scope.md §15 JS SDK) —
-  // it returns tokens in the JSON body, never sets cookies, so reflecting the caller's origin
-  // without credentials is safe. /admin/* (session-cookie-based) deliberately gets no CORS here,
-  // since it's only ever called same-origin from the server-rendered admin console.
+  // /auth/v1/* and /storage/v1/* are meant to be called from arbitrary developer frontends
+  // (scope.md §15 JS SDK / §21 Storage) — both authenticate via an Authorization: Bearer header,
+  // never cookies, so reflecting the caller's origin without credentials is safe. /admin/*
+  // (session-cookie-based) deliberately gets no CORS here, since it's only ever called
+  // same-origin from the server-rendered admin console.
   app.use('/auth', cors({ origin: true }));
+  app.use('/storage', cors({ origin: true }));
 
   app.useStaticAssets(join(__dirname, 'admin-ui', 'public'), { prefix: '/admin/static' });
   app.setBaseViewsDir(join(__dirname, 'admin-ui', 'views'));

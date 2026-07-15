@@ -35,6 +35,19 @@ export const envSchema = z.object({
   // Used by /health/ready's PostgREST reachability check (Phase 6 #4) — internal docker-network
   // address only, never routed through Caddy.
   POSTGREST_URL: z.string().url().default('http://postgrest:3001'),
+  // MinIO (Phase 7, scope.md §21) — internal docker-network address only. Credentials are held
+  // exclusively by control-server; clients only ever talk to /storage/v1/* on this service.
+  MINIO_ENDPOINT: z.string().min(1).default('minio'),
+  MINIO_PORT: z.coerce.number().int().positive().default(9000),
+  MINIO_USE_SSL: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  MINIO_ACCESS_KEY: z.string().min(1, 'MINIO_ACCESS_KEY is required'),
+  MINIO_SECRET_KEY: z.string().min(1, 'MINIO_SECRET_KEY is required'),
+  // The single real MinIO bucket for the whole deployment — developer-facing logical "buckets"
+  // are key prefixes within it, tracked in storage.buckets.
+  MINIO_BUCKET: z.string().min(1).default('baas-storage'),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

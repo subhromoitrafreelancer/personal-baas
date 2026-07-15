@@ -186,6 +186,14 @@ generator, or the Phase 5 docs deliverable), so this phase can run before Phase 
 MinIO-backed object storage (§21 in `scope.md`). Promoted from scope.md's "Later Roadmap" —
 the user considers this near-required ("most apps will require this"), unlike Realtime below.
 
+The user narrowed this pass to items 1, 2, 3, and 6 — the core vertical slice (MinIO service,
+schema, object CRUD API, admin UI) — deferring #4 (signed URLs) and #5 (per-upload size limits)
+to a follow-up, same narrowing pattern as Phase 6/6b. Verified end-to-end against the live dev
+stack: admin bucket create/list, admin object upload/download/delete, and the public
+`/storage/v1/object/:bucket/*path` route with two real signed-up/logged-in users — owner-only
+read/write on a private bucket, public-bucket read by a non-owner, non-owner write/delete
+rejected, and `..`/`%2e%2e` path-traversal segments rejected with 400.
+
 1. **MinIO service + bootstrap** — new `minio` service in `docker-compose.yml` (own named volume, root credentials via env, no unnecessary host port exposure), single bucket auto-created at bootstrap (mirrors `database-bootstrap`'s role/schema init pattern).
 2. **`storage` schema migrations** — `storage.buckets` (id, name, public boolean, size_limit_bytes, created_at) and `storage.objects` (id, bucket_id, path, owner user id, size, content_type, created_at) via `node-pg-migrate`, same convention as `platform`/`auth`.
 3. **Storage API module** — new control-server module, `POST/GET/DELETE /storage/v1/object/:bucket/*path`, authenticated via the existing app-user JWT; checks caller permission against `storage.buckets`/`storage.objects` (owner-based + public-bucket-read) before streaming to/from MinIO using a service credential never exposed to browsers.
