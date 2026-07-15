@@ -14,7 +14,12 @@ function renderColumns(columns) {
   const rows = columns
     .map(
       (col) => `<tr>
-        <td>${escapeHtml(col.name)}</td>
+        <td>
+          <span class="copyable-cell">
+            ${escapeHtml(col.name)}
+            <button type="button" class="copy-btn" data-copy-value="${escapeHtml(col.name)}">Copy</button>
+          </span>
+        </td>
         <td>${escapeHtml(col.dataType)}</td>
         <td>${col.nullable ? 'YES' : 'NO'}</td>
         <td>${col.default ? escapeHtml(col.default) : ''}</td>
@@ -84,14 +89,16 @@ function exposureWarning(table) {
   return '';
 }
 
-function renderTable(table) {
+function renderTable(table, schemaName) {
   const block = document.createElement('div');
   block.className = 'table-block';
+  const qualifiedName = `${schemaName}.${table.name}`;
 
   const header = document.createElement('div');
   header.className = 'table-header';
   header.innerHTML = `
     <span class="table-name">${escapeHtml(table.name)}</span>
+    <button type="button" class="copy-btn" data-copy-value="${escapeHtml(qualifiedName)}">Copy</button>
     <span class="badge">${escapeHtml(table.kind)}</span>
     ${table.apiExposed ? '<span class="badge api-exposed">API exposed</span>' : ''}
     <span class="badge ${table.rlsEnabled ? 'rls-on' : 'rls-off'}">${table.rlsEnabled ? 'RLS enabled' : 'RLS disabled'}</span>
@@ -104,7 +111,8 @@ function renderTable(table) {
   details.innerHTML =
     renderColumns(table.columns) + renderKeys(table) + renderIndexes(table.indexes) + renderPolicies(table.policies);
 
-  header.addEventListener('click', () => {
+  header.addEventListener('click', (event) => {
+    if (event.target.closest('.copy-btn')) return;
     details.hidden = !details.hidden;
   });
 
@@ -123,7 +131,7 @@ function renderSchema(schema) {
   block.appendChild(header);
 
   for (const table of schema.tables) {
-    block.appendChild(renderTable(table));
+    block.appendChild(renderTable(table, schema.name));
   }
 
   if (schema.functions.length > 0) {

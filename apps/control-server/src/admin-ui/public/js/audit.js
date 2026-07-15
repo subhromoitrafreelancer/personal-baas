@@ -17,12 +17,23 @@ function escapeHtml(value) {
 
 function renderRow(event) {
   const tr = document.createElement('tr');
+  const userValue = event.userEmail ?? event.userId ?? '';
+  const metadataText = JSON.stringify(event.metadata);
   tr.innerHTML = `
     <td>${new Date(event.createdAt).toLocaleString()}</td>
     <td><span class="badge">${escapeHtml(event.eventType)}</span></td>
-    <td>${escapeHtml(event.userEmail ?? event.userId ?? '—')}</td>
+    <td>${
+      userValue
+        ? `<span class="copyable-cell">${escapeHtml(userValue)}<button type="button" class="copy-btn" data-copy-value="${escapeHtml(userValue)}">Copy</button></span>`
+        : '—'
+    }</td>
     <td>${escapeHtml(event.ipAddress ?? '—')}</td>
-    <td class="metadata-cell">${escapeHtml(JSON.stringify(event.metadata))}</td>
+    <td class="metadata-cell">
+      <span class="copyable-cell">
+        ${escapeHtml(metadataText)}
+        <button type="button" class="copy-btn" data-copy-value="${escapeHtml(metadataText)}">Copy</button>
+      </span>
+    </td>
   `;
   return tr;
 }

@@ -122,6 +122,28 @@ a {
   width: 100%;
 }
 
+.copy-btn {
+  padding: 0.15rem 0.45rem;
+  font-size: 0.7rem;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.copy-btn:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+.copyable-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
 /* ============================================================
    Layout: topbar / topnav / footer
    ============================================================ */
@@ -392,10 +414,25 @@ select {
   background: var(--color-warning-bg);
   border: 1px solid #e0c700;
   border-radius: var(--radius-sm);
-  font-family: var(--font-mono);
   font-size: 0.85rem;
+}
+
+.secret-banner-note {
+  color: #6b5600;
+  margin: 0.2rem 0 0.5rem;
+}
+
+.secret-banner-token-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.secret-banner-token-row code {
+  font-family: var(--font-mono);
   white-space: pre-wrap;
   word-break: break-all;
+  flex: 1;
 }
 
 /* ============================================================

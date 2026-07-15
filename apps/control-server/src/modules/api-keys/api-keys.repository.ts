@@ -33,6 +33,11 @@ export class ApiKeysRepository {
     return rows;
   }
 
+  async findById(id: string): Promise<ApiKeyRow | null> {
+    const { rows } = await this.pool.query<ApiKeyRow>('SELECT * FROM platform.api_keys WHERE id = $1', [id]);
+    return rows[0] ?? null;
+  }
+
   async revoke(id: string, revokedBy: string): Promise<ApiKeyRow | null> {
     const { rows } = await this.pool.query<ApiKeyRow>(
       `UPDATE platform.api_keys

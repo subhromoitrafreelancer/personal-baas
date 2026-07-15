@@ -32,4 +32,9 @@ export class ApiKeysController {
   async revoke(@Param('id') id: string, @Req() req: RequestWithAdmin) {
     return this.apiKeys.revoke(id, req.admin!.email);
   }
+
+  @Post(':id/reveal')
+  async reveal(@Param('id') id: string, @Req() req: RequestWithAdmin) {
+    return this.apiKeys.reveal(id, req.admin!.email);
+  }
 }

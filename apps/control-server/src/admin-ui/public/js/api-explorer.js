@@ -137,20 +137,6 @@ function renderFunctionCard(fn) {
   return card;
 }
 
-container.addEventListener('click', (event) => {
-  const btn = event.target.closest('.snippet-copy-btn');
-  if (!btn) return;
-  const target = document.getElementById(btn.dataset.copyTarget);
-  if (!target) return;
-  navigator.clipboard.writeText(target.textContent).then(() => {
-    const original = btn.textContent;
-    btn.textContent = 'Copied!';
-    setTimeout(() => {
-      btn.textContent = original;
-    }, 1200);
-  });
-});
-
 async function loadApiObjects() {
   statusEl.textContent = 'Loading…';
   try {

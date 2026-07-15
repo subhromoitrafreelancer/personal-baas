@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuthAuditService } from '../auth/auth-audit.service';
 import { AuthJwtService } from '../auth/auth-jwt.service';
 import { ApiKeysRepository } from './api-keys.repository';
@@ -51,5 +51,25 @@ export class ApiKeysService {
     }
     this.audit.record(null, 'admin.api_key_revoked', null, null, { name: row.name, revokedBy: adminEmail });
     return toPublicKey(row);
+  }
+
+  // Publishable/anon keys are meant to be public-safe (like a Supabase anon key), so re-signing
+  // one on demand is low risk — the token was never stored in the first place since it's a pure
+  // function of role+kid (see AuthJwtService.signApiKeyToken). Secret/service_role keys bypass
+  // RLS entirely and deliberately stay one-time-reveal (Phase 4.4 design) — not exposed here.
+  async reveal(id: string, adminEmail: string) {
+    const row = await this.apiKeysRepo.findById(id);
+    if (!row) {
+      throw new NotFoundException('API key not found');
+    }
+    if (row.kind !== 'publishable') {
+      throw new BadRequestException('Only publishable keys can be viewed again');
+    }
+    if (row.revoked_at) {
+      throw new BadRequestException('This key has been revoked');
+    }
+    const token = await this.jwt.signApiKeyToken('anon', row.id);
+    this.audit.record(null, 'admin.api_key_viewed', null, null, { name: row.name, viewedBy: adminEmail });
+    return { token };
   }
 }

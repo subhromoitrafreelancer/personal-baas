@@ -42,7 +42,12 @@ function renderRow(user) {
   const disableLabel = user.status === 'disabled' ? 'Enable' : 'Disable';
   const nextStatus = user.status === 'disabled' ? 'active' : 'disabled';
   tr.innerHTML = `
-    <td>${escapeHtml(user.email)}</td>
+    <td>
+      <span class="copyable-cell">
+        ${escapeHtml(user.email)}
+        <button type="button" class="copy-btn" data-copy-value="${escapeHtml(user.email)}">Copy</button>
+      </span>
+    </td>
     <td><span class="badge status-${escapeHtml(user.status)}">${escapeHtml(user.status)}</span></td>
     <td>${user.emailVerified ? 'Yes' : 'No'}</td>
     <td>${new Date(user.createdAt).toLocaleString()}</td>

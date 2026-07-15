@@ -52,7 +52,7 @@ async function loadUsersCard() {
 
 async function loadApiKeysCard() {
   try {
-    const keys = await fetchJson('/admin/v1/api-keys');
+    const { keys } = await fetchJson('/admin/v1/api-keys');
     const active = keys.filter((key) => !key.revokedAt);
     const publishable = active.filter((key) => key.kind === 'publishable').length;
     const secret = active.filter((key) => key.kind === 'secret').length;
