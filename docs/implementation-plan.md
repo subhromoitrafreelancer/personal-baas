@@ -210,6 +210,10 @@ Supersedes the Phase 5 "Sample app" item above: built earlier and without the cl
 dependency (Phase 5 remains deferred), since it also needs to demonstrate Storage (Phase 7).
 Runs after Phase 7, before Phase 8, per its dependency on Storage for attachments.
 
+Built and verified end-to-end against the live dev stack: registered two separate users, confirmed
+each sees only their own todos (RLS), added/toggled/deleted todos, and attached/downloaded/removed
+a file on a todo through the real `/storage/v1/object/todo-attachments/*path` route.
+
 1. **`api.todos` schema + RLS** — `examples/todo-app/schema.sql`: `todos` table (`id`, `user_id`, `title`, `done`, `attachment_path`, `created_at`, `updated_at`) plus the owner-only RLS policy set from `rls-snippets.js`, run once by hand through `/admin/sql` (per the established `api`/`private` schema convention — never migrated by tooling).
 2. **Storage bucket provisioning** — a `todo-attachments` bucket created via the Phase 7 admin UI (or a direct `storage.buckets` insert) before first use; documented as a one-time setup step in the example's README.
 3. **API client (`js/api.js`)** — thin `fetch` wrapper: `/auth/v1/signup`, `/auth/v1/login`, `/auth/v1/token` (refresh-on-401), `/rest/v1/todos` CRUD, `/storage/v1/object/todo-attachments/*path` upload/download/delete — a single `Authorization: Bearer` header throughout (publishable-key JWT pre-login, swapped for the session's access token post-login), matching this project's actual auth model (no separate `apikey` header, unlike Supabase).
