@@ -12,6 +12,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { DatabaseModule } from './modules/database/database.module';
 import { DbExplorerModule } from './modules/db-explorer/db-explorer.module';
 import { HealthModule } from './modules/health/health.module';
+import { MetricsModule } from './modules/metrics/metrics.module';
 import { SqlConsoleModule } from './modules/sql-console/sql-console.module';
 import { SqlHistoryModule } from './modules/sql-history/sql-history.module';
 
@@ -36,6 +37,7 @@ import { SqlHistoryModule } from './modules/sql-history/sql-history.module';
     DatabaseModule,
     AdminDbModule,
     HealthModule,
+    MetricsModule,
     AdminAuthModule,
     SqlHistoryModule,
     SqlConsoleModule,

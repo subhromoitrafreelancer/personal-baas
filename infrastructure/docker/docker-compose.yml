@@ -39,6 +39,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # No Docker HEALTHCHECK: this image ships only the static postgrest binary, no shell or
+    # HTTP client to run one with. control-server's /health/ready checks this service's
+    # reachability instead, and Caddy's own healthcheck below exercises the real proxy path to it.
 
   control-server:
     build:
@@ -56,6 +59,7 @@ services:
       AUTH_JWT_PUBLIC_KEY_BASE64: ${AUTH_JWT_PUBLIC_KEY_BASE64}
       AUTH_ACCESS_TOKEN_TTL_SECONDS: ${AUTH_ACCESS_TOKEN_TTL_SECONDS:-900}
       AUTH_REFRESH_TOKEN_TTL_DAYS: ${AUTH_REFRESH_TOKEN_TTL_DAYS:-30}
+      POSTGREST_URL: http://postgrest:3001
     ports:
       - '3000:3000'
     depends_on:
@@ -88,6 +92,13 @@ services:
         condition: service_healthy
       postgrest:
         condition: service_started
+    healthcheck:
+      # Exercises the real proxy path through to PostgREST, which has no healthcheck of its own
+      # (see comment above) — this is this project's only end-to-end check of that hop.
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8000/rest/v1/']
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
 volumes:
   pgdata:

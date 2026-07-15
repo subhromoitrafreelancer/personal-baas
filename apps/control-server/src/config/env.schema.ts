@@ -32,6 +32,9 @@ export const envSchema = z.object({
   AUTH_JWT_PUBLIC_KEY_BASE64: z.string().min(1, 'AUTH_JWT_PUBLIC_KEY_BASE64 is required'),
   AUTH_ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   AUTH_REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
+  // Used by /health/ready's PostgREST reachability check (Phase 6 #4) — internal docker-network
+  // address only, never routed through Caddy.
+  POSTGREST_URL: z.string().url().default('http://postgrest:3001'),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
