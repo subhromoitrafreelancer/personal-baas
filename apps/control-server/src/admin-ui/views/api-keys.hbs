@@ -4,61 +4,51 @@
   <meta charset="utf-8" />
   <title>API Keys — Personal BaaS Admin</title>
   <link rel="stylesheet" href="/admin/static/css/admin.css" />
-  <link rel="stylesheet" href="/admin/static/css/api-keys.css" />
 </head>
 <body>
-  <header class="topbar">
-    <span class="brand">Personal BaaS Admin</span>
-    <nav class="topnav">
-      <a href="/admin">Dashboard</a>
-      <a href="/admin/sql">SQL Editor</a>
-      <a href="/admin/database">Database</a>
-      <a href="/admin/api">API Explorer</a>
-      <a href="/admin/users">Users</a>
-      <a href="/admin/api-keys" class="active">API Keys</a>
-      <a href="/admin/audit">Audit Log</a>
-    </nav>
-    <form method="post" action="/admin/logout" class="logout-form">
-      <span class="signed-in-as">{{email}}</span>
-      <button type="submit">Sign out</button>
-    </form>
-  </header>
+  {{> topbar}}
 
-  <main class="api-keys-page">
-    <div class="api-keys-toolbar">
-      <button id="create-key-btn" type="button">Create key</button>
+  <main class="page api-keys-page">
+    <h1>API Keys</h1>
+    <div class="api-keys-toolbar toolbar">
+      <button id="create-key-btn" type="button" class="btn btn-primary">Create key</button>
       <span id="keys-status" class="run-status"></span>
     </div>
 
     <div id="secret-banner" class="secret-banner" hidden></div>
 
-    <form id="create-key-form" class="create-key-form" hidden>
-      <label>Name <input id="new-key-name" type="text" required placeholder="e.g. web-app-publishable" /></label>
-      <label>Kind
+    <form id="create-key-form" class="inline-form" hidden>
+      <label class="field">Name <input id="new-key-name" type="text" required placeholder="e.g. web-app-publishable" /></label>
+      <label class="field">Kind
         <select id="new-key-kind">
           <option value="publishable">Publishable (anon)</option>
           <option value="secret">Secret (service_role — never expose to browsers)</option>
         </select>
       </label>
-      <button type="submit">Create</button>
-      <button type="button" id="cancel-create-btn">Cancel</button>
+      <button type="submit" class="btn btn-primary">Create</button>
+      <button type="button" id="cancel-create-btn" class="btn btn-outline">Cancel</button>
     </form>
 
-    <table class="keys-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Kind</th>
-          <th>Created</th>
-          <th>Created by</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody id="keys-tbody"></tbody>
-    </table>
+    <div class="table-wrap">
+      <table class="table keys-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Kind</th>
+            <th>Created</th>
+            <th>Created by</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="keys-tbody"></tbody>
+      </table>
+    </div>
   </main>
 
+  {{> footer}}
+
+  <script src="/admin/static/js/topbar.js"></script>
   <script src="/admin/static/js/api-keys.js"></script>
 </body>
 </html>

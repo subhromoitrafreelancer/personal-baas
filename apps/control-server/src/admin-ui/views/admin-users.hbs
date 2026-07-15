@@ -7,61 +7,52 @@
   <link rel="stylesheet" href="/admin/static/css/admin-users.css" />
 </head>
 <body>
-  <header class="topbar">
-    <span class="brand">Personal BaaS Admin</span>
-    <nav class="topnav">
-      <a href="/admin">Dashboard</a>
-      <a href="/admin/sql">SQL Editor</a>
-      <a href="/admin/database">Database</a>
-      <a href="/admin/api">API Explorer</a>
-      <a href="/admin/users" class="active">Users</a>
-      <a href="/admin/api-keys">API Keys</a>
-      <a href="/admin/audit">Audit Log</a>
-    </nav>
-    <form method="post" action="/admin/logout" class="logout-form">
-      <span class="signed-in-as">{{email}}</span>
-      <button type="submit">Sign out</button>
-    </form>
-  </header>
+  {{> topbar}}
 
-  <main class="admin-users-page">
-    <div class="admin-users-toolbar">
+  <main class="page admin-users-page">
+    <h1>Users</h1>
+    <div class="admin-users-toolbar toolbar">
       <input id="search-input" type="search" placeholder="Search by email…" />
-      <button id="search-btn" type="button">Search</button>
-      <button id="create-user-btn" type="button">Create user</button>
+      <button id="search-btn" type="button" class="btn btn-outline">Search</button>
+      <button id="create-user-btn" type="button" class="btn btn-primary">Create user</button>
       <span id="users-status" class="run-status"></span>
     </div>
 
     <div id="secret-banner" class="secret-banner" hidden></div>
 
-    <form id="create-user-form" class="create-user-form" hidden>
-      <label>Email <input id="new-user-email" type="email" required /></label>
-      <label>Password (optional — leave blank to auto-generate) <input id="new-user-password" type="text" /></label>
-      <button type="submit">Create</button>
-      <button type="button" id="cancel-create-btn">Cancel</button>
+    <form id="create-user-form" class="inline-form" hidden>
+      <label class="field">Email <input id="new-user-email" type="email" required /></label>
+      <label class="field">Password (optional — leave blank to auto-generate) <input id="new-user-password" type="text" /></label>
+      <button type="submit" class="btn btn-primary">Create</button>
+      <button type="button" id="cancel-create-btn" class="btn btn-outline">Cancel</button>
     </form>
 
-    <table class="users-table">
-      <thead>
-        <tr>
-          <th>Email</th>
-          <th>Status</th>
-          <th>Email verified</th>
-          <th>Created</th>
-          <th>Last sign-in</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody id="users-tbody"></tbody>
-    </table>
+    <div class="table-wrap">
+      <table class="table users-table">
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Status</th>
+            <th>Email verified</th>
+            <th>Created</th>
+            <th>Last sign-in</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="users-tbody"></tbody>
+      </table>
+    </div>
 
     <div class="pagination">
-      <button id="prev-page-btn" type="button">Previous</button>
+      <button id="prev-page-btn" type="button" class="btn btn-outline btn-sm">Previous</button>
       <span id="page-info"></span>
-      <button id="next-page-btn" type="button">Next</button>
+      <button id="next-page-btn" type="button" class="btn btn-outline btn-sm">Next</button>
     </div>
   </main>
 
+  {{> footer}}
+
+  <script src="/admin/static/js/topbar.js"></script>
   <script src="/admin/static/js/admin-users.js"></script>
 </body>
 </html>

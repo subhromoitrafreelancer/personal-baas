@@ -90,6 +90,7 @@ function renderStatementResult(statement, index) {
   if (statement.rows.length > 0) {
     const exportBtn = document.createElement('button');
     exportBtn.type = 'button';
+    exportBtn.className = 'btn btn-outline btn-sm';
     exportBtn.textContent = 'Export CSV';
     exportBtn.addEventListener('click', () =>
       downloadCsv(statement.fields, statement.rows, `query-result-${index + 1}.csv`),
@@ -103,7 +104,7 @@ function renderStatementResult(statement, index) {
     const wrap = document.createElement('div');
     wrap.className = 'result-table-wrap';
     const table = document.createElement('table');
-    table.className = 'result-table';
+    table.className = 'table result-table';
     const thead = document.createElement('thead');
     thead.innerHTML = `<tr>${statement.fields.map((f) => `<th>${escapeHtml(f)}</th>`).join('')}</tr>`;
     const tbody = document.createElement('tbody');

@@ -2,28 +2,27 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Admin Console — Personal BaaS</title>
+  <title>Dashboard — Personal BaaS Admin</title>
   <link rel="stylesheet" href="/admin/static/css/admin.css" />
+  <link rel="stylesheet" href="/admin/static/css/dashboard.css" />
 </head>
 <body>
-  <header class="topbar">
-    <span class="brand">Personal BaaS Admin</span>
-    <nav class="topnav">
-      <a href="/admin">Dashboard</a>
-      <a href="/admin/sql">SQL Editor</a>
-      <a href="/admin/database">Database</a>
-      <a href="/admin/api">API Explorer</a>
-      <a href="/admin/users">Users</a>
-      <a href="/admin/api-keys">API Keys</a>
-      <a href="/admin/audit">Audit Log</a>
-    </nav>
-    <form method="post" action="/admin/logout" class="logout-form">
-      <span class="signed-in-as">{{email}}</span>
-      <button type="submit">Sign out</button>
-    </form>
-  </header>
-  <main class="dashboard">
+  {{> topbar}}
+
+  <main class="page dashboard-page">
     <h1>Dashboard</h1>
+
+    <div id="kpi-grid" class="kpi-grid">
+      <div class="kpi-card skeleton"></div>
+      <div class="kpi-card skeleton"></div>
+      <div class="kpi-card skeleton"></div>
+      <div class="kpi-card skeleton"></div>
+    </div>
   </main>
+
+  {{> footer}}
+
+  <script src="/admin/static/js/topbar.js"></script>
+  <script type="module" src="/admin/static/js/dashboard.js"></script>
 </body>
 </html>

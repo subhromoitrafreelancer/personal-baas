@@ -37,7 +37,7 @@ function renderRow(key) {
     <td>${new Date(key.createdAt).toLocaleString()}</td>
     <td>${escapeHtml(key.createdBy)}</td>
     <td>${escapeHtml(status)}</td>
-    <td>${key.revokedAt ? '' : '<button type="button" data-action="revoke">Revoke</button>'}</td>
+    <td>${key.revokedAt ? '' : '<button type="button" class="btn btn-danger btn-sm" data-action="revoke">Revoke</button>'}</td>
   `;
 
   const revokeBtn = tr.querySelector('[data-action="revoke"]');

@@ -7,27 +7,13 @@
   <link rel="stylesheet" href="/admin/static/css/api-explorer.css" />
 </head>
 <body>
-  <header class="topbar">
-    <span class="brand">Personal BaaS Admin</span>
-    <nav class="topnav">
-      <a href="/admin">Dashboard</a>
-      <a href="/admin/sql">SQL Editor</a>
-      <a href="/admin/database">Database</a>
-      <a href="/admin/api" class="active">API Explorer</a>
-      <a href="/admin/users">Users</a>
-      <a href="/admin/api-keys">API Keys</a>
-      <a href="/admin/audit">Audit Log</a>
-    </nav>
-    <form method="post" action="/admin/logout" class="logout-form">
-      <span class="signed-in-as">{{email}}</span>
-      <button type="submit">Sign out</button>
-    </form>
-  </header>
+  {{> topbar}}
 
-  <main class="api-explorer-page">
-    <div class="api-explorer-toolbar">
-      <button id="refresh-api-btn" type="button">Refresh</button>
-      <button id="toggle-openapi-btn" type="button">View OpenAPI Spec</button>
+  <main class="page api-explorer-page">
+    <h1>API Explorer</h1>
+    <div class="api-explorer-toolbar toolbar">
+      <button id="refresh-api-btn" type="button" class="btn btn-primary">Refresh</button>
+      <button id="toggle-openapi-btn" type="button" class="btn btn-outline">View OpenAPI Spec</button>
       <span id="api-status" class="run-status"></span>
     </div>
     <div id="api-objects-container"></div>
@@ -36,12 +22,15 @@
       <div class="openapi-panel-header">
         <h2>PostgREST OpenAPI spec</h2>
         <a href="/rest/v1/" target="_blank" rel="noopener">Open raw in new tab</a>
-        <button id="download-openapi-btn" type="button">Download JSON</button>
+        <button id="download-openapi-btn" type="button" class="btn btn-outline btn-sm">Download JSON</button>
       </div>
       <pre id="openapi-json"></pre>
     </section>
   </main>
 
+  {{> footer}}
+
+  <script src="/admin/static/js/topbar.js"></script>
   <script type="module" src="/admin/static/js/api-explorer.js"></script>
 </body>
 </html>

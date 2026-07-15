@@ -48,9 +48,9 @@ function renderRow(user) {
     <td>${new Date(user.createdAt).toLocaleString()}</td>
     <td>${user.lastSignInAt ? new Date(user.lastSignInAt).toLocaleString() : '—'}</td>
     <td class="actions-cell">
-      <button type="button" data-action="status" data-status="${nextStatus}">${disableLabel}</button>
-      <button type="button" data-action="reset-token">Reset link</button>
-      <button type="button" data-action="temp-password">Temp password</button>
+      <button type="button" class="btn btn-outline btn-sm" data-action="status" data-status="${nextStatus}">${disableLabel}</button>
+      <button type="button" class="btn btn-outline btn-sm" data-action="reset-token">Reset link</button>
+      <button type="button" class="btn btn-outline btn-sm" data-action="temp-password">Temp password</button>
     </td>
   `;
 

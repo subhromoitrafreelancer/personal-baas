@@ -7,33 +7,19 @@
   <link rel="stylesheet" href="/admin/static/css/sql-editor.css" />
 </head>
 <body>
-  <header class="topbar">
-    <span class="brand">Personal BaaS Admin</span>
-    <nav class="topnav">
-      <a href="/admin">Dashboard</a>
-      <a href="/admin/sql" class="active">SQL Editor</a>
-      <a href="/admin/database">Database</a>
-      <a href="/admin/api">API Explorer</a>
-      <a href="/admin/users">Users</a>
-      <a href="/admin/api-keys">API Keys</a>
-      <a href="/admin/audit">Audit Log</a>
-    </nav>
-    <form method="post" action="/admin/logout" class="logout-form">
-      <span class="signed-in-as">{{email}}</span>
-      <button type="submit">Sign out</button>
-    </form>
-  </header>
+  {{> topbar}}
 
-  <main class="sql-editor-page">
-    <div class="sql-toolbar">
-      <button id="run-statement-btn" type="button">Run statement</button>
-      <button id="run-script-btn" type="button">Run script</button>
-      <button id="cancel-btn" type="button" hidden>Cancel</button>
+  <main class="page sql-editor-page">
+    <h1>SQL Editor</h1>
+    <div class="sql-toolbar toolbar">
+      <button id="run-statement-btn" type="button" class="btn btn-primary">Run statement</button>
+      <button id="run-script-btn" type="button" class="btn btn-primary">Run script</button>
+      <button id="cancel-btn" type="button" class="btn btn-danger" hidden>Cancel</button>
       <label class="row-limit-label">
         Row limit
         <input id="row-limit-input" type="number" min="1" max="5000" value="500" />
       </label>
-      <button id="toggle-history-btn" type="button">History</button>
+      <button id="toggle-history-btn" type="button" class="btn btn-outline">History</button>
       <label class="snippet-label">
         RLS snippet
         <select id="snippet-select">
@@ -46,7 +32,7 @@
       </label>
       <label class="upload-label">
         <input id="sql-file-input" type="file" accept=".sql,text/plain" hidden />
-        <button id="upload-btn" type="button">Upload .sql file</button>
+        <button id="upload-btn" type="button" class="btn btn-outline">Upload .sql file</button>
       </label>
       <span id="run-status" class="run-status"></span>
     </div>
@@ -55,7 +41,7 @@
       <div class="sql-editor-main">
         <div id="sql-editor-cm" class="sql-editor-cm"></div>
 
-        <div id="sql-error" class="sql-error" hidden></div>
+        <div id="sql-error" class="banner banner-danger" hidden></div>
 
         <div id="sql-results"></div>
       </div>
@@ -63,13 +49,16 @@
       <aside id="history-panel" class="history-panel" hidden>
         <div class="history-panel-header">
           <h2>Execution history</h2>
-          <button id="refresh-history-btn" type="button">Refresh</button>
+          <button id="refresh-history-btn" type="button" class="btn btn-outline btn-sm">Refresh</button>
         </div>
         <ul id="history-list" class="history-list"></ul>
       </aside>
     </div>
   </main>
 
+  {{> footer}}
+
+  <script src="/admin/static/js/topbar.js"></script>
   <script type="module" src="/admin/static/js/sql-editor.js"></script>
 </body>
 </html>

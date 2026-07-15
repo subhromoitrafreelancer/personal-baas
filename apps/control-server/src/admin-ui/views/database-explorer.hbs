@@ -7,31 +7,20 @@
   <link rel="stylesheet" href="/admin/static/css/database-explorer.css" />
 </head>
 <body>
-  <header class="topbar">
-    <span class="brand">Personal BaaS Admin</span>
-    <nav class="topnav">
-      <a href="/admin">Dashboard</a>
-      <a href="/admin/sql">SQL Editor</a>
-      <a href="/admin/database" class="active">Database</a>
-      <a href="/admin/api">API Explorer</a>
-      <a href="/admin/users">Users</a>
-      <a href="/admin/api-keys">API Keys</a>
-      <a href="/admin/audit">Audit Log</a>
-    </nav>
-    <form method="post" action="/admin/logout" class="logout-form">
-      <span class="signed-in-as">{{email}}</span>
-      <button type="submit">Sign out</button>
-    </form>
-  </header>
+  {{> topbar}}
 
-  <main class="db-explorer-page">
-    <div class="db-explorer-toolbar">
-      <button id="refresh-objects-btn" type="button">Refresh</button>
+  <main class="page db-explorer-page">
+    <h1>Database</h1>
+    <div class="db-explorer-toolbar toolbar">
+      <button id="refresh-objects-btn" type="button" class="btn btn-primary">Refresh</button>
       <span id="objects-status" class="run-status"></span>
     </div>
     <div id="schemas-container"></div>
   </main>
 
+  {{> footer}}
+
+  <script src="/admin/static/js/topbar.js"></script>
   <script type="module" src="/admin/static/js/database-explorer.js"></script>
 </body>
 </html>
