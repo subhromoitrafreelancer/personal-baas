@@ -46,7 +46,7 @@ personal-baas/
 │   ├── postgrest/                 # postgrest.conf template
 │   └── proxy/                     # Caddyfile
 ├── examples/
-│   └── html-todo-app/
+│   └── todo-app/
 └── docs/
 ```
 
@@ -162,9 +162,10 @@ original items 1 and 2 into one PR since #1 had no remaining content of its own.
 4. **SDK build/packaging** — `tsup`/`tsc` build, unit tests against a mocked fetch layer.
 5. **Copyable snippets** — extend the API explorer (Phase 2 #2) with generated JS-SDK examples alongside cURL.
 6. **Env file generator** — admin UI action producing a `.env` with `BAAS_URL`/`BAAS_PUBLISHABLE_KEY`/`BAAS_SERVICE_KEY`.
-7. **Sample app** — `examples/html-todo-app`: plain HTML/vanilla JS app using the SDK against `api.tasks`.
-8. **Docs** — install/deploy guide in `docs/`.
+7. **Docs** — install/deploy guide in `docs/`.
    - **Acceptance**: a new HTML page can auth + CRUD against `tasks` with zero backend code.
+
+The sample app originally planned here (`examples/html-todo-app`, using the SDK) was built ahead of schedule as Phase 7a's `examples/todo-app` instead — directly against REST/Auth/Storage rather than the (still-unbuilt) SDK, since it also needed to demonstrate Storage.
 
 ## Phase 6 — Operational hardening
 
@@ -192,6 +193,21 @@ the user considers this near-required ("most apps will require this"), unlike Re
 5. **Size limits** — per-upload cap enforced in the storage module (mirrors the existing SQL-file-upload size-cap precedent), configurable via env.
 6. **Admin UI** — new `/admin/storage` page (bucket list, object browser, manual upload/download for testing), following the existing page-controller + `{{> topbar}}`/`{{> footer}}` partial pattern.
    - **Acceptance**: create a bucket, upload an object with an authenticated JWT, download it back, confirm a non-owner/non-public request is rejected, confirm a signed URL works without the caller's own JWT.
+
+## Phase 7a — Example Todo App
+
+A standalone reference client demonstrating the full stack (Auth + REST + Storage) exactly as a
+real third-party developer would consume it — no internal code, only the public HTTP API.
+Supersedes the Phase 5 "Sample app" item above: built earlier and without the client-SDK
+dependency (Phase 5 remains deferred), since it also needs to demonstrate Storage (Phase 7).
+Runs after Phase 7, before Phase 8, per its dependency on Storage for attachments.
+
+1. **`api.todos` schema + RLS** — `examples/todo-app/schema.sql`: `todos` table (`id`, `user_id`, `title`, `done`, `attachment_path`, `created_at`, `updated_at`) plus the owner-only RLS policy set from `rls-snippets.js`, run once by hand through `/admin/sql` (per the established `api`/`private` schema convention — never migrated by tooling).
+2. **Storage bucket provisioning** — a `todo-attachments` bucket created via the Phase 7 admin UI (or a direct `storage.buckets` insert) before first use; documented as a one-time setup step in the example's README.
+3. **API client (`js/api.js`)** — thin `fetch` wrapper: `/auth/v1/signup`, `/auth/v1/login`, `/auth/v1/token` (refresh-on-401), `/rest/v1/todos` CRUD, `/storage/v1/object/todo-attachments/*path` upload/download/delete — a single `Authorization: Bearer` header throughout (publishable-key JWT pre-login, swapped for the session's access token post-login), matching this project's actual auth model (no separate `apikey` header, unlike Supabase).
+4. **UI (`index.html` + `js/app.js` + jQuery)** — single-page view-toggle: register/login forms, todo list with add/toggle-done/delete, per-todo file attach/download/remove. Plain CSS, no build step; jQuery vendored locally (not CDN-loaded) so the directory works fully offline once copied — a deliberate, scoped first-time exception to this codebase's otherwise vanilla-JS-only convention.
+5. **`config.js`** — the only file a developer edits after copying the directory: `{ baseUrl, anonKey }`.
+   - **Acceptance**: copy `examples/todo-app/` to a fresh location, edit only `config.js` to point at a running stack and a freshly minted publishable key, open `index.html` in a browser, register a user, log in, create/toggle/delete todos, attach/download/remove a file on a todo — all without touching any other file.
 
 ## Phase 8 — Realtime (optional)
 
@@ -236,8 +252,9 @@ user's direction — not dropped.
 - Phase 2: create `api.tasks` via SQL editor → immediately curl `/rest/v1/tasks` with no restart.
 - Phase 3: full signup → login → refresh → revoke → refresh-fails flow via curl/script.
 - Phase 4: two-user RLS isolation test on `api.tasks`.
-- Phase 5: run `examples/html-todo-app` in a browser against the running stack. (deferred)
+- Phase 5: SDK/env-generator/docs items only, run in isolation once built. (deferred)
 - Phase 6: curl over HTTPS + inspect security headers/CORS; consume a password-reset token exactly once; scrape `/metrics`.
 - Phase 7: curl-based upload/download/signed-URL flow against the live MinIO container; confirm real data (including the new `storage` schema/volume) survives a rebuild.
+- Phase 7a: copy `examples/todo-app/` to a scratch directory, point `config.js` at the running stack, exercise register→login→CRUD→upload→download→delete manually in a browser.
 - Phase 8: two real WebSocket connections with different filters, verifying correct fan-out/exclusion — same rigor as the Phase 4.5 two-user RLS verification.
 - Phase 6b: exercise rate limits and backup/restore scripts against the dev stack. (deferred)

@@ -991,8 +991,9 @@ This phase makes the product genuinely useful for frontend integration.
 * Copyable JavaScript examples
 * Copyable cURL examples
 * Project environment file generation
-* Sample application
 * Installation and deployment guide
+
+(The sample application originally planned here was built ahead of schedule as Phase 7a's example todo app — directly against REST/Auth/Storage, since it also needed to demonstrate Storage.)
 
 Example generated configuration:
 
@@ -1030,6 +1031,17 @@ A new HTML or React application can authenticate and perform CRUD without writin
 * Object metadata tables in a new `storage` schema
 
 See §21 Storage Model for the full design.
+
+## Phase 7a — Example Todo App
+
+### Features
+
+* Standalone reference client under `examples/todo-app/` — plain HTML/CSS/jQuery, zero build step
+* Exercises Auth (register/login), REST (todo CRUD via RLS-scoped `api.todos`), and Storage (attachment upload/download/delete) end-to-end, entirely over the public HTTP API
+* Copy-paste deployable: only `js/config.js` (BaaS URL + publishable key) needs editing after copying the directory elsewhere
+* Supersedes the Phase 5 "Sample application" deliverable — see §17 Phase 5
+
+Runs after Phase 7 (depends on Storage for attachments), before Phase 8. See `docs/implementation-plan.md` for the full breakdown.
 
 ## Phase 8 — Realtime (optional)
 
