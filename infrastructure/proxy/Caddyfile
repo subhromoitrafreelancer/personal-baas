@@ -1,4 +1,5 @@
-# Single public entry point (scope.md §13). Routes:
+# Single public entry point (scope.md §13). Routes, shared by both the plain-HTTP (:8000, dev
+# convenience) and HTTPS (:443, Phase 6 #1 TLS) entry points below:
 #   /rest/v1/*  -> PostgREST (prefix stripped; PostgREST itself has no /rest/v1 prefix)
 #   /auth/*     -> control-server (application auth API)
 #   /admin/*    -> control-server (admin API + admin UI pages)
@@ -7,7 +8,7 @@
 	admin off
 }
 
-:8000 {
+(routes) {
 	encode gzip
 
 	handle /rest/v1/* {
@@ -31,4 +32,20 @@
 	handle {
 		respond "personal-baas: unknown route" 404
 	}
+}
+
+:8000 {
+	import routes
+}
+
+# HTTPS entry point. PUBLIC_DOMAIN defaults to "localhost", which Caddy recognizes as not a
+# publicly-resolvable domain and automatically serves using its internally-trusted CA — HTTPS
+# works out of the box with no config and no internet dependency (browsers will show a one-time
+# trust prompt/warning for the self-signed cert). Set PUBLIC_DOMAIN to a real, DNS-resolvable
+# domain (with ports 80+443 reachable from the internet) to get a real, auto-renewing Let's
+# Encrypt certificate instead — same site block, no other changes needed. To bring your own
+# cert/key instead of either mode, replace this block's address line with a `tls <cert> <key>`
+# directive pointing at files mounted into the container (see README's TLS section).
+{$PUBLIC_DOMAIN:localhost}:443 {
+	import routes
 }

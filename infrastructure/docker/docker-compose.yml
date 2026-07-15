@@ -71,10 +71,18 @@ services:
 
   caddy:
     image: caddy:2-alpine
+    environment:
+      # Defaults to "localhost" (self-signed via Caddy's internal CA — see Caddyfile comment).
+      # Set to a real domain (with ports 80/443 reachable from the internet) for automatic,
+      # auto-renewing Let's Encrypt HTTPS instead.
+      PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:-localhost}
     volumes:
       - ../proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
     ports:
       - '8000:8000'
+      - '80:80'
+      - '443:443'
     depends_on:
       control-server:
         condition: service_healthy
@@ -83,3 +91,4 @@ services:
 
 volumes:
   pgdata:
+  caddy_data:
