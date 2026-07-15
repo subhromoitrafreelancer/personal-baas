@@ -44,4 +44,14 @@ export class AuthSessionsRepository {
       [id],
     );
   }
+
+  // Used after a password reset: refresh() already checks session.revoked_at on every call
+  // (see RefreshService), so revoking every session here is enough to fully lock out anyone
+  // still holding an old refresh token — no need to also touch auth.refresh_tokens directly.
+  async revokeAllForUser(userId: string): Promise<void> {
+    await this.pool.query(
+      'UPDATE auth.sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL',
+      [userId],
+    );
+  }
 }

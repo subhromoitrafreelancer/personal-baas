@@ -8,6 +8,7 @@ import { AuthSessionsRepository } from './auth-sessions.repository';
 import { AuthController } from './auth.controller';
 import { AuthUsersRepository } from './auth-users.repository';
 import { LoginService } from './login.service';
+import { PasswordResetService } from './password-reset.service';
 import { RefreshService } from './refresh.service';
 import { SelfServiceService } from './self-service.service';
 import { SignupService } from './signup.service';
@@ -26,6 +27,7 @@ import { SignupService } from './signup.service';
     LoginService,
     RefreshService,
     SelfServiceService,
+    PasswordResetService,
   ],
   exports: [
     AuthJwtService,

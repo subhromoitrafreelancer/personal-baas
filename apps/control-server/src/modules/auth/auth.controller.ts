@@ -3,6 +3,7 @@ import { Request } from 'express';
 import { z } from 'zod';
 import { AccessTokenGuard } from './access-token.guard';
 import { LoginService } from './login.service';
+import { PasswordResetService } from './password-reset.service';
 import { RefreshService } from './refresh.service';
 import { SelfServiceService } from './self-service.service';
 import { SignupService } from './signup.service';
@@ -27,6 +28,11 @@ const changePasswordBodySchema = z.object({
   newPassword: z.string().min(8, 'Password must be at least 8 characters'),
 });
 
+const passwordResetBodySchema = z.object({
+  token: z.string().min(1),
+  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+});
+
 @Controller('auth/v1')
 export class AuthController {
   constructor(
@@ -34,6 +40,7 @@ export class AuthController {
     private readonly loginService: LoginService,
     private readonly refreshService: RefreshService,
     private readonly selfService: SelfServiceService,
+    private readonly passwordResetService: PasswordResetService,
   ) {}
 
   @Post('signup')
@@ -111,6 +118,24 @@ export class AuthController {
     await this.selfService.logout(
       req.user!.sub,
       req.user!.sessionId,
+      req.ip ?? null,
+      req.headers['user-agent'] ?? null,
+    );
+  }
+
+  // Completes the flow an admin starts via `POST /admin/v1/users/:id/reset-token` — deliberately
+  // unauthenticated, since the token itself is the credential (scope.md Phase 6 #6/#3).
+  @Post('password-reset')
+  @HttpCode(204)
+  async resetPassword(@Body() body: unknown, @Req() req: Request): Promise<void> {
+    const parsed = passwordResetBodySchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.issues.map((issue) => issue.message).join('; '));
+    }
+
+    await this.passwordResetService.resetPassword(
+      parsed.data.token,
+      parsed.data.newPassword,
       req.ip ?? null,
       req.headers['user-agent'] ?? null,
     );

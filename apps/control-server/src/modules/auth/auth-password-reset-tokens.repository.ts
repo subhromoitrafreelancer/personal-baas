@@ -24,4 +24,16 @@ export class AuthPasswordResetTokensRepository {
     );
     return rows[0];
   }
+
+  async findByHash(tokenHash: string): Promise<AuthPasswordResetTokenRow | null> {
+    const { rows } = await this.pool.query<AuthPasswordResetTokenRow>(
+      'SELECT * FROM auth.password_reset_tokens WHERE token_hash = $1',
+      [tokenHash],
+    );
+    return rows[0] ?? null;
+  }
+
+  async markUsed(id: string): Promise<void> {
+    await this.pool.query('UPDATE auth.password_reset_tokens SET used_at = now() WHERE id = $1', [id]);
+  }
 }
