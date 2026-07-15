@@ -790,8 +790,6 @@ Do not attempt full Supabase SDK compatibility. Create a smaller, documented int
 ## Excluded
 
 * GraphQL
-* Realtime subscriptions
-* File storage
 * Edge/serverless functions
 * Social authentication
 * MFA
@@ -810,6 +808,8 @@ Do not attempt full Supabase SDK compatibility. Create a smaller, documented int
 * Multi-project isolation in the first release
 
 This boundary is important. Otherwise, the project quickly becomes a Supabase clone rather than a useful internal accelerator.
+
+Storage and Realtime subscriptions, originally excluded here and listed under §18 Later Roadmap, have since been promoted to real phases (§17 Phase 7 and Phase 8) — see §21 and §22 for their models. GraphQL remains excluded.
 
 ---
 
@@ -1013,19 +1013,48 @@ A new HTML or React application can authenticate and perform CRUD without writin
 ### Features
 
 * TLS support
+* Password-reset workflow
+* Security headers
+* Metrics
+* Container health checks
+* Secrets through environment or mounted files
+
+## Phase 7 — Storage
+
+### Features
+
+* S3-compatible object storage via a self-hosted MinIO service
+* Buckets (logical, prefix-based — see §21)
+* Signed URLs for direct upload/download
+* Per-bucket public/private access
+* Object metadata tables in a new `storage` schema
+
+See §21 Storage Model for the full design.
+
+## Phase 8 — Realtime (optional)
+
+### Features
+
+* Table subscriptions over a WebSocket gateway
+* Trigger + `LISTEN`/`NOTIFY` event delivery (not logical replication — see §22)
+* Coarse subscription authorization (table grant + optional equality filter)
+
+Lower priority than Phase 7; see §22 Realtime Model for the full design and the rationale for deferring full logical replication.
+
+## Phase 6b — Operational hardening (deferred)
+
+### Features
+
 * Key rotation
 * Backup and restore commands
 * Database connection limits
 * Request body limits
 * API rate limiting
 * Brute-force login protection
-* Password-reset workflow
-* Security headers
 * Audit exports
-* Metrics
-* Container health checks
 * Upgrade procedure
-* Secrets through environment or mounted files
+
+Deferred behind Phases 7 and 8 at the user's direction — not dropped, just resequenced.
 
 This produces the first internally production-usable release.
 
@@ -1068,22 +1097,7 @@ After the initial product is stable, add features in this order:
 * Organizations and memberships
 * Custom JWT claims
 
-## Expansion 5: Realtime
-
-* PostgreSQL logical replication
-* WebSocket gateway
-* Table subscription authorization
-* RLS-aware event delivery
-
-## Expansion 6: Storage
-
-* S3-compatible object storage
-* Buckets
-* Signed URLs
-* Object policies
-* Metadata tables
-
-## Expansion 7: GraphQL
+## Expansion 5: GraphQL
 
 * Add a GraphQL layer using an existing PostgreSQL-aware engine
 * Do not implement GraphQL schema generation manually
@@ -1152,7 +1166,77 @@ Start the platform
 → integrate those APIs into a frontend
 ```
 
-That is the correct product core. Everything else—GraphQL, visual schema editing, realtime, storage and social authentication—should be treated as later platform extensions.
+That is the correct product core. Everything else—GraphQL, visual schema editing, social authentication, and (optionally) realtime—should be treated as later platform extensions. Storage is now planned as Phase 7 (§21), since most applications built on this platform will need it.
+
+---
+
+# 21. Storage Model
+
+Phase 7. Object storage backed by a self-hosted [MinIO][9] instance (S3-compatible), fronted entirely by the control service — clients never talk to MinIO or hold MinIO credentials directly.
+
+```text
+1. One real MinIO bucket for the whole deployment (e.g. baas-storage).
+
+2. Logical "buckets" (as developers create them, e.g. "avatars", "documents")
+   are not real MinIO buckets — they are key prefixes, tracked in a new
+   storage.buckets metadata table (id, name, public boolean, size_limit_bytes,
+   created_at).
+
+3. Every uploaded object is tracked in storage.objects (id, bucket_id, path,
+   owner user id, size, content_type, created_at) — the metadata table is the
+   source of truth for access decisions; MinIO only stores bytes.
+
+4. Access is enforced in the control service, not in MinIO: owner-based
+   read/write, plus a public-read flag per logical bucket. This mirrors the
+   RLS philosophy (row-level ownership checks) but is implemented in
+   application code, since MinIO itself has no row-level concept.
+
+5. Signed URLs: the control service can issue a short-lived presigned MinIO
+   URL for direct upload/download, permission-checked once at signing time,
+   letting large transfers bypass the control service's own bandwidth.
+
+6. Per-upload size limits are enforced by the control service before
+   streaming to MinIO.
+```
+
+This is a v1 design for Phase 7, not a frozen architectural decision — it may be revisited if usage patterns (e.g. a need for true per-bucket MinIO lifecycle policies) justify the added complexity of real per-bucket MinIO buckets.
+
+---
+
+# 22. Realtime Model (optional)
+
+Phase 8, explicitly lower priority than Phase 7. Table subscriptions delivered over a WebSocket gateway.
+
+```text
+1. Event source: ordinary PostgreSQL triggers (AFTER INSERT OR UPDATE OR
+   DELETE) call a NOTIFY on a dedicated channel with a small JSON payload —
+   the same LISTEN/NOTIFY primitive already used for PostgREST schema-reload
+   (§11), not PostgreSQL logical replication. This avoids a new PostgreSQL
+   role, a wal_level=logical config change, and replication-slot lifecycle
+   management, at the cost of at-most-once delivery (a disconnected client
+   misses events, same trade-off Supabase's own Broadcast feature makes).
+
+2. The control service holds one persistent LISTEN connection and fans
+   events out to subscribed WebSocket clients.
+
+3. Authorization is coarse, not a full per-event RLS re-evaluation: a client
+   may subscribe to a table only if their role already has REST SELECT
+   access to it, plus an optional equality filter (e.g. user_id=eq.<uuid>)
+   matched against each event's row data before delivery.
+
+4. GraphQL is not required for this and is not used — PostgREST cannot
+   support subscriptions itself (stateless HTTP only), so realtime always
+   needs a sibling service regardless of transport; a plain WebSocket
+   channel carrying JSON is the natural choice given GraphQL is not part of
+   this platform (§19 decision 10).
+
+5. Future upgrade path (not v1): full PostgreSQL logical replication
+   (pgoutput) for durable, ordered delivery via a replication slot, if
+   at-most-once delivery ever proves insufficient. Not required for the
+   initial release given this feature's optional/lower-priority status.
+```
+
+[9]: https://min.io/docs/minio/linux/index.html "MinIO Object Storage Documentation"
 
 [1]: https://supabase.com/docs/guides/api?utm_source=chatgpt.com "Data REST API - Supabase Docs"
 [2]: https://supabase.com/docs/guides/api/creating-routes?utm_source=chatgpt.com "Creating API Routes - Supabase Docs"

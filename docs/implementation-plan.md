@@ -168,16 +168,58 @@ original items 1 and 2 into one PR since #1 had no remaining content of its own.
 
 ## Phase 6 — Operational hardening
 
+Phase 6 originally had 10 items (see Phase 6b below). The user explicitly narrowed this pass to
+4 — TLS, password-reset, security headers/CORS, and metrics — deferring the rest behind the two
+new feature phases (Storage, Realtime) rather than dropping them. No Phase 5 dependency exists
+for any of these (verified: none of the original 10 items reference `client-sdk`, the env-file
+generator, or the Phase 5 docs deliverable), so this phase can run before Phase 5 safely.
+
 1. **TLS** — Caddy auto-HTTPS or provided certs, docs.
-2. **Key rotation** — JWT signing-key rotation with `kid`-based verification; complete API-key rotation flow.
-3. **Backup/restore** — `pg_dump`/`pg_restore` wrapper scripts + docs.
-4. **Rate limiting & body limits** — NestJS throttler on `/auth`/`/admin`, PostgREST `max-rows`, request body size caps.
-5. **Brute-force protection** — login attempt throttling/lockout per email + IP.
-6. **Password-reset self-service** — token-consumption endpoint completing the flow started in Phase 3 (still no outbound email).
-7. **Security headers + CORS** — `helmet`, CORS policy.
-8. **Audit export** — CSV/JSON export of `auth.audit_events` and admin SQL history.
-9. **Metrics + healthchecks** — `prom-client` metrics endpoint, container healthchecks in compose.
-10. **Upgrade runbook** — docs covering upgrade procedure and secrets handling (env/mounted files only).
+2. **Security headers + CORS** — `helmet`, CORS policy.
+3. **Password-reset self-service** — token-consumption endpoint completing the flow started in Phase 3 (still no outbound email).
+4. **Metrics + healthchecks** — `prom-client` metrics endpoint, container healthchecks in compose.
+   - **Acceptance**: HTTPS works end-to-end through Caddy; security headers/CORS verified via curl response headers; a password-reset token can be consumed exactly once to set a new password; `/metrics` returns Prometheus-format output and compose healthchecks report healthy.
+
+## Phase 7 — Storage
+
+MinIO-backed object storage (§21 in `scope.md`). Promoted from scope.md's "Later Roadmap" —
+the user considers this near-required ("most apps will require this"), unlike Realtime below.
+
+1. **MinIO service + bootstrap** — new `minio` service in `docker-compose.yml` (own named volume, root credentials via env, no unnecessary host port exposure), single bucket auto-created at bootstrap (mirrors `database-bootstrap`'s role/schema init pattern).
+2. **`storage` schema migrations** — `storage.buckets` (id, name, public boolean, size_limit_bytes, created_at) and `storage.objects` (id, bucket_id, path, owner user id, size, content_type, created_at) via `node-pg-migrate`, same convention as `platform`/`auth`.
+3. **Storage API module** — new control-server module, `POST/GET/DELETE /storage/v1/object/:bucket/*path`, authenticated via the existing app-user JWT; checks caller permission against `storage.buckets`/`storage.objects` (owner-based + public-bucket-read) before streaming to/from MinIO using a service credential never exposed to browsers.
+4. **Signed URLs** — `POST /storage/v1/object/sign/:bucket/*path`, short-lived presigned MinIO URL, permission-checked at signing time only.
+5. **Size limits** — per-upload cap enforced in the storage module (mirrors the existing SQL-file-upload size-cap precedent), configurable via env.
+6. **Admin UI** — new `/admin/storage` page (bucket list, object browser, manual upload/download for testing), following the existing page-controller + `{{> topbar}}`/`{{> footer}}` partial pattern.
+   - **Acceptance**: create a bucket, upload an object with an authenticated JWT, download it back, confirm a non-owner/non-public request is rejected, confirm a signed URL works without the caller's own JWT.
+
+## Phase 8 — Realtime (optional)
+
+Table subscriptions (§22 in `scope.md`). Promoted from scope.md's "Later Roadmap," explicitly
+lower priority than Phase 7. Uses triggers + `LISTEN`/`NOTIFY` (the same primitive Phase 2 #2/#3
+already use for `NOTIFY pgrst` schema-reload), not full logical replication — avoids a new
+Postgres role, a `wal_level=logical` config change, and replication-slot management for a
+feature marked optional. GraphQL is not required and not used (PostgREST cannot support
+subscriptions itself; realtime always needs a sibling WebSocket service regardless of GraphQL).
+
+1. **Trigger infrastructure** — reusable `platform.notify_realtime_change()` trigger function (mirrors `platform.notify_pgrst_reload_schema()` in `packages/database-bootstrap`), attachable per-table via a helper offered alongside the RLS snippet library in the SQL editor.
+2. **WebSocket gateway** — new control-server module using `@nestjs/websockets`, `wss://.../realtime/v1` routed through Caddy, authenticated via the existing `AuthJwtService.verifyAccessToken`.
+3. **Subscription authorization** — on subscribe, check the caller's role has REST `SELECT` grant on the requested table; accept an optional equality filter clause (coarse model, not per-event RLS re-evaluation).
+4. **Event fan-out** — single persistent `LISTEN` connection (via `pg`, already a control-server dependency), parses each NOTIFY payload, matches against each subscriber's table + filter, delivers over WebSocket.
+5. **Admin UI (minimal)** — active-connections/subscriptions KPI card on the dashboard (reuses the existing KPI card pattern); a full realtime admin page is deferred.
+   - **Acceptance**: two WebSocket clients subscribe to the same table with different `user_id=eq.<uuid>` filters; an insert/update/delete from a third connection delivers only to the correctly-filtered subscriber(s).
+
+## Phase 6b — Operational hardening (deferred)
+
+The 6 items deferred from the original Phase 6 list, resequenced behind Storage/Realtime at the
+user's direction — not dropped.
+
+1. **Key rotation** — JWT signing-key rotation with `kid`-based verification. (Note: "complete API-key rotation flow" from the original wording is already satisfied by the existing revoke-then-create-new flow shipped in Phase 4.4 + the API-key "view" feature — this item now scopes to just the application JWT signing keypair, which currently has no `kid` and cannot be rotated without invalidating all sessions.)
+2. **Backup/restore** — `pg_dump`/`pg_restore` wrapper scripts + docs.
+3. **Rate limiting & body limits** — NestJS throttler on `/auth`/`/admin`, PostgREST `max-rows`, request body size caps.
+4. **Brute-force protection** — login attempt throttling/lockout per email + IP.
+5. **Audit export** — CSV/JSON export of `auth.audit_events` and admin SQL history.
+6. **Upgrade runbook** — docs covering upgrade procedure and secrets handling (env/mounted files only).
 
 ---
 
@@ -194,5 +236,8 @@ original items 1 and 2 into one PR since #1 had no remaining content of its own.
 - Phase 2: create `api.tasks` via SQL editor → immediately curl `/rest/v1/tasks` with no restart.
 - Phase 3: full signup → login → refresh → revoke → refresh-fails flow via curl/script.
 - Phase 4: two-user RLS isolation test on `api.tasks`.
-- Phase 5: run `examples/html-todo-app` in a browser against the running stack.
-- Phase 6: exercise rate limits, TLS, and backup/restore scripts against the dev stack.
+- Phase 5: run `examples/html-todo-app` in a browser against the running stack. (deferred)
+- Phase 6: curl over HTTPS + inspect security headers/CORS; consume a password-reset token exactly once; scrape `/metrics`.
+- Phase 7: curl-based upload/download/signed-URL flow against the live MinIO container; confirm real data (including the new `storage` schema/volume) survives a rebuild.
+- Phase 8: two real WebSocket connections with different filters, verifying correct fan-out/exclusion — same rigor as the Phase 4.5 two-user RLS verification.
+- Phase 6b: exercise rate limits and backup/restore scripts against the dev stack. (deferred)
