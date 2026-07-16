@@ -230,11 +230,105 @@ Postgres role, a `wal_level=logical` config change, and replication-slot managem
 feature marked optional. GraphQL is not required and not used (PostgREST cannot support
 subscriptions itself; realtime always needs a sibling WebSocket service regardless of GraphQL).
 
-1. **Trigger infrastructure** — reusable `platform.notify_realtime_change()` trigger function (mirrors `platform.notify_pgrst_reload_schema()` in `packages/database-bootstrap`), attachable per-table via a helper offered alongside the RLS snippet library in the SQL editor.
-2. **WebSocket gateway** — new control-server module using `@nestjs/websockets`, `wss://.../realtime/v1` routed through Caddy, authenticated via the existing `AuthJwtService.verifyAccessToken`.
-3. **Subscription authorization** — on subscribe, check the caller's role has REST `SELECT` grant on the requested table; accept an optional equality filter clause (coarse model, not per-event RLS re-evaluation).
-4. **Event fan-out** — single persistent `LISTEN` connection (via `pg`, already a control-server dependency), parses each NOTIFY payload, matches against each subscriber's table + filter, delivers over WebSocket.
-5. **Admin UI (minimal)** — active-connections/subscriptions KPI card on the dashboard (reuses the existing KPI card pattern); a full realtime admin page is deferred.
+Reconsidered/detailed before starting, once the existing trigger/auth/module conventions were
+checked against the codebase: `platform.notify_realtime_change()` does **not** belong in
+`packages/database-bootstrap` despite mirroring `platform.notify_pgrst_reload_schema()` in
+spirit — that function is a superuser-only **event trigger** (fires on DDL, no per-row context),
+whereas a change-notification trigger is an ordinary row-level `AFTER INSERT/UPDATE/DELETE`
+trigger, which `baas_admin` can create like any other object. It's therefore a normal
+`node-pg-migrate` migration, same as every other `platform`/`auth` schema object — bootstrap
+stays reserved for the things that genuinely require superuser. Also confirmed: no WebSocket
+library (`ws`, `socket.io`, `@nestjs/websockets`) is installed anywhere in the repo yet, so item 2
+adds one from scratch; and no existing code checks `has_table_privilege`/
+`information_schema.table_privileges` for a role — the Phase 1.7 object-explorer query only
+reports whether RLS is *enabled* on a table, not whether a role has a working grant — so item 3's
+authorization check is new SQL, not a reuse. WebSocket auth reuses `AuthJwtService.verifyAccessToken`
+directly (same as `AccessTokenGuard`, minus the Express `request` object a guard relies on) rather
+than a new verification path, and `role`/`projectId` claims are already present on
+`AppAccessTokenClaims`, so subscription authorization is project-scoped from day one, ahead of
+Phase 9's schema-per-project rollout landing.
+
+1. **Trigger infrastructure** — `platform.notify_realtime_change()`, added via `node-pg-migrate`
+   (see reconsideration above, not `database-bootstrap`): a `language plpgsql` row-level trigger
+   function that does `perform pg_notify('realtime_changes', payload::text)` on a single shared
+   channel (not per-table — the fan-out module in #4 already needs to hold one persistent
+   connection and match subscribers by table/filter in-process, so multiplying channels buys
+   nothing). Payload is a JSON object: `{schema, table, operation, record}`, where `record` is
+   `NEW` for `INSERT`/`UPDATE` and `OLD` for `DELETE` (`NEW` is null on delete) via
+   `case when TG_OP = 'DELETE' then OLD else NEW end`. Postgres caps a `NOTIFY` payload at 8000
+   bytes; the trigger body wraps the `pg_notify` call in its own `begin ... exception when others
+   then null; end;` block so a wide row (large `text`/`jsonb` columns) that overflows the limit
+   raises inside the trigger and is swallowed there — the actual `INSERT`/`UPDATE`/`DELETE` must
+   never be rolled back just because its change notification couldn't fit. Attachment is manual,
+   same as the RLS snippet library it's paired with: a new entry alongside `RLS_SNIPPETS` in
+   `apps/control-server/src/admin-ui/public/js/rls-snippets.js` (or a sibling
+   `realtime-snippets.js` following its identical export shape) providing the
+   `create trigger <table_name>_realtime_notify after insert or update or delete on
+   api.<table_name> for each row execute function platform.notify_realtime_change();` snippet,
+   picked from the SQL editor's existing snippet picker.
+2. **WebSocket gateway** — new `apps/control-server/src/modules/realtime/` module
+   (`realtime.module.ts`/`.gateway.ts`/`.service.ts`/`.types.ts`, matching the existing
+   controller+service+types module layout, e.g. `db-explorer/`), added to `app.module.ts`. Uses
+   `@nestjs/websockets` with the `@nestjs/platform-ws` adapter (`ws`-based, not `socket.io` — no
+   engine.io protocol overhead, consistent with this codebase's minimal-dependency raw-driver
+   style) via `app.useWebSocketAdapter(new WsAdapter(app))` in `main.ts`. Route: `/realtime/v1`
+   added to the shared `(routes)` snippet in `infrastructure/proxy/Caddyfile` (`uri strip_prefix
+   /realtime/v1` + `reverse_proxy control-server:3000`, same pattern as `/rest/v1` — Caddy proxies
+   the `Connection: Upgrade`/`Upgrade: websocket` handshake automatically, no extra directive).
+   Auth: browsers' native `WebSocket` API cannot set an `Authorization` header, so the access
+   token is passed as a query parameter (`wss://.../realtime/v1?access_token=<JWT>`, the common
+   pattern for browser-native WS auth); `handleConnection` reads it from the raw upgrade request
+   and calls `AuthJwtService.verifyAccessToken` directly, closing with WS code `4401` and a reason
+   string on failure or missing token.
+3. **Subscription authorization** — a small JSON message protocol over the single connection
+   (not one socket per subscription): client sends `{type: 'subscribe', id, schema, table,
+   filter?}` / `{type: 'unsubscribe', id}`; server replies `{type: 'subscribed', id}` or
+   `{type: 'error', id, message}`. `filter`, if present, is restricted to the single shape
+   `<column>=eq.<value>` (matching PostgREST's own `eq` operator spelling from scope.md §15, kept
+   intentionally narrow per the "coarse model" framing below) and the column name is validated
+   against `information_schema.columns` for that table before being accepted, to reject typos
+   loudly instead of silently matching nothing. `schema` is resolved from the caller's JWT
+   `projectId` claim via the existing `ProjectsService` (already present in the module list ahead
+   of Phase 9 landing) rather than hardcoded to `'api'`, and any schema outside that resolved
+   project schema is rejected before the grant check even runs (no privilege-probing of
+   `platform`/`auth`/`private`). The grant check itself is new SQL — `select
+   has_table_privilege($1, $2, 'SELECT')` — using the caller's JWT `role` claim (the shared
+   `authenticated`/`anon`/`service_role`-style role, not a per-user role) against
+   `'<resolved_schema>.<table>'`. This deliberately does **not** re-evaluate RLS per event — a
+   subscriber whose shared role can `SELECT` the table at the grant level, but whose RLS policy
+   would exclude the specific changed row, will still receive that row's `NOTIFY` payload unless
+   excluded by their own equality filter. This is a known, accepted gap (coarse authorization, not
+   per-event RLS), the same tradeoff scope.md §22 already calls out; the mitigation is the same
+   pattern the Phase 7a todo-app already uses for its own RLS design — subscribe with
+   `user_id=eq.<uuid>` so the filter does the narrowing the grant check doesn't.
+4. **Event fan-out** — a dedicated single `pg.Client` (**not** a pooled connection — pool clients
+   get recycled, which is incompatible with a long-lived `LISTEN`), added as its own `@Global()`
+   module following the `DatabaseModule`/`AdminDbModule` teardown convention (`OnModuleDestroy`
+   calling `client.end()`), connecting via the existing `DATABASE_URL`. On `onModuleInit`:
+   `client.connect()`, `client.query('LISTEN realtime_changes')`, subscribe to the `notification`
+   event. Because this connection lives outside pool management, it also needs its own
+   reconnect-with-backoff handling (`error`/`end` listeners triggering a capped exponential
+   backoff reconnect that re-issues `LISTEN` once restored, logged via the existing
+   `nestjs-pino` logger) — a concern the pooled connections don't have since the pool itself
+   handles client replacement. On each notification: `JSON.parse(payload)`, look up an in-memory
+   registry (`Map<'schema.table', Set<{socket, filter}>>`) built from item 3's successful
+   subscriptions, and deliver to sockets whose optional filter matches the parsed `record`
+   in-process (no second DB round-trip per event). One incidental property worth keeping in mind
+   for later horizontal scaling: Postgres `NOTIFY` fans out to every connection currently
+   `LISTEN`-ing on the channel, so if the control-server is ever run as multiple replicas, each
+   replica's own `LISTEN` connection receives every event independently and only forwards to its
+   own locally-connected sockets — no extra fan-out infrastructure needed for that later, though
+   today's deployment target is single-instance.
+5. **Admin UI (minimal)** — a new `GET /admin/v1/realtime/stats` endpoint on the realtime module
+   (admin-guarded, same as other `admin/v1/*` JSON endpoints) returning
+   `{activeConnections, activeSubscriptions}` counted from the in-memory registry in #4; a
+   `loadRealtimeCard()` added to `apps/control-server/src/admin-ui/public/js/dashboard.js`
+   following the exact shape of the existing `loadAuditCard()` (fetch → `card(...)`/`errorCard(...)`
+   → included in the bottom IIFE's `Promise.all([...])` alongside the current cards). A full
+   realtime admin page (live event stream, per-connection subscription list) is deferred. Caveat
+   worth a one-line note in the card's sub-label: the count reflects only this control-server
+   instance's local connections (see the horizontal-scaling note in #4) — correct for today's
+   single-instance deployment, a known limitation if that ever changes.
    - **Acceptance**: two WebSocket clients subscribe to the same table with different `user_id=eq.<uuid>` filters; an insert/update/delete from a third connection delivers only to the correctly-filtered subscriber(s).
 
 ## Phase 9 — Multi-project support

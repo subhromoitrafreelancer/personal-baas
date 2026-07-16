@@ -8,6 +8,9 @@ import {
   keymap,
 } from '/admin/static/js/vendor/codemirror.bundle.js';
 import { RLS_SNIPPETS } from '/admin/static/js/rls-snippets.js';
+import { REALTIME_SNIPPETS } from '/admin/static/js/realtime-snippets.js';
+
+const SNIPPETS = { ...RLS_SNIPPETS, ...REALTIME_SNIPPETS };
 
 const editor = new EditorView({
   state: EditorState.create({
@@ -222,7 +225,7 @@ runStatementBtn.addEventListener('click', () => runSql('statement'));
 runScriptBtn.addEventListener('click', () => runSql('script'));
 
 snippetSelect.addEventListener('change', () => {
-  const snippet = RLS_SNIPPETS[snippetSelect.value];
+  const snippet = SNIPPETS[snippetSelect.value];
   snippetSelect.value = '';
   if (!snippet) return;
 

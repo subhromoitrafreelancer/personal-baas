@@ -22,13 +22,18 @@
       </label>
       <button id="toggle-history-btn" type="button" class="btn btn-outline">History</button>
       <label class="snippet-label">
-        RLS snippet
+        Snippet
         <select id="snippet-select">
           <option value="">Insert a snippet…</option>
-          <option value="owner-only">Owner-only access</option>
-          <option value="public-read-auth-write">Public read / authenticated write</option>
-          <option value="admin-only">Admin-only (service_role)</option>
-          <option value="authenticated-crud">Authenticated CRUD (no ownership)</option>
+          <optgroup label="RLS">
+            <option value="owner-only">Owner-only access</option>
+            <option value="public-read-auth-write">Public read / authenticated write</option>
+            <option value="admin-only">Admin-only (service_role)</option>
+            <option value="authenticated-crud">Authenticated CRUD (no ownership)</option>
+          </optgroup>
+          <optgroup label="Realtime">
+            <option value="realtime-notify-trigger">Attach change-notify trigger</option>
+          </optgroup>
         </select>
       </label>
       <label class="upload-label">
