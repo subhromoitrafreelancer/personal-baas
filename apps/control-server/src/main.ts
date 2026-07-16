@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { join } from 'path';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { WsAdapter } from '@nestjs/platform-ws';
 import { ConfigService } from '@nestjs/config';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
@@ -21,6 +22,9 @@ async function bootstrap() {
   // :443 already provides the transport security; HSTS can be revisited if :8000 is ever removed.
   app.use(helmet({ hsts: false }));
   app.use(cookieParser());
+  // ws-based adapter (not socket.io) for the Phase 8 realtime gateway — no namespace/engine.io
+  // overhead, and it attaches to this same HTTP server/port rather than opening a new one.
+  app.useWebSocketAdapter(new WsAdapter(app));
 
   // /auth/v1/* and /storage/v1/* are meant to be called from arbitrary developer frontends
   // (scope.md §15 JS SDK / §21 Storage) — both authenticate via an Authorization: Bearer header,

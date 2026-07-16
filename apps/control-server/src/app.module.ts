@@ -17,6 +17,7 @@ import { HealthModule } from './modules/health/health.module';
 import { LandingModule } from './modules/landing/landing.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
 import { ProjectsModule } from './modules/projects/projects.module';
+import { RealtimeModule } from './modules/realtime/realtime.module';
 import { SqlConsoleModule } from './modules/sql-console/sql-console.module';
 import { SqlHistoryModule } from './modules/sql-history/sql-history.module';
 import { StorageModule } from './modules/storage/storage.module';
@@ -57,6 +58,7 @@ import { StorageModule } from './modules/storage/storage.module';
     ApiKeysModule,
     StorageModule,
     DashboardSummaryModule,
+    RealtimeModule,
   ],
 })
 export class AppModule {}

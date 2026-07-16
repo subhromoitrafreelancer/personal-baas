@@ -267,15 +267,18 @@ Phase 9's schema-per-project rollout landing.
    api.<table_name> for each row execute function platform.notify_realtime_change();` snippet,
    picked from the SQL editor's existing snippet picker.
 2. **WebSocket gateway** — new `apps/control-server/src/modules/realtime/` module
-   (`realtime.module.ts`/`.gateway.ts`/`.service.ts`/`.types.ts`, matching the existing
-   controller+service+types module layout, e.g. `db-explorer/`), added to `app.module.ts`. Uses
-   `@nestjs/websockets` with the `@nestjs/platform-ws` adapter (`ws`-based, not `socket.io` — no
-   engine.io protocol overhead, consistent with this codebase's minimal-dependency raw-driver
-   style) via `app.useWebSocketAdapter(new WsAdapter(app))` in `main.ts`. Route: `/realtime/v1`
-   added to the shared `(routes)` snippet in `infrastructure/proxy/Caddyfile` (`uri strip_prefix
-   /realtime/v1` + `reverse_proxy control-server:3000`, same pattern as `/rest/v1` — Caddy proxies
-   the `Connection: Upgrade`/`Upgrade: websocket` handshake automatically, no extra directive).
-   Auth: browsers' native `WebSocket` API cannot set an `Authorization` header, so the access
+   (`realtime.module.ts`/`.gateway.ts`/`.types.ts`; no `.service.ts` yet — item 2's scope is
+   connection lifecycle + auth handshake only, not the subscription registry items 3/4 own),
+   added to `app.module.ts`. Uses `@nestjs/websockets` with the `@nestjs/platform-ws` adapter
+   (`ws`-based, not `socket.io` — no engine.io protocol overhead, consistent with this codebase's
+   minimal-dependency raw-driver style) via `app.useWebSocketAdapter(new WsAdapter(app))` in
+   `main.ts`. The gateway's own path is `/realtime/v1` (`@WebSocketGateway({ path: '/realtime/v1'
+   })`), and — unlike `/rest/v1`, which PostgREST itself has no prefix for — `/realtime/*` is
+   added to the shared `(routes)` snippet in `infrastructure/proxy/Caddyfile` with **no** `uri
+   strip_prefix`: the request must reach control-server with `/realtime/v1` intact, same
+   forward-as-is pattern as `/auth/*`/`/storage/*`. Caddy proxies the `Connection:
+   Upgrade`/`Upgrade: websocket` handshake automatically, no extra directive. Auth: browsers'
+   native `WebSocket` API cannot set an `Authorization` header, so the access
    token is passed as a query parameter (`wss://.../realtime/v1?access_token=<JWT>`, the common
    pattern for browser-native WS auth); `handleConnection` reads it from the raw upgrade request
    and calls `AuthJwtService.verifyAccessToken` directly, closing with WS code `4401` and a reason

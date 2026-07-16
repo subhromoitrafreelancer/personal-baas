@@ -4,6 +4,7 @@
 #   /rest/v1/*    -> PostgREST (prefix stripped; PostgREST itself has no /rest/v1 prefix)
 #   /auth/*       -> control-server (application auth API)
 #   /storage/v1/* -> control-server (Phase 7 object storage API)
+#   /realtime/*   -> control-server (Phase 8 WebSocket gateway, upgrade handled transparently)
 #   /admin/*      -> control-server (admin API + admin UI pages)
 #   /health*      -> control-server (liveness/readiness, also used by container healthchecks)
 {
@@ -29,6 +30,13 @@
 	}
 
 	handle /storage/* {
+		reverse_proxy control-server:3000
+	}
+
+	# No uri strip_prefix here (unlike /rest/v1) — the WebSocket gateway's own path is literally
+	# /realtime/v1, so the request must reach control-server unmodified. reverse_proxy forwards
+	# the Connection: Upgrade/Upgrade: websocket handshake automatically, no extra directive.
+	handle /realtime/* {
 		reverse_proxy control-server:3000
 	}
 
