@@ -284,20 +284,32 @@ Phase 9's schema-per-project rollout landing.
    and calls `AuthJwtService.verifyAccessToken` directly, closing with WS code `4401` and a reason
    string on failure or missing token.
 3. **Subscription authorization** — a small JSON message protocol over the single connection
-   (not one socket per subscription): client sends `{type: 'subscribe', id, schema, table,
-   filter?}` / `{type: 'unsubscribe', id}`; server replies `{type: 'subscribed', id}` or
-   `{type: 'error', id, message}`. `filter`, if present, is restricted to the single shape
-   `<column>=eq.<value>` (matching PostgREST's own `eq` operator spelling from scope.md §15, kept
-   intentionally narrow per the "coarse model" framing below) and the column name is validated
-   against `information_schema.columns` for that table before being accepted, to reject typos
-   loudly instead of silently matching nothing. `schema` is resolved from the caller's JWT
-   `projectId` claim via the existing `ProjectsService` (already present in the module list ahead
-   of Phase 9 landing) rather than hardcoded to `'api'`, and any schema outside that resolved
-   project schema is rejected before the grant check even runs (no privilege-probing of
-   `platform`/`auth`/`private`). The grant check itself is new SQL — `select
-   has_table_privilege($1, $2, 'SELECT')` — using the caller's JWT `role` claim (the shared
-   `authenticated`/`anon`/`service_role`-style role, not a per-user role) against
-   `'<resolved_schema>.<table>'`. This deliberately does **not** re-evaluate RLS per event — a
+   (not one socket per subscription), validated with `zod` (same convention as the HTTP side's
+   request-body schemas): client sends `{type: 'subscribe', id, table, filter?}` /
+   `{type: 'unsubscribe', id}`; server replies `{type: 'subscribed', id}` /
+   `{type: 'unsubscribed', id}` / `{type: 'error', id, message}`. Deliberately no client-supplied
+   `schema` field at all (a refinement from the original sketch) — `schema` is always resolved
+   server-side from the caller's JWT `projectId` claim via the existing `ProjectsService.getById`
+   (already present in the module list ahead of Phase 9 landing), and since a project has exactly
+   one schema, there's no legitimate value a client could ever send there; omitting the field
+   entirely is simpler than accepting-then-rejecting a value that could only ever be wrong.
+   `filter`, if present, is restricted to the single shape `<column>=eq.<value>` (matching
+   PostgREST's own `eq` operator spelling from scope.md §15, kept intentionally narrow per the
+   "coarse model" framing below) and the column name is validated against
+   `information_schema.columns` for that table before being accepted, to reject typos loudly
+   instead of silently matching nothing. The grant check itself is new SQL —
+   `select has_table_privilege($1, to_regclass(format('%I.%I', $2, $3)), 'SELECT')` — using the
+   caller's JWT `role` claim (the shared `authenticated`/`anon`/`service_role`-style role, not a
+   per-user role) against the resolved `schema`/`table`. The `to_regclass()` wrapping isn't
+   cosmetic: `has_table_privilege` with a bare `'schema.table'` text argument *raises* if the
+   relation doesn't exist rather than returning `false` — caught live when a subscribe request
+   for a nonexistent table crashed the whole control-server process via an unhandled rejection.
+   `to_regclass()` returns `NULL` for a missing relation instead, and
+   `has_table_privilege(role, NULL, 'SELECT')` then just returns `NULL`, coerced to `false` by the
+   caller — the right answer with no exception in the path. `RealtimeService.subscribe` and
+   `RealtimeGateway`'s message dispatch both additionally wrap their DB/handler calls in
+   `try/catch` as defense in depth, on the same "one client's request must never crash every
+   other connection" principle. This deliberately does **not** re-evaluate RLS per event — a
    subscriber whose shared role can `SELECT` the table at the grant level, but whose RLS policy
    would exclude the specific changed row, will still receive that row's `NOTIFY` payload unless
    excluded by their own equality filter. This is a known, accepted gap (coarse authorization, not

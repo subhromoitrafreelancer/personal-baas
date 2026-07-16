@@ -88,8 +88,18 @@ async function loadAuditCard() {
   }
 }
 
+async function loadRealtimeCard() {
+  try {
+    const { activeConnections, activeSubscriptions } = await fetchJson('/admin/v1/realtime/stats');
+    // This instance only — see realtime.gateway.ts/realtime.service.ts's own comments on why.
+    return card('Realtime connections', activeConnections, `${activeSubscriptions} subscription(s), this instance`);
+  } catch (err) {
+    return errorCard('Realtime connections', err.message);
+  }
+}
+
 (async () => {
   loadDashboardSummary();
-  const cards = await Promise.all([loadAuditCard()]);
+  const cards = await Promise.all([loadAuditCard(), loadRealtimeCard()]);
   grid.replaceChildren(...cards);
 })();

@@ -1,9 +1,10 @@
 import { Logger } from '@nestjs/common';
 import { OnGatewayConnection, OnGatewayDisconnect, WebSocketGateway } from '@nestjs/websockets';
 import type { IncomingMessage } from 'http';
-import type { WebSocket } from 'ws';
+import type { RawData, WebSocket } from 'ws';
 import { AuthJwtService } from '../auth/auth-jwt.service';
-import { RealtimeClient } from './realtime.types';
+import { RealtimeService } from './realtime.service';
+import { incomingRealtimeMessageSchema, RealtimeClient } from './realtime.types';
 
 // Browsers' native WebSocket API can't set an Authorization header, so the access token travels
 // as a query param instead (wss://.../realtime/v1?access_token=<JWT>) — the standard workaround
@@ -12,14 +13,18 @@ import { RealtimeClient } from './realtime.types';
 // only the raw upgrade IncomingMessage @nestjs/platform-ws hands to handleConnection.
 const ACCESS_TOKEN_REQUIRED_CLOSE_CODE = 4401;
 
-// Item 2 scope only: connection lifecycle + auth handshake. Subscribe/unsubscribe message
-// handling (Phase 8.3) and NOTIFY fan-out (Phase 8.4) land in their own PRs on top of this.
+// Connection lifecycle/auth (item 2) + subscribe/unsubscribe protocol + authorization (item 3).
+// NOTIFY fan-out/delivery (Phase 8.4) lands on top of RealtimeService's subscription registry in
+// its own PR.
 @WebSocketGateway({ path: '/realtime/v1' })
 export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(RealtimeGateway.name);
   private readonly clients = new Set<RealtimeClient>();
 
-  constructor(private readonly jwt: AuthJwtService) {}
+  constructor(
+    private readonly jwt: AuthJwtService,
+    private readonly realtime: RealtimeService,
+  ) {}
 
   async handleConnection(client: WebSocket, request: IncomingMessage): Promise<void> {
     const token = new URL(request.url ?? '', 'ws://localhost').searchParams.get('access_token');
@@ -33,15 +38,75 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     authenticated.claims = claims;
     this.clients.add(authenticated);
     this.logger.log(`Realtime client connected: user=${claims.sub} project=${claims.projectId}`);
-    authenticated.send(JSON.stringify({ type: 'connected' }));
+    this.send(authenticated, { type: 'connected' });
+
+    authenticated.on('message', (data) => {
+      void this.handleMessage(authenticated, data);
+    });
   }
 
   handleDisconnect(client: RealtimeClient): void {
     this.clients.delete(client);
+    this.realtime.removeClient(client);
     this.logger.log(`Realtime client disconnected: user=${client.claims?.sub ?? 'unknown'}`);
   }
 
+  // For the Phase 8.5 dashboard KPI card — this process's own connections only. Postgres NOTIFY
+  // fans out to every LISTEN-ing connection independently, so a multi-replica control-server
+  // would still deliver events correctly; this count would just be per-replica, not global — a
+  // known limitation of the count itself, not the delivery mechanism, and irrelevant to today's
+  // single-instance deployment.
   getActiveConnectionCount(): number {
     return this.clients.size;
+  }
+
+  private async handleMessage(client: RealtimeClient, data: RawData): Promise<void> {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(data.toString());
+    } catch {
+      this.sendError(client, null, 'Invalid JSON message');
+      return;
+    }
+
+    const result = incomingRealtimeMessageSchema.safeParse(parsed);
+    if (!result.success) {
+      this.sendError(client, null, 'Invalid message shape');
+      return;
+    }
+
+    const message = result.data;
+    // Last line of defense: RealtimeService.subscribe already catches its own DB errors, but one
+    // client's message must never be able to crash the process (and every other connection with
+    // it) via some future/unanticipated throw path.
+    try {
+      if (message.type === 'subscribe') {
+        const outcome = await this.realtime.subscribe(client, message);
+        if (outcome.ok) {
+          this.send(client, { type: 'subscribed', id: message.id });
+        } else {
+          this.sendError(client, message.id, outcome.message);
+        }
+        return;
+      }
+
+      const outcome = this.realtime.unsubscribe(client, message);
+      if (outcome.ok) {
+        this.send(client, { type: 'unsubscribed', id: message.id });
+      } else {
+        this.sendError(client, message.id, outcome.message);
+      }
+    } catch (err) {
+      this.logger.error(`Unhandled error processing realtime message: ${(err as Error).message}`);
+      this.sendError(client, message.id, 'Internal error');
+    }
+  }
+
+  private send(client: RealtimeClient, payload: Record<string, unknown>): void {
+    client.send(JSON.stringify(payload));
+  }
+
+  private sendError(client: RealtimeClient, id: string | null, message: string): void {
+    this.send(client, { type: 'error', id, message });
   }
 }
