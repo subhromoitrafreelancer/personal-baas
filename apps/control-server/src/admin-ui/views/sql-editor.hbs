@@ -12,6 +12,7 @@
   <main class="page sql-editor-page">
     <h1>SQL Editor</h1>
     <div class="sql-toolbar toolbar">
+      <label class="field">Project <select id="project-select"></select></label>
       <button id="run-statement-btn" type="button" class="btn btn-primary">Run statement</button>
       <button id="run-script-btn" type="button" class="btn btn-primary">Run script</button>
       <button id="cancel-btn" type="button" class="btn btn-danger" hidden>Cancel</button>
@@ -60,6 +61,7 @@
 
   <script src="/admin/static/js/topbar.js"></script>
   <script src="/admin/static/js/clipboard.js"></script>
+  <script src="/admin/static/js/project-selector.js"></script>
   <script type="module" src="/admin/static/js/sql-editor.js"></script>
 </body>
 </html>

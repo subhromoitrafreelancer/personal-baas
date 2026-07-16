@@ -1,6 +1,10 @@
 const container = document.getElementById('schemas-container');
 const statusEl = document.getElementById('objects-status');
 const refreshBtn = document.getElementById('refresh-objects-btn');
+const projectSelect = document.getElementById('project-select');
+
+let allSchemas = [];
+let schemaFilter = '';
 
 function escapeHtml(value) {
   return String(value).replace(
@@ -149,6 +153,17 @@ function renderSchema(schema) {
   return block;
 }
 
+function renderSchemas() {
+  const schemas = schemaFilter ? allSchemas.filter((s) => s.name === schemaFilter) : allSchemas;
+  container.innerHTML = '';
+  for (const schema of schemas) {
+    container.appendChild(renderSchema(schema));
+  }
+  statusEl.textContent = schemaFilter
+    ? `Loaded ${schemas.length} of ${allSchemas.length} schema(s)`
+    : `Loaded ${schemas.length} schema(s)`;
+}
+
 async function loadObjects() {
   statusEl.textContent = 'Loading…';
   try {
@@ -162,15 +177,20 @@ async function loadObjects() {
       return;
     }
     const { schemas } = await response.json();
-    container.innerHTML = '';
-    for (const schema of schemas) {
-      container.appendChild(renderSchema(schema));
-    }
-    statusEl.textContent = `Loaded ${schemas.length} schema(s)`;
+    allSchemas = schemas;
+    renderSchemas();
   } catch (err) {
     statusEl.textContent = err instanceof Error ? err.message : 'Failed to load database objects';
   }
 }
 
 refreshBtn.addEventListener('click', loadObjects);
+initProjectSelector(
+  projectSelect,
+  (schemaName) => {
+    schemaFilter = schemaName;
+    renderSchemas();
+  },
+  { allLabel: 'All schemas', optionValue: 'schemaName' },
+);
 loadObjects();

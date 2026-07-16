@@ -1,0 +1,15 @@
+.field-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.field-hint code {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}
+
+.default-project-badge {
+  font-size: 0.7rem;
+  color: var(--color-text-faint);
+}

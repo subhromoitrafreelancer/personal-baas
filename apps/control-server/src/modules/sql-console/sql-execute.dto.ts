@@ -11,6 +11,11 @@ export const executeRequestSchema = z.object({
   statementTimeoutMs: z.coerce.number().int().positive().optional(),
   // Client-generated id so a concurrent request can cancel this execution before it responds.
   executionId: z.string().uuid().optional(),
+  // Project selector convenience (Phase 9 PR7.4, scope.md §23): sets search_path for this
+  // connection before running the admin's SQL, so unqualified statements (e.g. `create table
+  // foo(...)`) land in the selected project's schema. Purely a default — the admin can still
+  // fully schema-qualify to target any schema regardless of this.
+  schemaName: z.string().min(1).optional(),
 });
 
 export type ExecuteRequest = z.infer<typeof executeRequestSchema>;
@@ -27,6 +32,7 @@ export const uploadFieldsSchema = z.object({
   rowLimit: z.coerce.number().int().positive().max(MAX_ROW_LIMIT).optional(),
   statementTimeoutMs: z.coerce.number().int().positive().optional(),
   executionId: z.string().uuid().optional(),
+  schemaName: z.string().min(1).optional(),
 });
 
 export interface StatementResult {

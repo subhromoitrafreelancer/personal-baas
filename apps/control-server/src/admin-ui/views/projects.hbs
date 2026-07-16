@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Projects — Personal BaaS Admin</title>
+  <link rel="stylesheet" href="/admin/static/css/admin.css" />
+  <link rel="stylesheet" href="/admin/static/css/projects.css" />
+</head>
+<body>
+  {{> topbar}}
+
+  <main class="page projects-page">
+    <h1>Projects</h1>
+    <div class="projects-toolbar toolbar">
+      <button id="create-project-btn" type="button" class="btn btn-primary">Create project</button>
+      <span id="projects-status" class="run-status"></span>
+    </div>
+
+    <div id="restart-banner" class="banner banner-warning" hidden></div>
+
+    <form id="create-project-form" class="inline-form" hidden>
+      <label class="field">Slug <input id="new-project-slug" type="text" required placeholder="e.g. acme" pattern="[a-z][a-z0-9_]{2,30}" /></label>
+      <label class="field">Name <input id="new-project-name" type="text" required placeholder="e.g. Acme Inc" /></label>
+      <button type="submit" class="btn btn-primary">Create</button>
+      <button type="button" id="cancel-create-btn" class="btn btn-outline">Cancel</button>
+    </form>
+    <p class="field-hint">Lowercase letters, digits, and underscores, starting with a letter, 3-31 characters. Each project gets its own <code>api_&lt;slug&gt;</code> schema and <code>anon_&lt;slug&gt;</code>/<code>authenticated_&lt;slug&gt;</code>/<code>service_role_&lt;slug&gt;</code> roles.</p>
+
+    <div class="table-wrap">
+      <table class="table projects-table">
+        <thead>
+          <tr>
+            <th>Slug</th>
+            <th>Name</th>
+            <th>Schema</th>
+            <th>Roles</th>
+            <th>Created</th>
+          </tr>
+        </thead>
+        <tbody id="projects-tbody"></tbody>
+      </table>
+    </div>
+  </main>
+
+  {{> footer}}
+
+  <script src="/admin/static/js/topbar.js"></script>
+  <script src="/admin/static/js/clipboard.js"></script>
+  <script src="/admin/static/js/projects.js"></script>
+</body>
+</html>

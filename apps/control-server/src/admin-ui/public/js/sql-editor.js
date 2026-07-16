@@ -31,8 +31,18 @@ const historyList = document.getElementById('history-list');
 const uploadBtn = document.getElementById('upload-btn');
 const sqlFileInput = document.getElementById('sql-file-input');
 const snippetSelect = document.getElementById('snippet-select');
+const projectSelect = document.getElementById('project-select');
 
 let currentExecutionId = null;
+let currentSchemaName = null;
+
+initProjectSelector(
+  projectSelect,
+  (schemaName) => {
+    currentSchemaName = schemaName;
+  },
+  { optionValue: 'schemaName' },
+);
 
 function getEditorText() {
   const { from, to } = editor.state.selection.main;
@@ -202,6 +212,7 @@ function runSql(mode) {
         mode,
         rowLimit: Number(rowLimitInput.value) || undefined,
         executionId,
+        schemaName: currentSchemaName || undefined,
       }),
     }),
   );
@@ -236,6 +247,9 @@ sqlFileInput.addEventListener('change', () => {
     formData.append('executionId', executionId);
     if (Number(rowLimitInput.value)) {
       formData.append('rowLimit', rowLimitInput.value);
+    }
+    if (currentSchemaName) {
+      formData.append('schemaName', currentSchemaName);
     }
     return fetch('/admin/v1/sql/upload', { method: 'POST', body: formData });
   });

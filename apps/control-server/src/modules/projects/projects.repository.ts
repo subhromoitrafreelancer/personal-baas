@@ -108,5 +108,21 @@ export class ProjectsRepository {
     await this.pool.query(
       `GRANT "${names.anonRole}", "${names.authenticatedRole}", "${names.serviceRoleRole}" TO authenticator`,
     );
+    // Schemas created with CREATE SCHEMA get no implicit PUBLIC grant in Postgres — USAGE on
+    // a schema is a prerequisite for any table-level grant or schema-qualified function call
+    // to mean anything, and is not itself row/table access (scope.md §9: "anon: No access
+    // unless explicitly granted"). The global anon/authenticated/service_role roles needed
+    // this same grant for `api`/`auth`/`platform` (1784200001000_grant-schema-usage.ts,
+    // 1784300002000_grant-platform-schema-usage.ts — both discovered via live "permission
+    // denied for schema ..." failures through PostgREST); project-scoped roles need the exact
+    // same three, found the same way via a live PR7.5 integration test:
+    //   - their own schema, or every table grant inside it is inert
+    //   - `platform`, since PGRST_DB_PRE_REQUEST (platform.check_api_key_revocation) runs
+    //     before every single PostgREST request regardless of role
+    //   - `auth`, so their own RLS policies can use the auth.uid() ergonomic helper
+    //     (1784200000000_create-auth-uid-function.ts) like the default project's can
+    await this.pool.query(
+      `GRANT USAGE ON SCHEMA "${names.schemaName}", platform, auth TO "${names.anonRole}", "${names.authenticatedRole}", "${names.serviceRoleRole}"`,
+    );
   }
 }

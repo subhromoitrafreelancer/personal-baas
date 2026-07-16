@@ -55,6 +55,14 @@ export class SqlConsoleService {
     const completed: StatementResult[] = [];
 
     const { pid, result } = await this.adminQuery.withConnection(async (client) => {
+      if (input.schemaName) {
+        // set_config (not a raw `SET search_path TO ...` string) so the schema name — client
+        // input — is bound as a parameter rather than interpolated into SQL text.
+        await client.query('SELECT set_config($1, $2, false)', [
+          'search_path',
+          `"${input.schemaName}", public`,
+        ]);
+      }
       for (const span of spans) {
         const stmtStart = Date.now();
         try {

@@ -6,6 +6,7 @@ import { ApiKeysRepository } from './api-keys.repository';
 
 function toPublicKey(row: {
   id: string;
+  project_id: string;
   name: string;
   kind: string;
   created_at: Date;
@@ -15,6 +16,7 @@ function toPublicKey(row: {
 }) {
   return {
     id: row.id,
+    projectId: row.project_id,
     name: row.name,
     kind: row.kind,
     createdAt: row.created_at.toISOString(),
@@ -33,16 +35,14 @@ export class ApiKeysService {
     private readonly projects: ProjectsService,
   ) {}
 
-  // TODO(Phase 9 PR7): scope to an admin-selected project instead of always the default
-  // once the admin console gains a project selector.
-  async list() {
-    const project = await this.projects.getDefault();
+  async list(projectId?: string) {
+    const project = projectId ? await this.projects.getById(projectId) : await this.projects.getDefault();
     const rows = await this.apiKeysRepo.list(project.id);
     return rows.map(toPublicKey);
   }
 
-  async create(name: string, kind: 'publishable' | 'secret', adminEmail: string) {
-    const project = await this.projects.getDefault();
+  async create(name: string, kind: 'publishable' | 'secret', adminEmail: string, projectId?: string) {
+    const project = projectId ? await this.projects.getById(projectId) : await this.projects.getDefault();
     const row = await this.apiKeysRepo.create(name, kind, adminEmail, project.id);
     const role = kind === 'publishable' ? project.anon_role : project.service_role_role;
     const token = await this.jwt.signApiKeyToken(role, row.id, project.id);

@@ -63,6 +63,10 @@ export class ProjectsService {
     return project;
   }
 
+  async list(): Promise<ProjectRow[]> {
+    return this.repository.list();
+  }
+
   /**
    * Looks up a project a caller already knows the id of (e.g. from a user row's or API key
    * row's own project_id column). Throws rather than returning null since a project_id stored

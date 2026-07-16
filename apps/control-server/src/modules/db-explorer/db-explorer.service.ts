@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AdminQueryService } from '../admin-db/admin-query.service';
+import { ProjectsService } from '../projects/projects.service';
 import {
   COLUMNS_QUERY,
   CONSTRAINTS_QUERY,
@@ -80,10 +81,13 @@ interface FunctionRow {
 
 @Injectable()
 export class DbExplorerService {
-  constructor(private readonly adminQuery: AdminQueryService) {}
+  constructor(
+    private readonly adminQuery: AdminQueryService,
+    private readonly projects: ProjectsService,
+  ) {}
 
   async getDatabaseObjects(): Promise<DatabaseObjectsResponse> {
-    const [schemas, tables, columns, constraints, foreignKeys, indexes, policies, functions] =
+    const [schemas, tables, columns, constraints, foreignKeys, indexes, policies, functions, projectRows] =
       await Promise.all([
         this.adminQuery.query<SchemaRow>(SCHEMAS_QUERY),
         this.adminQuery.query<TableRow>(TABLES_QUERY),
@@ -93,7 +97,15 @@ export class DbExplorerService {
         this.adminQuery.query<IndexRow>(INDEXES_QUERY),
         this.adminQuery.query<PolicyRow>(POLICIES_QUERY),
         this.adminQuery.query<FunctionRow>(FUNCTIONS_QUERY),
+        this.projects.list(),
       ]);
+
+    // A table is API-exposed if it lives in *any* project's schema (scope.md §23) — not just
+    // the literal 'api' schema, which was the only one that existed before Phase 9 and is now
+    // just the default project's. postgrest.conf's db-schemas is the actual source of truth
+    // for what's live, but it's a config file, not a DB fact — platform.projects.schema_name
+    // is the closest thing to "expected to be exposed once postgrest.conf/restart catch up".
+    const apiSchemaNames = new Set(projectRows.map((row) => row.schema_name));
 
     const tableKey = (schema: string, table: string) => `${schema}.${table}`;
     const tablesByKey = new Map<string, TableInfo>();
@@ -102,7 +114,7 @@ export class DbExplorerService {
       tablesByKey.set(tableKey(row.schema, row.name), {
         name: row.name,
         kind: row.kind,
-        apiExposed: row.schema === 'api',
+        apiExposed: apiSchemaNames.has(row.schema),
         rlsEnabled: row.rls_enabled,
         rlsForced: row.rls_forced,
         columns: [],

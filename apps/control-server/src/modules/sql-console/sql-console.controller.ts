@@ -75,6 +75,7 @@ export class SqlConsoleController {
         rowLimit: fields.data.rowLimit,
         statementTimeoutMs: fields.data.statementTimeoutMs,
         executionId: fields.data.executionId,
+        schemaName: fields.data.schemaName,
       },
       req.admin!,
     );

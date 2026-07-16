@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { AdminAuthModule } from '../admin-auth/admin-auth.module';
+import { ProjectsModule } from '../projects/projects.module';
 import { DbExplorerController } from './db-explorer.controller';
 import { DbExplorerPageController } from './db-explorer-page.controller';
 import { DbExplorerService } from './db-explorer.service';
 
 @Module({
-  imports: [AdminAuthModule],
+  imports: [AdminAuthModule, ProjectsModule],
   controllers: [DbExplorerController, DbExplorerPageController],
   providers: [DbExplorerService],
 })

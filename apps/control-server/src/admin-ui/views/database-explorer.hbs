@@ -12,6 +12,7 @@
   <main class="page db-explorer-page">
     <h1>Database</h1>
     <div class="db-explorer-toolbar toolbar">
+      <label class="field">Project <select id="project-select"></select></label>
       <button id="refresh-objects-btn" type="button" class="btn btn-primary">Refresh</button>
       <span id="objects-status" class="run-status"></span>
     </div>
@@ -22,6 +23,7 @@
 
   <script src="/admin/static/js/topbar.js"></script>
   <script src="/admin/static/js/clipboard.js"></script>
+  <script src="/admin/static/js/project-selector.js"></script>
   <script type="module" src="/admin/static/js/database-explorer.js"></script>
 </body>
 </html>

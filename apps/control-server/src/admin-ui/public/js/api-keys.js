@@ -6,6 +6,9 @@ const cancelCreateBtn = document.getElementById('cancel-create-btn');
 const newKeyName = document.getElementById('new-key-name');
 const newKeyKind = document.getElementById('new-key-kind');
 const secretBanner = document.getElementById('secret-banner');
+const projectSelect = document.getElementById('project-select');
+
+let currentProjectId = null;
 
 function escapeHtml(value) {
   return String(value).replace(
@@ -86,7 +89,7 @@ function renderRow(key) {
 
 async function loadKeys() {
   statusEl.textContent = 'Loading…';
-  const res = await apiFetch('/admin/v1/api-keys');
+  const res = await apiFetch(`/admin/v1/api-keys?projectId=${encodeURIComponent(currentProjectId)}`);
   if (!res) return;
   if (!res.ok) {
     statusEl.textContent = 'Failed to load API keys';
@@ -117,7 +120,7 @@ createKeyForm.addEventListener('submit', async (e) => {
   const res = await apiFetch('/admin/v1/api-keys', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, kind }),
+    body: JSON.stringify({ name, kind, projectId: currentProjectId }),
   });
   if (!res) return;
   if (!res.ok) {
@@ -140,4 +143,7 @@ createKeyForm.addEventListener('submit', async (e) => {
   loadKeys();
 });
 
-loadKeys();
+initProjectSelector(projectSelect, (projectId) => {
+  currentProjectId = projectId;
+  loadKeys();
+});
