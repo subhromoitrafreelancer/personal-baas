@@ -1,3 +1,10 @@
+-- baas_admin owns every schema below, but ownership alone doesn't let it CREATE new ones —
+-- that needs CREATE on the database itself, which by default only the database owner (the
+-- superuser running this bootstrap) and superusers have. Phase 9 (scope.md §23) has
+-- baas_admin create a new api_<slug> schema at runtime for each project, so it needs this
+-- grant even though every schema created during bootstrap itself is fine without it.
+grant create on database current_database() to baas_admin;
+
 -- Schema exposure convention (scope.md §12): only `api` is ever exposed through PostgREST.
 -- Owned by baas_admin (scope.md §9: "baas_admin: schema administration, SQL editor
 -- execution, migration execution") so the control service's admin connection and

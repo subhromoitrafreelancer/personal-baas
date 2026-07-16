@@ -5,6 +5,7 @@ import { AuthAuditService } from '../auth/auth-audit.service';
 import { AuthPasswordResetTokensRepository } from '../auth/auth-password-reset-tokens.repository';
 import { PublicUser, toPublicUser } from '../auth/auth-user.dto';
 import { AuthUsersRepository } from '../auth/auth-users.repository';
+import { ProjectsService } from '../projects/projects.service';
 
 function randomOpaqueValue(): string {
   return randomBytes(18).toString('base64url');
@@ -16,10 +17,14 @@ export class AdminUsersService {
     private readonly usersRepo: AuthUsersRepository,
     private readonly resetTokensRepo: AuthPasswordResetTokensRepository,
     private readonly audit: AuthAuditService,
+    private readonly projects: ProjectsService,
   ) {}
 
+  // TODO(Phase 9 PR7): scope to an admin-selected project instead of always the default
+  // once the admin console gains a project selector.
   async list(search: string | null, limit: number, offset: number) {
-    const { rows, total } = await this.usersRepo.list(search, limit, offset);
+    const project = await this.projects.getDefault();
+    const { rows, total } = await this.usersRepo.list(search, limit, offset, project.id);
     return { users: rows.map(toPublicUser), total };
   }
 
@@ -28,14 +33,15 @@ export class AdminUsersService {
     password: string | undefined,
     adminEmail: string,
   ): Promise<{ user: PublicUser; temporaryPassword?: string }> {
-    const existing = await this.usersRepo.findByEmail(email);
+    const project = await this.projects.getDefault();
+    const existing = await this.usersRepo.findByEmail(email, project.id);
     if (existing) {
       throw new UnprocessableEntityException({ message: 'User already registered' });
     }
 
     const temporaryPassword = password ?? randomOpaqueValue();
     const passwordHash = await argon2.hash(temporaryPassword, { type: argon2.argon2id });
-    const user = await this.usersRepo.create(email, passwordHash);
+    const user = await this.usersRepo.create(email, passwordHash, project.id);
     this.audit.record(user.id, 'admin.user_created', null, null, { createdBy: adminEmail });
 
     return { user: toPublicUser(user), temporaryPassword: password ? undefined : temporaryPassword };

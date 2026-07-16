@@ -59,4 +59,46 @@ export class ProjectsRepository {
     );
     return rows;
   }
+
+  async schemaExists(schemaName: string): Promise<boolean> {
+    const { rows } = await this.pool.query<{ exists: boolean }>(
+      'SELECT EXISTS (SELECT FROM information_schema.schemata WHERE schema_name = $1) AS exists',
+      [schemaName],
+    );
+    return rows[0].exists;
+  }
+
+  /**
+   * Creates a project's schema and its three project-scoped roles, granted to
+   * `authenticator` (scope.md §23). Names are only ever produced by
+   * ProjectsService.create() from an already-validated slug (`^[a-z][a-z0-9_]{2,30}$`), so
+   * they're safe to interpolate directly into DDL identifiers — schema/role names can't be
+   * bound as query parameters in Postgres DDL.
+   */
+  async provisionSchemaAndRoles(names: {
+    schemaName: string;
+    anonRole: string;
+    authenticatedRole: string;
+    serviceRoleRole: string;
+  }): Promise<void> {
+    await this.pool.query(`CREATE SCHEMA "${names.schemaName}" AUTHORIZATION baas_admin`);
+    await this.pool.query(`
+      DO $do$
+      BEGIN
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${names.anonRole}') THEN
+          CREATE ROLE "${names.anonRole}" NOLOGIN;
+        END IF;
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${names.authenticatedRole}') THEN
+          CREATE ROLE "${names.authenticatedRole}" NOLOGIN;
+        END IF;
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${names.serviceRoleRole}') THEN
+          CREATE ROLE "${names.serviceRoleRole}" NOLOGIN BYPASSRLS;
+        END IF;
+      END
+      $do$;
+    `);
+    await this.pool.query(
+      `GRANT "${names.anonRole}", "${names.authenticatedRole}", "${names.serviceRoleRole}" TO authenticator`,
+    );
+  }
 }

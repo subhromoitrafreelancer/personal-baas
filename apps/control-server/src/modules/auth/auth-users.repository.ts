@@ -4,6 +4,7 @@ import { PG_POOL } from '../database/database.module';
 
 export interface AuthUserRow {
   id: string;
+  project_id: string;
   email: string;
   password_hash: string;
   status: 'active' | 'disabled' | 'invited';
@@ -21,10 +22,10 @@ export interface AuthUserRow {
 export class AuthUsersRepository {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
-  async findByEmail(email: string): Promise<AuthUserRow | null> {
+  async findByEmail(email: string, projectId: string): Promise<AuthUserRow | null> {
     const { rows } = await this.pool.query<AuthUserRow>(
-      'SELECT * FROM auth.users WHERE lower(email) = lower($1)',
-      [email],
+      'SELECT * FROM auth.users WHERE project_id = $1 AND lower(email) = lower($2)',
+      [projectId, email],
     );
     return rows[0] ?? null;
   }
@@ -34,12 +35,12 @@ export class AuthUsersRepository {
     return rows[0] ?? null;
   }
 
-  async create(email: string, passwordHash: string): Promise<AuthUserRow> {
+  async create(email: string, passwordHash: string, projectId: string): Promise<AuthUserRow> {
     const { rows } = await this.pool.query<AuthUserRow>(
-      `INSERT INTO auth.users (email, password_hash)
-       VALUES ($1, $2)
+      `INSERT INTO auth.users (email, password_hash, project_id)
+       VALUES ($1, $2, $3)
        RETURNING *`,
-      [email, passwordHash],
+      [email, passwordHash, projectId],
     );
     return rows[0];
   }
@@ -65,17 +66,23 @@ export class AuthUsersRepository {
     return rows[0] ?? null;
   }
 
-  async list(search: string | null, limit: number, offset: number): Promise<{ rows: AuthUserRow[]; total: number }> {
+  async list(
+    search: string | null,
+    limit: number,
+    offset: number,
+    projectId: string,
+  ): Promise<{ rows: AuthUserRow[]; total: number }> {
     const { rows } = await this.pool.query<AuthUserRow>(
       `SELECT * FROM auth.users
-       WHERE $1::text IS NULL OR email ILIKE '%' || $1 || '%'
+       WHERE project_id = $1 AND ($2::text IS NULL OR email ILIKE '%' || $2 || '%')
        ORDER BY created_at DESC
-       LIMIT $2 OFFSET $3`,
-      [search, limit, offset],
+       LIMIT $3 OFFSET $4`,
+      [projectId, search, limit, offset],
     );
     const { rows: countRows } = await this.pool.query<{ count: string }>(
-      `SELECT count(*) FROM auth.users WHERE $1::text IS NULL OR email ILIKE '%' || $1 || '%'`,
-      [search],
+      `SELECT count(*) FROM auth.users
+       WHERE project_id = $1 AND ($2::text IS NULL OR email ILIKE '%' || $2 || '%')`,
+      [projectId, search],
     );
     return { rows, total: Number(countRows[0].count) };
   }

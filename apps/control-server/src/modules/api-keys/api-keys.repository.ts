@@ -4,6 +4,7 @@ import { PG_POOL } from '../database/database.module';
 
 export interface ApiKeyRow {
   id: string;
+  project_id: string;
   name: string;
   kind: 'publishable' | 'secret';
   created_at: Date;
@@ -16,19 +17,25 @@ export interface ApiKeyRow {
 export class ApiKeysRepository {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
-  async create(name: string, kind: 'publishable' | 'secret', createdBy: string): Promise<ApiKeyRow> {
+  async create(
+    name: string,
+    kind: 'publishable' | 'secret',
+    createdBy: string,
+    projectId: string,
+  ): Promise<ApiKeyRow> {
     const { rows } = await this.pool.query<ApiKeyRow>(
-      `INSERT INTO platform.api_keys (name, kind, created_by)
-       VALUES ($1, $2, $3)
+      `INSERT INTO platform.api_keys (name, kind, created_by, project_id)
+       VALUES ($1, $2, $3, $4)
        RETURNING *`,
-      [name, kind, createdBy],
+      [name, kind, createdBy, projectId],
     );
     return rows[0];
   }
 
-  async list(): Promise<ApiKeyRow[]> {
+  async list(projectId: string): Promise<ApiKeyRow[]> {
     const { rows } = await this.pool.query<ApiKeyRow>(
-      'SELECT * FROM platform.api_keys ORDER BY created_at DESC',
+      'SELECT * FROM platform.api_keys WHERE project_id = $1 ORDER BY created_at DESC',
+      [projectId],
     );
     return rows;
   }

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ProjectsModule } from '../projects/projects.module';
 import { AuthAuditEventsRepository } from './auth-audit-events.repository';
 import { AuthAuditService } from './auth-audit.service';
 import { AuthJwtService } from './auth-jwt.service';
@@ -14,6 +15,7 @@ import { SelfServiceService } from './self-service.service';
 import { SignupService } from './signup.service';
 
 @Module({
+  imports: [ProjectsModule],
   controllers: [AuthController],
   providers: [
     AuthJwtService,

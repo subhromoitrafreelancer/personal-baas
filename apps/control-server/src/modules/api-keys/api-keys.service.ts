@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuthAuditService } from '../auth/auth-audit.service';
 import { AuthJwtService } from '../auth/auth-jwt.service';
+import { ProjectsService } from '../projects/projects.service';
 import { ApiKeysRepository } from './api-keys.repository';
 
 function toPublicKey(row: {
@@ -29,15 +30,20 @@ export class ApiKeysService {
     private readonly apiKeysRepo: ApiKeysRepository,
     private readonly jwt: AuthJwtService,
     private readonly audit: AuthAuditService,
+    private readonly projects: ProjectsService,
   ) {}
 
+  // TODO(Phase 9 PR7): scope to an admin-selected project instead of always the default
+  // once the admin console gains a project selector.
   async list() {
-    const rows = await this.apiKeysRepo.list();
+    const project = await this.projects.getDefault();
+    const rows = await this.apiKeysRepo.list(project.id);
     return rows.map(toPublicKey);
   }
 
   async create(name: string, kind: 'publishable' | 'secret', adminEmail: string) {
-    const row = await this.apiKeysRepo.create(name, kind, adminEmail);
+    const project = await this.projects.getDefault();
+    const row = await this.apiKeysRepo.create(name, kind, adminEmail, project.id);
     const role = kind === 'publishable' ? 'anon' : 'service_role';
     const token = await this.jwt.signApiKeyToken(role, row.id);
     this.audit.record(null, 'admin.api_key_created', null, null, { name, kind, createdBy: adminEmail });

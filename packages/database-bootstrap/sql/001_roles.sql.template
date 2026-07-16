@@ -5,7 +5,12 @@
 do $$
 begin
   if not exists (select from pg_roles where rolname = 'baas_admin') then
-    create role baas_admin with login password '${BAAS_ADMIN_PASSWORD}' createrole createdb;
+    -- bypassrls: Postgres only lets a role create another role WITH BYPASSRLS if it has
+    -- that attribute itself. Phase 9 (scope.md §23) has baas_admin create each project's
+    -- service_role_<slug> (NOLOGIN BYPASSRLS), so baas_admin needs it too. This doesn't
+    -- meaningfully change baas_admin's trust level: the SQL console already gives the
+    -- single platform admin unrestricted SQL as this role, RLS or not.
+    create role baas_admin with login password '${BAAS_ADMIN_PASSWORD}' createrole createdb bypassrls;
   end if;
 
   if not exists (select from pg_roles where rolname = 'authenticator') then
