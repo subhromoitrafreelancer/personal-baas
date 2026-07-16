@@ -809,7 +809,7 @@ Do not attempt full Supabase SDK compatibility. Create a smaller, documented int
 
 This boundary is important. Otherwise, the project quickly becomes a Supabase clone rather than a useful internal accelerator.
 
-Storage and Realtime subscriptions, originally excluded here and listed under §18 Later Roadmap, have since been promoted to real phases (§17 Phase 7 and Phase 8) — see §21 and §22 for their models. GraphQL remains excluded.
+Storage and Realtime subscriptions, originally excluded here and listed under §18 Later Roadmap, have since been promoted to real phases (§17 Phase 7 and Phase 8) — see §21 and §22 for their models. Multi-project support, originally listed under §18 Later Roadmap as "Expansion 1," has likewise been promoted to a real phase (§17 Phase 9) — see §23 for its model. GraphQL remains excluded.
 
 ---
 
@@ -1053,6 +1053,19 @@ Runs after Phase 7 (depends on Storage for attachments), before Phase 8. See `do
 
 Lower priority than Phase 7; see §22 Realtime Model for the full design and the rationale for deferring full logical replication.
 
+## Phase 9 — Multi-project support
+
+### Features
+
+* Multiple projects on one shared PostgreSQL instance, each with a dedicated `api_<slug>` schema
+* Project-scoped PostgreSQL roles (`anon_<slug>`, `authenticated_<slug>`, `service_role_<slug>`) —
+  Postgres-grant-enforced isolation, not RLS discipline alone
+* Per-project `auth.users` / `platform.api_keys` (project-scoped user pools and API keys)
+* JWTs carrying a `project_id` claim and a project-scoped `role` claim
+* Admin seeding requires at least one project to already exist
+
+See §23 Multi-Project Model for the full design.
+
 ## Phase 6b — Operational hardening (deferred)
 
 ### Features
@@ -1076,7 +1089,7 @@ This produces the first internally production-usable release.
 
 After the initial product is stable, add features in this order:
 
-## Expansion 1: Multi-project support
+## Expansion 1: Multi-project support (promoted — see §17 Phase 9 and §23)
 
 * Project creation
 * One schema per project
@@ -1247,6 +1260,86 @@ Phase 8, explicitly lower priority than Phase 7. Table subscriptions delivered o
    at-most-once delivery ever proves insufficient. Not required for the
    initial release given this feature's optional/lower-priority status.
 ```
+
+---
+
+# 23. Multi-Project Model
+
+Phase 9. One shared PostgreSQL instance hosts multiple projects, each with genuinely isolated
+data and users — not just multiple `api` tables sharing one identity pool. The platform is
+operated by a single administrator who manages all projects; isolation is a boundary between
+projects' REST APIs and JWTs, not a boundary within the admin console.
+
+```text
+1. Schema per project. platform.projects (id, slug, name, created_at, updated_at).
+   Each project owns a Postgres schema api_<slug>, created at project-creation time
+   (not at container bootstrap, since projects are created after the platform is
+   already running).
+
+2. Postgres-role-enforced isolation, not RLS discipline alone. A shared
+   `authenticated` role across all projects would mean any validly-signed JWT could
+   read/write any project's schema that happens to grant `authenticated` access —
+   RLS alone cannot prevent this if a single table forgets a project_id check, and
+   a human (the same admin, writing SQL by hand per project) will eventually forget.
+   So each project gets its own three roles, mirroring the existing global ones:
+
+       anon_<slug>            NOLOGIN
+       authenticated_<slug>   NOLOGIN
+       service_role_<slug>    NOLOGIN BYPASSRLS
+
+   All three are granted to `authenticator` (same role-switching mechanism already
+   used for the global anon/authenticated/service_role). A project-A JWT's `role`
+   claim becomes `authenticated_<slug-a>`, which structurally cannot access project
+   B's schema regardless of whether project B's RLS policies are correct — isolation
+   is enforced by Postgres grants, the same mechanism §9/§10 already trust for the
+   single-project case.
+
+3. auth.users and platform.api_keys gain project_id. User uniqueness becomes
+   (project_id, lower(email)) instead of a single global unique email. API keys
+   (publishable/secret) are minted per project, each carrying that project's
+   anon_<slug> or service_role_<slug> in its signed role claim.
+
+4. JWTs gain a project_id claim, and their role claim becomes the project-scoped
+   variant (authenticated_<slug>, anon_<slug>, or service_role_<slug>) instead of
+   the flat global name.
+
+5. Project resolution on auth endpoints reuses an existing convention instead of
+   introducing a new header. Client applications already send
+   `Authorization: Bearer <publishable-key-JWT>` before login (per the reference
+   todo-app client). Signup/login/token endpoints verify that pre-login bearer as
+   an API-key JWT, resolve project_id from platform.api_keys, and scope the
+   auth.users lookup/creation to it. No separate `apikey` header is introduced.
+
+6. Admin seeding requires a project to already exist. On first boot, a
+   ProjectsService.ensureDefaultProject() step (idempotent, env-driven —
+   INITIAL_PROJECT_SLUG / INITIAL_PROJECT_NAME, same pattern as
+   INITIAL_ADMIN_EMAIL/PASSWORD) runs before platform.platform_admins seeding.
+   An admin identity is never seeded without at least one project present.
+
+7. PostgREST reconfiguration on new-project creation is a manual step, not
+   automated. PostgREST only picks up its exposed schema list (db-schemas) on
+   process restart / config reload — there is no way to add a schema to a running
+   instance's exposed list via NOTIFY alone. Automating this would mean giving
+   control-server Docker-socket access to restart the postgrest container, a
+   materially larger attack surface than anything else in the stack; this was
+   considered and explicitly rejected. Instead, postgrest.conf becomes a mounted,
+   writable file (rather than env-var-only config) that control-server rewrites
+   (the db-schemas line) on project create/delete, and the admin console surfaces
+   a copyable `docker compose restart postgrest` reminder — a human triggers the
+   reload, control-server only prepares the config change.
+
+8. The platform administrator is not project-scoped. One admin identity manages
+   every project (per §5.1, unchanged); the admin console gains a project selector
+   for the SQL console, database explorer, and API-key pages, but this is a
+   convenience for the single admin, not an isolation boundary — the actual
+   isolation boundary for tenant data is the REST API / JWT / Postgres-role layer
+   described above.
+```
+
+This is a v1 design for Phase 9, not a frozen architectural decision — the manual
+PostgREST-restart step in particular may be revisited (e.g. a `SIGUSR1`-driven config
+hot-reload instead of a full container restart) if the operational friction proves
+worse in practice than the added attack surface of automating it.
 
 [9]: https://min.io/docs/minio/linux/index.html "MinIO Object Storage Documentation"
 

@@ -237,6 +237,82 @@ subscriptions itself; realtime always needs a sibling WebSocket service regardle
 5. **Admin UI (minimal)** — active-connections/subscriptions KPI card on the dashboard (reuses the existing KPI card pattern); a full realtime admin page is deferred.
    - **Acceptance**: two WebSocket clients subscribe to the same table with different `user_id=eq.<uuid>` filters; an insert/update/delete from a third connection delivers only to the correctly-filtered subscriber(s).
 
+## Phase 9 — Multi-project support
+
+Design written up in `scope.md` §23 (see also §17 phase stub, §16/§18 promotion notes) after the
+user confirmed "Option A" (per-project user pools + project-scoped JWTs, genuine isolation, not a
+shared identity pool across projects). Two decisions were made explicitly when asked: (1) new-project
+PostgREST reconfiguration is a **manual** `docker compose restart postgrest` step, not automated —
+mounting the Docker socket into control-server so it could restart the container itself was
+considered and rejected as a materially larger attack surface than anything else in the stack; (2)
+the already-seeded project (created alongside the first admin, see #1) keeps the **existing** `api`
+schema and `anon`/`authenticated`/`service_role` role names as-is rather than being renamed to
+`api_default`/`*_default` — this keeps every existing dev flow, and the Phase 7a `examples/todo-app`
+client, working with zero changes, at the cost of the default project being a named exception to the
+`api_<slug>`/`<role>_<slug>` pattern every other project follows. `platform.projects` stores each
+project's schema/role names explicitly (not always derived by string concatenation) specifically so
+this exception is data, not a scattered `if slug === 'default'` special case in code.
+
+Placed after Phase 8 rather than immediately after Phase 4 (where RLS/roles were originally designed)
+because it changes the role/grant model those phases already shipped — Phase 6b stays last since it's
+explicitly deferred at the user's direction and this phase doesn't change that ordering.
+
+1. **`platform.projects` migration + seeding invariant** — table (`id`, `slug`, `name`,
+   `schema_name`, `anon_role`, `authenticated_role`, `service_role_role`, `created_at`,
+   `updated_at`) via node-pg-migrate. A data migration inserts the pre-existing project's row with
+   `schema_name='api'`, `anon_role='anon'`, `authenticated_role='authenticated'`,
+   `service_role_role='service_role'` — the legacy global names, unchanged. Extend
+   `AdminAuthService`'s first-boot seeding to call `ProjectsService.ensureDefaultProject()`
+   (idempotent — no-op once that row exists) *before* seeding `platform.platform_admins`: an admin
+   is never seeded without at least one project present.
+2. **Project-scoped role & schema provisioning (new projects only)** — `ProjectsService.create()`:
+   slug validation (regex `^[a-z][a-z0-9_]{2,30}$`, reserved-word blocklist covering
+   `platform`/`auth`/`api`/`private`/`storage`/`public`/`default`), then via the `baas_admin` pool:
+   `CREATE SCHEMA api_<slug> AUTHORIZATION baas_admin`, `CREATE ROLE anon_<slug> NOLOGIN`,
+   `CREATE ROLE authenticated_<slug> NOLOGIN`, `CREATE ROLE service_role_<slug> NOLOGIN BYPASSRLS`,
+   grant all three to `authenticator`, then insert the `platform.projects` row with the derived
+   names. Never invoked for the seeded project from #1 — its schema/roles already exist from the
+   original Phase 0 bootstrap.
+3. **`auth.users` / `platform.api_keys` project scoping** — migration adding
+   `project_id uuid not null references platform.projects(id)` to both tables, backfilled to the
+   seeded project's id (inserted in #1) before the `not null` constraint is applied; drop the
+   global `lower(email)` unique index in favor of `(project_id, lower(email))`;
+   `AuthUsersRepository`/`ApiKeysRepository` method signatures gain a required `projectId`.
+4. **JWT project-scoping** — `AuthJwtService.signAccessToken`/`signApiKeyToken` look up the target
+   project's stored `authenticated_role`/`anon_role`/`service_role_role` (never string-concatenated
+   — the seeded project's are the unsuffixed legacy names) and embed both a `project_id` claim and
+   the resolved `role` claim. For the seeded project this produces byte-identical claims to today
+   (`role: 'authenticated'`), so existing sessions/clients see no behavior change.
+5. **Auth endpoints resolve project from the existing publishable-key bearer** —
+   `/auth/v1/signup`/`/login`/`/token` verify the pre-login `Authorization: Bearer
+   <publishable-or-service-key-JWT>` as an API-key JWT (existing `signApiKeyToken`/verify logic),
+   resolve `project_id` from `platform.api_keys`, and scope the `auth.users` lookup/creation to it
+   — no new header. Implementation must first confirm this bearer is already mandatory on these
+   routes per the Phase 7a client convention; if not yet enforced, this item also makes it so.
+6. **PostgREST multi-schema config file** — switch the `postgrest` compose service from `PGRST_*`
+   env vars to a mounted, writable `postgrest.conf` (shared volume with control-server), seeded
+   with `db-schemas = "api"` (the pre-existing project listed first, preserving today's
+   no-`Accept-Profile`-header behavior for existing clients). `ProjectsService.create()`/`delete()`
+   append/remove that project's schema from the `db-schemas` line. Admin UI surfaces a "restart
+   required" banner with the exact `docker compose restart postgrest` command after any change —
+   manual, per the decision above.
+7. **Admin UI — Projects page** — `/admin/projects`: list/create projects (slug + name form; the
+   seeded project is shown with its slug/schema/roles read-only, not renameable); each row shows
+   its schema name and a copy-to-clipboard restart reminder after creation. Project selector added
+   to the SQL console / DB explorer / API-keys pages (defaults to the seeded project) so the single
+   admin can operate on any project without cross-project ambiguity.
+8. **Two-project isolation verification** — create a second project via #7, restart PostgREST
+   once, sign up + log in a user in it, create a disposable `notes` table with owner-only RLS in
+   its `api_<slug>` schema; confirm its JWT (`role: authenticated_<slug>`) is rejected/empty
+   against the original project's `api` schema (`Accept-Profile: api`) and vice versa, at the
+   Postgres role/grant level rather than via RLS alone — proving isolation doesn't depend on every
+   project's SQL author remembering a `project_id` check.
+   - **Acceptance**: existing flows (todo-app, any pre-existing signup/login/REST calls) keep
+     working with zero client-side changes; a newly created second project gets a working
+     signup/login/REST/RLS stack after exactly one `docker compose restart postgrest`; a
+     project-A JWT is provably rejected against project B's schema at the Postgres role/grant
+     level, and vice versa.
+
 ## Phase 6b — Operational hardening (deferred)
 
 The 6 items deferred from the original Phase 6 list, resequenced behind Storage/Realtime at the
@@ -269,4 +345,5 @@ user's direction — not dropped.
 - Phase 7: curl-based upload/download/signed-URL flow against the live MinIO container; confirm real data (including the new `storage` schema/volume) survives a rebuild.
 - Phase 7a: copy `examples/todo-app/` to a scratch directory, point `config.js` at the running stack, exercise register→login→CRUD→upload→download→delete manually in a browser.
 - Phase 8: two real WebSocket connections with different filters, verifying correct fan-out/exclusion — same rigor as the Phase 4.5 two-user RLS verification.
+- Phase 9: create a second project, restart PostgREST once, confirm its user/JWT/RLS stack works independently and a cross-project `Accept-Profile` request is rejected at the role/grant level — plus a regression check that the pre-existing project's flows (including `examples/todo-app`) are unaffected.
 - Phase 6b: exercise rate limits and backup/restore scripts against the dev stack. (deferred)
