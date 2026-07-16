@@ -20,10 +20,8 @@ export class AdminUsersService {
     private readonly projects: ProjectsService,
   ) {}
 
-  // TODO(Phase 9 PR7): scope to an admin-selected project instead of always the default
-  // once the admin console gains a project selector.
-  async list(search: string | null, limit: number, offset: number) {
-    const project = await this.projects.getDefault();
+  async list(search: string | null, limit: number, offset: number, projectId?: string) {
+    const project = projectId ? await this.projects.getById(projectId) : await this.projects.getDefault();
     const { rows, total } = await this.usersRepo.list(search, limit, offset, project.id);
     return { users: rows.map(toPublicUser), total };
   }

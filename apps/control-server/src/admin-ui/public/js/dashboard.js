@@ -1,4 +1,13 @@
+const projectsTableBody = document.getElementById('projects-table-body');
+const storageGrid = document.getElementById('storage-kpi-grid');
 const grid = document.getElementById('kpi-grid');
+
+function escapeHtml(value) {
+  return String(value).replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+  );
+}
 
 function card(label, value, sub, subClass) {
   const div = document.createElement('div');
@@ -24,41 +33,48 @@ async function fetchJson(url) {
   return response.json();
 }
 
-async function loadApiTablesCard() {
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const exp = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / 1024 ** exp).toFixed(exp === 0 ? 0 : 1)} ${units[exp]}`;
+}
+
+function projectRow(project) {
+  const warnings =
+    project.unprotectedTableCount > 0
+      ? `<span class="badge exposure-danger">⚠ ${project.unprotectedTableCount} table(s) without RLS</span>`
+      : '';
+  return `
+    <tr>
+      <td>${escapeHtml(project.name)} <span class="badge">${escapeHtml(project.slug)}</span></td>
+      <td>${project.tableCount}</td>
+      <td>${project.userCount}</td>
+      <td>${project.activeKeyCount} <span class="kpi-sub">(${project.publishableKeyCount} publishable · ${project.secretKeyCount} secret)</span></td>
+      <td>${warnings}</td>
+    </tr>
+  `;
+}
+
+async function loadDashboardSummary() {
   try {
-    const { schemas } = await fetchJson('/admin/v1/database/objects');
-    const apiSchema = schemas.find((schema) => schema.name === 'api');
-    const tables = apiSchema ? apiSchema.tables : [];
-    const unprotected = tables.filter((table) => table.apiExposed && !table.rlsEnabled).length;
-    return card(
-      'API schema tables',
-      tables.length,
-      unprotected > 0 ? `${unprotected} without RLS` : 'All tables have RLS enabled',
-      unprotected > 0 ? 'kpi-warning' : '',
+    const summary = await fetchJson('/admin/v1/dashboard/summary');
+
+    projectsTableBody.innerHTML = summary.projects.map(projectRow).join('');
+
+    const storage = summary.storage;
+    storageGrid.replaceChildren(
+      card('Buckets', storage.bucketCount),
+      card('Objects', storage.objectCount),
+      card('Storage used', formatBytes(storage.totalBytes)),
+      storage.emptyBucketCount > 0
+        ? card('Empty buckets', storage.emptyBucketCount, `${storage.emptyBucketCount} bucket(s) have no objects`, 'kpi-warning')
+        : card('Empty buckets', 0),
     );
   } catch (err) {
-    return errorCard('API schema tables', err.message);
-  }
-}
-
-async function loadUsersCard() {
-  try {
-    const { total } = await fetchJson('/admin/v1/users?limit=1');
-    return card('App users', total, 'Registered via /auth/v1/signup');
-  } catch (err) {
-    return errorCard('App users', err.message);
-  }
-}
-
-async function loadApiKeysCard() {
-  try {
-    const { keys } = await fetchJson('/admin/v1/api-keys');
-    const active = keys.filter((key) => !key.revokedAt);
-    const publishable = active.filter((key) => key.kind === 'publishable').length;
-    const secret = active.filter((key) => key.kind === 'secret').length;
-    return card('Active API keys', active.length, `${publishable} publishable · ${secret} secret`);
-  } catch (err) {
-    return errorCard('Active API keys', err.message);
+    const message = err instanceof Error ? err.message : String(err);
+    projectsTableBody.innerHTML = `<tr><td colspan="5">Failed to load: ${escapeHtml(message)}</td></tr>`;
+    storageGrid.replaceChildren(errorCard('Storage', message));
   }
 }
 
@@ -73,6 +89,7 @@ async function loadAuditCard() {
 }
 
 (async () => {
-  const cards = await Promise.all([loadApiTablesCard(), loadUsersCard(), loadApiKeysCard(), loadAuditCard()]);
+  loadDashboardSummary();
+  const cards = await Promise.all([loadAuditCard()]);
   grid.replaceChildren(...cards);
 })();

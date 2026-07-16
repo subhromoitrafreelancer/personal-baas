@@ -9,5 +9,6 @@ import { DbExplorerService } from './db-explorer.service';
   imports: [AdminAuthModule, ProjectsModule],
   controllers: [DbExplorerController, DbExplorerPageController],
   providers: [DbExplorerService],
+  exports: [DbExplorerService],
 })
 export class DbExplorerModule {}

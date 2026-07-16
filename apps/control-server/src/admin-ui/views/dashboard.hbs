@@ -12,10 +12,31 @@
   <main class="page dashboard-page">
     <h1>Dashboard</h1>
 
+    <h2>Projects</h2>
+    <div id="projects-table-wrap" class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Project</th>
+            <th>Tables</th>
+            <th>Users</th>
+            <th>API keys</th>
+            <th>Warnings</th>
+          </tr>
+        </thead>
+        <tbody id="projects-table-body">
+          <tr><td colspan="5">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Storage</h2>
+    <div id="storage-kpi-grid" class="kpi-grid">
+      <div class="kpi-card skeleton"></div>
+    </div>
+
+    <h2>Other</h2>
     <div id="kpi-grid" class="kpi-grid">
-      <div class="kpi-card skeleton"></div>
-      <div class="kpi-card skeleton"></div>
-      <div class="kpi-card skeleton"></div>
       <div class="kpi-card skeleton"></div>
     </div>
   </main>

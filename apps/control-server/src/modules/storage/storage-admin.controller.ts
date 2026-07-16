@@ -42,6 +42,11 @@ export class StorageAdminController {
     return { buckets: await this.storage.listBuckets() };
   }
 
+  @Get('stats')
+  async stats() {
+    return this.storage.getStats();
+  }
+
   @Post('buckets')
   async createBucket(@Body() body: unknown) {
     const parsed = createBucketBodySchema.safeParse(body);

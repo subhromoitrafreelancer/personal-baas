@@ -10,6 +10,7 @@ import { ApiExplorerModule } from './modules/api-explorer/api-explorer.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { DashboardSummaryModule } from './modules/dashboard-summary/dashboard-summary.module';
 import { DatabaseModule } from './modules/database/database.module';
 import { DbExplorerModule } from './modules/db-explorer/db-explorer.module';
 import { HealthModule } from './modules/health/health.module';
@@ -55,6 +56,7 @@ import { StorageModule } from './modules/storage/storage.module';
     AuditModule,
     ApiKeysModule,
     StorageModule,
+    DashboardSummaryModule,
   ],
 })
 export class AppModule {}

@@ -11,5 +11,6 @@ import { ApiKeysService } from './api-keys.service';
   imports: [AdminAuthModule, AuthModule, ProjectsModule],
   controllers: [ApiKeysController, ApiKeysPageController],
   providers: [ApiKeysRepository, ApiKeysService],
+  exports: [ApiKeysService],
 })
 export class ApiKeysModule {}

@@ -19,11 +19,17 @@ export class AdminUsersController {
   constructor(private readonly adminUsers: AdminUsersService) {}
 
   @Get()
-  async list(@Query('search') search?: string, @Query('limit') limit?: string, @Query('offset') offset?: string) {
+  async list(
+    @Query('search') search?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('projectId') projectId?: string,
+  ) {
     return this.adminUsers.list(
       search?.trim() || null,
       Math.min(Number(limit) || 50, 200),
       Number(offset) || 0,
+      projectId,
     );
   }
 

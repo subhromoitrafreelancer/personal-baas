@@ -87,6 +87,10 @@ export class StorageService {
     return rows.map(toPublicObject);
   }
 
+  async getStats() {
+    return this.buckets.getStats();
+  }
+
   async uploadObject(params: {
     bucketName: string;
     path: string;

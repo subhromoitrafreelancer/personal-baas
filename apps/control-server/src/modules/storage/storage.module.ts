@@ -13,5 +13,6 @@ import { StorageService } from './storage.service';
   imports: [AdminAuthModule, AuthModule],
   controllers: [StorageObjectController, StorageAdminController, StoragePageController],
   providers: [minioClientProvider, StorageBucketsRepository, StorageObjectsRepository, StorageService],
+  exports: [StorageService],
 })
 export class StorageModule {}
