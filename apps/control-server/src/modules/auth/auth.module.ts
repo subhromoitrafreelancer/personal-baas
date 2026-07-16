@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
+import { ApiKeysRepository } from '../api-keys/api-keys.repository';
 import { ProjectsModule } from '../projects/projects.module';
+import { ApiKeyBearerGuard } from './api-key-bearer.guard';
 import { AuthAuditEventsRepository } from './auth-audit-events.repository';
 import { AuthAuditService } from './auth-audit.service';
 import { AuthJwtService } from './auth-jwt.service';
@@ -25,6 +27,10 @@ import { SignupService } from './signup.service';
     AuthPasswordResetTokensRepository,
     AuthAuditEventsRepository,
     AuthAuditService,
+    // Separate instance from ApiKeysModule's (see api-key-bearer.guard.ts) — avoids a
+    // circular import, since ApiKeysModule already imports AuthModule.
+    ApiKeysRepository,
+    ApiKeyBearerGuard,
     SignupService,
     LoginService,
     RefreshService,

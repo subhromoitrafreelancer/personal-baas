@@ -69,6 +69,32 @@ export class AuthJwtService implements OnModuleInit {
       .sign(this.privateKey);
   }
 
+  // Verifies a publishable/secret API-key token (see signApiKeyToken) — used by
+  // ApiKeyBearerGuard to resolve which project a pre-login request (signup/login/refresh)
+  // targets (scope.md §23 point 5). Revocation is checked separately against
+  // platform.api_keys by the guard, since a still-validly-signed JWT says nothing about
+  // whether it's since been revoked.
+  async verifyApiKeyToken(
+    token: string,
+  ): Promise<{ role: string; kid: string; projectId: string } | null> {
+    try {
+      const { payload } = await jwtVerify(token, this.publicKey, {
+        issuer: ISSUER,
+        audience: AUDIENCE,
+      });
+      if (
+        typeof payload.role !== 'string' ||
+        typeof payload.kid !== 'string' ||
+        typeof payload.project_id !== 'string'
+      ) {
+        return null;
+      }
+      return { role: payload.role, kid: payload.kid, projectId: payload.project_id };
+    } catch {
+      return null;
+    }
+  }
+
   async verifyAccessToken(token: string): Promise<AppAccessTokenClaims | null> {
     try {
       const { payload } = await jwtVerify(token, this.publicKey, {

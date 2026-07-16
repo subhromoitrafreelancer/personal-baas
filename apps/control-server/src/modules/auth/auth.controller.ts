@@ -2,12 +2,13 @@ import { BadRequestException, Body, Controller, Get, HttpCode, Post, Req, UseGua
 import { Request } from 'express';
 import { z } from 'zod';
 import { AccessTokenGuard } from './access-token.guard';
+import { ApiKeyBearerGuard } from './api-key-bearer.guard';
 import { LoginService } from './login.service';
 import { PasswordResetService } from './password-reset.service';
 import { RefreshService } from './refresh.service';
 import { SelfServiceService } from './self-service.service';
 import { SignupService } from './signup.service';
-import { RequestWithUser } from './auth.types';
+import { RequestWithApiKeyProject, RequestWithUser } from './auth.types';
 
 const signupBodySchema = z.object({
   email: z.string().email(),
@@ -44,7 +45,8 @@ export class AuthController {
   ) {}
 
   @Post('signup')
-  async signup(@Body() body: unknown, @Req() req: Request) {
+  @UseGuards(ApiKeyBearerGuard)
+  async signup(@Body() body: unknown, @Req() req: RequestWithApiKeyProject) {
     const parsed = signupBodySchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException(parsed.error.issues.map((issue) => issue.message).join('; '));
@@ -55,11 +57,13 @@ export class AuthController {
       parsed.data.password,
       req.ip ?? null,
       req.headers['user-agent'] ?? null,
+      req.apiKeyProject!,
     );
   }
 
   @Post('login')
-  async login(@Body() body: unknown, @Req() req: Request) {
+  @UseGuards(ApiKeyBearerGuard)
+  async login(@Body() body: unknown, @Req() req: RequestWithApiKeyProject) {
     const parsed = loginBodySchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException(parsed.error.issues.map((issue) => issue.message).join('; '));
@@ -70,10 +74,12 @@ export class AuthController {
       parsed.data.password,
       req.ip ?? null,
       req.headers['user-agent'] ?? null,
+      req.apiKeyProject!,
     );
   }
 
   @Post('token')
+  @UseGuards(ApiKeyBearerGuard)
   async token(@Body() body: unknown, @Req() req: Request) {
     const parsed = tokenBodySchema.safeParse(body);
     if (!parsed.success) {
