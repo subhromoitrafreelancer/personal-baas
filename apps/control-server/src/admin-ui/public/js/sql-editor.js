@@ -7,7 +7,7 @@ import {
   indentWithTab,
   keymap,
 } from '/admin/static/js/vendor/codemirror.bundle.js';
-import { RLS_SNIPPETS } from '/admin/static/js/rls-snippets.js';
+import { DEFAULT_SNIPPET_ROLES, RLS_SNIPPETS } from '/admin/static/js/rls-snippets.js';
 import { REALTIME_SNIPPETS } from '/admin/static/js/realtime-snippets.js';
 
 const SNIPPETS = { ...RLS_SNIPPETS, ...REALTIME_SNIPPETS };
@@ -38,11 +38,19 @@ const projectSelect = document.getElementById('project-select');
 
 let currentExecutionId = null;
 let currentSchemaName = null;
+let currentRoles = DEFAULT_SNIPPET_ROLES;
 
 initProjectSelector(
   projectSelect,
-  (schemaName) => {
+  (schemaName, project) => {
     currentSchemaName = schemaName;
+    currentRoles = project
+      ? {
+          anon: project.anonRole,
+          authenticated: project.authenticatedRole,
+          serviceRole: project.serviceRoleRole,
+        }
+      : DEFAULT_SNIPPET_ROLES;
   },
   { optionValue: 'schemaName' },
 );
@@ -225,10 +233,11 @@ runStatementBtn.addEventListener('click', () => runSql('statement'));
 runScriptBtn.addEventListener('click', () => runSql('script'));
 
 snippetSelect.addEventListener('change', () => {
-  const snippet = SNIPPETS[snippetSelect.value];
+  const snippetFn = SNIPPETS[snippetSelect.value];
   snippetSelect.value = '';
-  if (!snippet) return;
+  if (!snippetFn) return;
 
+  const snippet = snippetFn(currentSchemaName || 'api', currentRoles);
   const { from, to } = editor.state.selection.main;
   editor.dispatch({
     changes: { from, to, insert: snippet },
