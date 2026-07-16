@@ -56,10 +56,14 @@ export interface Subscription {
 
 // Shape produced by platform.notify_realtime_change() (see the Phase 8.1 migration) and parsed
 // off the 'realtime_changes' NOTIFY channel by RealtimeListenerService. `record` is `NEW` for
-// INSERT/UPDATE and `OLD` for DELETE — decided in the trigger function itself, not here.
-export interface NotifyPayload {
-  schema: string;
-  table: string;
-  operation: 'INSERT' | 'UPDATE' | 'DELETE';
-  record: Record<string, unknown>;
-}
+// INSERT/UPDATE and `OLD` for DELETE — decided in the trigger function itself, not here. zod,
+// same convention as the client-message schemas above — the previous hand-rolled `typeof` type
+// guard had no compiler-enforced link to this shape, so a future field addition here could
+// silently drift out of sync with it.
+export const notifyPayloadSchema = z.object({
+  schema: z.string(),
+  table: z.string(),
+  operation: z.enum(['INSERT', 'UPDATE', 'DELETE']),
+  record: z.record(z.string(), z.unknown()),
+});
+export type NotifyPayload = z.infer<typeof notifyPayloadSchema>;

@@ -25,6 +25,9 @@ async function initProjectSelector(selectEl, onChange, options) {
 
   selectEl.innerHTML = '';
 
+  const getOptionValue = (project) =>
+    opts.optionValue === 'schemaName' ? project.schemaName : project.id;
+
   if (opts.allLabel) {
     const allOption = document.createElement('option');
     allOption.value = '';
@@ -34,7 +37,7 @@ async function initProjectSelector(selectEl, onChange, options) {
 
   for (const project of projects) {
     const option = document.createElement('option');
-    option.value = opts.optionValue === 'schemaName' ? project.schemaName : project.id;
+    option.value = getOptionValue(project);
     option.textContent = `${project.name} (${project.slug})`;
     if (!opts.allLabel && project.slug === 'default') {
       option.selected = true;
@@ -43,10 +46,7 @@ async function initProjectSelector(selectEl, onChange, options) {
   }
 
   const findSelectedProject = () =>
-    projects.find(
-      (project) =>
-        (opts.optionValue === 'schemaName' ? project.schemaName : project.id) === selectEl.value,
-    );
+    projects.find((project) => getOptionValue(project) === selectEl.value);
 
   selectEl.addEventListener('change', () => onChange(selectEl.value, findSelectedProject()));
   onChange(selectEl.value, findSelectedProject());

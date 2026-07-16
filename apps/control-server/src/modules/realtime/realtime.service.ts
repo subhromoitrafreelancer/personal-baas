@@ -92,7 +92,16 @@ export class RealtimeService {
     // other connected client's connection along with it) — caught and reported as a normal
     // subscribe failure instead of propagating.
     try {
-      const hasGrant = await this.hasSelectGrant(client.claims.role, schema, table);
+      // Independent queries — run concurrently rather than paying two sequential round-trips.
+      // (Trades away the old sequential order's fail-fast property — skipping columnExists
+      // entirely once hasGrant is known to fail — for lower latency on every filtered subscribe;
+      // both are cheap catalog lookups and this isn't the dispatch() hot path, so the occasional
+      // wasted columnExists call when the grant check was always going to fail is worth it.)
+      const [hasGrant, columnOk] = await Promise.all([
+        this.hasSelectGrant(client.claims.role, schema, table),
+        filterColumn ? this.columnExists(schema, table, filterColumn) : Promise.resolve(true),
+      ]);
+
       if (!hasGrant) {
         return this.releaseReservation(
           client,
@@ -101,7 +110,7 @@ export class RealtimeService {
         );
       }
 
-      if (filterColumn && !(await this.columnExists(schema, table, filterColumn))) {
+      if (filterColumn && !columnOk) {
         return this.releaseReservation(
           client,
           id,

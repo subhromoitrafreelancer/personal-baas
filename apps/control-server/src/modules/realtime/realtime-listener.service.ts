@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Client } from 'pg';
 import { EnvConfig } from '../../config/env.schema';
 import { RealtimeService } from './realtime.service';
-import { NotifyPayload } from './realtime.types';
+import { notifyPayloadSchema } from './realtime.types';
 
 const CHANNEL = 'realtime_changes';
 const INITIAL_BACKOFF_MS = 1_000;
@@ -103,25 +103,12 @@ export class RealtimeListenerService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    if (!isNotifyPayload(parsed)) {
+    const result = notifyPayloadSchema.safeParse(parsed);
+    if (!result.success) {
       this.logger.warn('Received malformed realtime NOTIFY payload');
       return;
     }
 
-    this.realtime.dispatch(parsed);
+    this.realtime.dispatch(result.data);
   }
-}
-
-function isNotifyPayload(value: unknown): value is NotifyPayload {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate.schema === 'string' &&
-    typeof candidate.table === 'string' &&
-    typeof candidate.operation === 'string' &&
-    typeof candidate.record === 'object' &&
-    candidate.record !== null
-  );
 }

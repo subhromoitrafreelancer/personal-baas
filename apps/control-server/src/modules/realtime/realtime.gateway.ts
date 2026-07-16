@@ -13,9 +13,9 @@ import { incomingRealtimeMessageSchema, RealtimeClient } from './realtime.types'
 // only the raw upgrade IncomingMessage @nestjs/platform-ws hands to handleConnection.
 const ACCESS_TOKEN_REQUIRED_CLOSE_CODE = 4401;
 
-// Connection lifecycle/auth (item 2) + subscribe/unsubscribe protocol + authorization (item 3).
-// NOTIFY fan-out/delivery (Phase 8.4) lands on top of RealtimeService's subscription registry in
-// its own PR.
+// Connection lifecycle/auth (item 2), subscribe/unsubscribe protocol + authorization (item 3),
+// and delivery of RealtimeService.dispatch()'s NOTIFY fan-out (item 4) all flow through here —
+// this gateway is the WebSocket-facing half of all three.
 @WebSocketGateway({ path: '/realtime/v1' })
 export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(RealtimeGateway.name);

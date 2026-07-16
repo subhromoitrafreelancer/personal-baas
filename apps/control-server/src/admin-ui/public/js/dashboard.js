@@ -78,24 +78,35 @@ async function loadDashboardSummary() {
   }
 }
 
-async function loadAuditCard() {
+// Shared skeleton for a single KPI card that loads its own data: fetch, format via `formatter`,
+// fall back to an error card on failure. `formatter(data)` returns `{ value, sub, subClass? }`.
+async function loadCard(label, url, formatter) {
   try {
-    const { total, events } = await fetchJson('/admin/v1/audit?limit=1');
-    const latest = events[0] ? new Date(events[0].createdAt).toLocaleString() : 'No events yet';
-    return card('Audit events', total, latest);
+    const data = await fetchJson(url);
+    const { value, sub, subClass } = formatter(data);
+    return card(label, value, sub, subClass);
   } catch (err) {
-    return errorCard('Audit events', err.message);
+    return errorCard(label, err.message);
   }
 }
 
-async function loadRealtimeCard() {
-  try {
-    const { activeConnections, activeSubscriptions } = await fetchJson('/admin/v1/realtime/stats');
-    // This instance only — see realtime.gateway.ts/realtime.service.ts's own comments on why.
-    return card('Realtime connections', activeConnections, `${activeSubscriptions} subscription(s), this instance`);
-  } catch (err) {
-    return errorCard('Realtime connections', err.message);
-  }
+function loadAuditCard() {
+  return loadCard('Audit events', '/admin/v1/audit?limit=1', ({ total, events }) => ({
+    value: total,
+    sub: events[0] ? new Date(events[0].createdAt).toLocaleString() : 'No events yet',
+  }));
+}
+
+function loadRealtimeCard() {
+  // This instance only — see realtime.gateway.ts/realtime.service.ts's own comments on why.
+  return loadCard(
+    'Realtime connections',
+    '/admin/v1/realtime/stats',
+    ({ activeConnections, activeSubscriptions }) => ({
+      value: activeConnections,
+      sub: `${activeSubscriptions} subscription(s), this instance`,
+    }),
+  );
 }
 
 (async () => {
