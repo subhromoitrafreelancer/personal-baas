@@ -1,0 +1,15 @@
+# Seed file for the docker-compose postgrest service's writable config volume (Phase 9,
+# scope.md §23 point 7). A one-shot init container copies this into the shared
+# `postgrest_config` volume once, the first time it's empty — after that, control-server owns
+# the live copy and rewrites its db-schemas line as projects are created
+# (ProjectsService/PostgrestConfigService), never this template.
+#
+# Deliberately the *only* setting here: everything else (db-uri, jwt-secret, etc.) stays as
+# PGRST_* environment variables in docker-compose.yml, same as before this file existed — moving
+# secrets into a file on a volume control-server can also write to would be a needless expansion
+# of what that volume can leak, for no functional benefit (env vars already override file config,
+# so mixing the two for exactly one runtime-mutable setting is safe and minimal).
+#
+# The pre-existing project is listed first, preserving today's no-Accept-Profile-header
+# behavior for existing clients (scope.md §23 decision on the default project's legacy naming).
+db-schemas = "api"

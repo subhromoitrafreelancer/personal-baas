@@ -35,6 +35,10 @@ export const envSchema = z.object({
   // Used by /health/ready's PostgREST reachability check (Phase 6 #4) — internal docker-network
   // address only, never routed through Caddy.
   POSTGREST_URL: z.string().url().default('http://postgrest:3001'),
+  // Shared writable volume with the postgrest service (Phase 9, scope.md §23 point 7) —
+  // control-server rewrites this file's db-schemas line as projects are created. PostgREST
+  // only picks up the change on its own restart; a human triggers that manually.
+  POSTGREST_CONFIG_PATH: z.string().min(1).default('/etc/postgrest/postgrest.conf'),
   // MinIO (Phase 7, scope.md §21) — internal docker-network address only. Credentials are held
   // exclusively by control-server; clients only ever talk to /storage/v1/* on this service.
   MINIO_ENDPOINT: z.string().min(1).default('minio'),

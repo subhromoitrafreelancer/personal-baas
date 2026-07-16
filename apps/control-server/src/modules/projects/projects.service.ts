@@ -1,4 +1,5 @@
 import { ConflictException, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import { PostgrestConfigService } from './postgrest-config.service';
 import { ProjectRow, ProjectsRepository } from './projects.repository';
 import { validateProjectSlug } from './project-slug.util';
 
@@ -21,7 +22,10 @@ const DEFAULT_PROJECT = {
 export class ProjectsService {
   private readonly logger = new Logger(ProjectsService.name);
 
-  constructor(private readonly repository: ProjectsRepository) {}
+  constructor(
+    private readonly repository: ProjectsRepository,
+    private readonly postgrestConfig: PostgrestConfigService,
+  ) {}
 
   /**
    * Idempotent invariant: an admin is never seeded without at least one project present
@@ -104,7 +108,7 @@ export class ProjectsService {
       serviceRoleRole,
     });
 
-    return this.repository.insert({
+    const project = await this.repository.insert({
       slug: input.slug,
       name: input.name,
       schemaName,
@@ -112,5 +116,13 @@ export class ProjectsService {
       authenticatedRole,
       serviceRoleRole,
     });
+
+    // Prepares postgrest.conf's db-schemas line — doesn't take effect until a human runs
+    // `docker compose restart postgrest` (scope.md §23 point 7). The project row/schema/roles
+    // above already exist regardless of whether this step succeeds, matching this feature's
+    // existing manual-intervention posture rather than attempting a multi-system rollback.
+    await this.postgrestConfig.addSchema(schemaName);
+
+    return project;
   }
 }

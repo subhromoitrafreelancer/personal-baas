@@ -21,11 +21,29 @@ services:
       timeout: 5s
       retries: 10
 
+  # One-shot: seeds the shared postgrest_config volume from the committed template, but only
+  # the first time (never overwrites an existing file) — control-server owns the live copy
+  # after that, rewriting its db-schemas line as projects are created (Phase 9, scope.md §23
+  # point 7). Mirrors the minio-createbucket / database-bootstrap one-shot init pattern.
+  postgrest-init:
+    image: busybox:1.36
+    volumes:
+      - ../postgrest/postgrest.conf.template:/template/postgrest.conf:ro
+      - postgrest_config:/out
+    entrypoint: >
+      /bin/sh -c "
+      test -f /out/postgrest.conf || cp /template/postgrest.conf /out/postgrest.conf
+      "
+
   postgrest:
     image: postgrest/postgrest:v12.2.3
+    # db-schemas lives in the mounted config file below instead of PGRST_DB_SCHEMAS (Phase 9,
+    # scope.md §23 point 7) — it's the one setting that needs to change without a rebuild as
+    # projects are created; env vars can't be changed for an already-running container, so it
+    # can't stay one. Everything else stays an env var, same as before.
+    command: ['/bin/postgrest', '/etc/postgrest/postgrest.conf']
     environment:
       PGRST_DB_URI: postgres://authenticator:${AUTHENTICATOR_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      PGRST_DB_SCHEMAS: api
       PGRST_DB_ANON_ROLE: anon
       PGRST_SERVER_PORT: 3001
       # Verifies application-user JWTs signed by control-server (scope.md §8). Needs the
@@ -36,9 +54,13 @@ services:
       # Enforces API key revocation (Phase 4.4) — runs before every request; a no-op for
       # ordinary user JWTs, which carry no `kid` claim.
       PGRST_DB_PRE_REQUEST: platform.check_api_key_revocation
+    volumes:
+      - postgrest_config:/etc/postgrest
     depends_on:
       postgres:
         condition: service_healthy
+      postgrest-init:
+        condition: service_completed_successfully
     # No Docker HEALTHCHECK: this image ships only the static postgrest binary, no shell or
     # HTTP client to run one with. control-server's /health/ready checks this service's
     # reachability instead, and Caddy's own healthcheck below exercises the real proxy path to it.
@@ -60,6 +82,10 @@ services:
       AUTH_ACCESS_TOKEN_TTL_SECONDS: ${AUTH_ACCESS_TOKEN_TTL_SECONDS:-900}
       AUTH_REFRESH_TOKEN_TTL_DAYS: ${AUTH_REFRESH_TOKEN_TTL_DAYS:-30}
       POSTGREST_URL: http://postgrest:3001
+      # Shared with the postgrest service (see the postgrest_config volume below) — control-server
+      # is the only writer, rewriting the db-schemas line as projects are created (scope.md §23
+      # point 7); a human still has to `docker compose restart postgrest` to pick it up.
+      POSTGREST_CONFIG_PATH: /etc/postgrest/postgrest.conf
       # MinIO (Phase 7 #1/#3) — control-server is the only thing that ever holds these
       # credentials; browsers/clients only ever talk to /storage/v1/* on control-server.
       MINIO_ENDPOINT: minio
@@ -70,10 +96,14 @@ services:
       MINIO_BUCKET: ${MINIO_BUCKET:-baas-storage}
     ports:
       - '3000:3000'
+    volumes:
+      - postgrest_config:/etc/postgrest
     depends_on:
       postgres:
         condition: service_healthy
       minio-createbucket:
+        condition: service_completed_successfully
+      postgrest-init:
         condition: service_completed_successfully
     healthcheck:
       # Use 127.0.0.1, not localhost: on Alpine, wget resolves localhost to ::1 first, but the
@@ -151,3 +181,4 @@ volumes:
   pgdata:
   caddy_data:
   minio_data:
+  postgrest_config:
