@@ -5,6 +5,7 @@ import { jwtVerify, SignJWT } from 'jose';
 import { Pool } from 'pg';
 import { EnvConfig } from '../../config/env.schema';
 import { PG_POOL } from '../database/database.module';
+import { ProjectsService } from '../projects/projects.service';
 import { ADMIN_SESSION_TTL_SECONDS } from './constants';
 import { AdminIdentity } from './admin.types';
 
@@ -22,6 +23,7 @@ export class AdminAuthService implements OnModuleInit {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly config: ConfigService<EnvConfig, true>,
+    private readonly projectsService: ProjectsService,
   ) {
     this.sessionSecret = new TextEncoder().encode(
       this.config.get('ADMIN_SESSION_SECRET', { infer: true }),
@@ -29,6 +31,10 @@ export class AdminAuthService implements OnModuleInit {
   }
 
   async onModuleInit(): Promise<void> {
+    // Invariant (scope.md §23): an admin is never seeded without at least one project
+    // present. Normally a no-op — the projects migration already seeds the default row.
+    await this.projectsService.ensureDefaultProject();
+
     const { rows } = await this.pool.query<{ count: number }>(
       'SELECT count(*)::int AS count FROM platform.platform_admins',
     );
