@@ -1,6 +1,7 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EnvConfig } from '../../config/env.schema';
+import { ProjectsService } from '../projects/projects.service';
 import { AuthAuditService } from './auth-audit.service';
 import { AuthJwtService } from './auth-jwt.service';
 import { AuthRefreshTokensRepository } from './auth-refresh-tokens.repository';
@@ -26,6 +27,7 @@ export class RefreshService {
     private readonly jwt: AuthJwtService,
     private readonly config: ConfigService<EnvConfig, true>,
     private readonly audit: AuthAuditService,
+    private readonly projects: ProjectsService,
   ) {}
 
   async refresh(rawToken: string, ipAddress: string | null, userAgent: string | null): Promise<RefreshResult> {
@@ -77,11 +79,17 @@ export class RefreshService {
       newExpiresAt,
     );
 
+    // The user row already carries which project it belongs to (Phase 9 PR3) — unlike
+    // signup/login, refresh never needs to *resolve* a project, only look up the one the
+    // existing session already belongs to.
+    const project = await this.projects.getById(user.project_id);
+
     const accessToken = await this.jwt.signAccessToken({
       sub: user.id,
-      role: user.role,
+      role: project.authenticated_role,
       email: user.email,
       sessionId: session.id,
+      projectId: project.id,
     });
 
     return {

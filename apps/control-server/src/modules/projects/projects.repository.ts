@@ -35,6 +35,14 @@ export class ProjectsRepository {
     return rows[0] ?? null;
   }
 
+  async findById(id: string): Promise<ProjectRow | null> {
+    const { rows } = await this.pool.query<ProjectRow>(
+      'SELECT * FROM platform.projects WHERE id = $1',
+      [id],
+    );
+    return rows[0] ?? null;
+  }
+
   async insert(input: InsertProjectInput): Promise<ProjectRow> {
     const { rows } = await this.pool.query<ProjectRow>(
       `INSERT INTO platform.projects

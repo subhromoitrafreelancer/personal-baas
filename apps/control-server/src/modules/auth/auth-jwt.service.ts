@@ -42,6 +42,7 @@ export class AuthJwtService implements OnModuleInit {
       role: claims.role,
       email: claims.email,
       session_id: claims.sessionId,
+      project_id: claims.projectId,
     })
       .setProtectedHeader({ alg: ALG })
       .setIssuer(ISSUER)
@@ -54,9 +55,12 @@ export class AuthJwtService implements OnModuleInit {
 
   // `kid` points back to the platform.api_keys row so revocation can be enforced via
   // PostgREST's db-pre-request hook (platform.check_api_key_revocation) — there's no `sub` or
-  // `email` here since a publishable/secret key isn't tied to an application user.
-  async signApiKeyToken(role: 'anon' | 'service_role', kid: string): Promise<string> {
-    return new SignJWT({ role, kid })
+  // `email` here since a publishable/secret key isn't tied to an application user. `role` is
+  // the caller's already-resolved project-scoped role name (e.g. `anon`/`anon_<slug>`,
+  // `service_role`/`service_role_<slug>`) — never string-concatenated here, since the seeded
+  // project's roles are the legacy unsuffixed names (scope.md §23).
+  async signApiKeyToken(role: string, kid: string, projectId: string): Promise<string> {
+    return new SignJWT({ role, kid, project_id: projectId })
       .setProtectedHeader({ alg: ALG })
       .setIssuer(ISSUER)
       .setAudience(AUDIENCE)
@@ -75,11 +79,18 @@ export class AuthJwtService implements OnModuleInit {
         typeof payload.sub !== 'string' ||
         typeof payload.role !== 'string' ||
         typeof payload.email !== 'string' ||
-        typeof payload.session_id !== 'string'
+        typeof payload.session_id !== 'string' ||
+        typeof payload.project_id !== 'string'
       ) {
         return null;
       }
-      return { sub: payload.sub, role: payload.role, email: payload.email, sessionId: payload.session_id };
+      return {
+        sub: payload.sub,
+        role: payload.role,
+        email: payload.email,
+        sessionId: payload.session_id,
+        projectId: payload.project_id,
+      };
     } catch {
       return null;
     }

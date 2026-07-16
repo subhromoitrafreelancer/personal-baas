@@ -5,6 +5,7 @@ export interface AppAccessTokenClaims {
   role: string;
   email: string;
   sessionId: string;
+  projectId: string;
 }
 
 export interface RequestWithUser extends Request {

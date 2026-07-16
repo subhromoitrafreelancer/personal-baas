@@ -71,9 +71,10 @@ export class LoginService {
 
     const accessToken = await this.jwt.signAccessToken({
       sub: user.id,
-      role: user.role,
+      role: project.authenticated_role,
       email: user.email,
       sessionId: session.id,
+      projectId: project.id,
     });
 
     this.audit.record(user.id, 'user.login', ipAddress, userAgent, { sessionId: session.id });

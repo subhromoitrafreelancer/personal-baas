@@ -44,8 +44,8 @@ export class ApiKeysService {
   async create(name: string, kind: 'publishable' | 'secret', adminEmail: string) {
     const project = await this.projects.getDefault();
     const row = await this.apiKeysRepo.create(name, kind, adminEmail, project.id);
-    const role = kind === 'publishable' ? 'anon' : 'service_role';
-    const token = await this.jwt.signApiKeyToken(role, row.id);
+    const role = kind === 'publishable' ? project.anon_role : project.service_role_role;
+    const token = await this.jwt.signApiKeyToken(role, row.id, project.id);
     this.audit.record(null, 'admin.api_key_created', null, null, { name, kind, createdBy: adminEmail });
     return { ...toPublicKey(row), token };
   }
@@ -74,7 +74,8 @@ export class ApiKeysService {
     if (row.revoked_at) {
       throw new BadRequestException('This key has been revoked');
     }
-    const token = await this.jwt.signApiKeyToken('anon', row.id);
+    const project = await this.projects.getById(row.project_id);
+    const token = await this.jwt.signApiKeyToken(project.anon_role, row.id, project.id);
     this.audit.record(null, 'admin.api_key_viewed', null, null, { name: row.name, viewedBy: adminEmail });
     return { token };
   }

@@ -60,6 +60,19 @@ export class ProjectsService {
   }
 
   /**
+   * Looks up a project a caller already knows the id of (e.g. from a user row's or API key
+   * row's own project_id column). Throws rather than returning null since a project_id stored
+   * on another row is a foreign key — a miss here means referential integrity was violated.
+   */
+  async getById(projectId: string): Promise<ProjectRow> {
+    const project = await this.repository.findById(projectId);
+    if (!project) {
+      throw new InternalServerErrorException(`Project '${projectId}' not found`);
+    }
+    return project;
+  }
+
+  /**
    * Creates a new project: its own api_<slug> schema and anon_<slug>/authenticated_<slug>/
    * service_role_<slug> Postgres roles (scope.md §23) — never invoked for the default
    * project, whose schema/roles predate this table (see ensureDefaultProject()).
