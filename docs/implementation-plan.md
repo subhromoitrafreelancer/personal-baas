@@ -433,6 +433,46 @@ user's direction — not dropped.
 4. **Brute-force protection** — login attempt throttling/lockout per email + IP.
 5. **Audit export** — CSV/JSON export of `auth.audit_events` and admin SQL history.
 6. **Upgrade runbook** — docs covering upgrade procedure and secrets handling (env/mounted files only).
+7. **Realtime module robustness fixes** — found via a multi-angle code review of Phase 8 immediately after
+   it shipped (8 finder angles + 1-vote verify, all four below CONFIRMED against the actual `pg`/`ws`
+   library internals, not just the application code); fixed as hardening work rather than deferred,
+   since all four are concurrency/resource-leak bugs rather than missing features:
+   - **Subscription-id TOCTOU race** (`realtime.service.ts` `subscribe()`) — the duplicate-id check ran
+     synchronously but the registry write happened after three `await`s (`ProjectsService.getById`,
+     the grant check, the optional column check), so two `subscribe` messages sent back-to-back with the
+     same `id` could both pass the check before either wrote to the registry — corrupting it (one
+     subscription becomes unreachable via `byClient` while staying permanently registered in `byTable`,
+     so its socket keeps receiving events after the client believes it unsubscribed, and the entry leaks
+     for the life of the connection). Fixed by reserving the `id` synchronously as the first thing
+     `subscribe()` does (before any `await`), so the check-and-reserve is atomic under JS's
+     single-threaded execution; the reservation is released if validation subsequently fails.
+   - **Leaked Postgres connection on `LISTEN` failure** (`realtime-listener.service.ts` `connect()`) — if
+     `client.connect()` succeeded but the following `client.query('LISTEN realtime_changes')` failed with
+     a non-fatal Postgres error (confirmed against `pg`'s source: a plain `ErrorResponse` to an in-flight
+     query does not close the underlying connection or emit `'error'`/`'end'` on the `Client`), the catch
+     block logged and scheduled a reconnect without ever calling `client.end()` on the still-open session,
+     and without storing it anywhere `onModuleDestroy` could find it — each recurrence permanently leaked
+     one live Postgres connection. Fixed by unconditionally calling
+     `await client.end().catch(() => undefined)` in the catch block before scheduling a reconnect,
+     regardless of which step failed.
+   - **Dropped WebSocket messages during connection auth** (`realtime.gateway.ts` `handleConnection()`) —
+     the `'message'` listener was only attached after `await this.jwt.verifyAccessToken(token)` resolved;
+     since that's genuine async work (EdDSA verification via `promisify(crypto.verify)` on Node's
+     threadpool, not a same-tick microtask) and the underlying `ws` socket is already capable of parsing
+     frames into `'message'` events the instant `handleConnection` starts running, a client that sent its
+     first message immediately after seeing the connection open could have that frame silently dropped —
+     `EventEmitter` does not buffer events for listeners that don't exist yet. Fixed by attaching a
+     buffering listener synchronously as the very first thing `handleConnection` does, swapping in the
+     real message handler once auth succeeds, and replaying anything that queued up in the meantime (or
+     discarding the queue if auth fails, since the socket is closed either way).
+   - **Redundant per-subscriber serialization in the fan-out hot path** (`realtime.service.ts`
+     `dispatch()`) — `table`/`operation`/`record` are identical for every subscriber matched in one
+     `dispatch()` call (they all share the single NOTIFY event being fanned out), but the full event
+     object was re-`JSON.stringify`'d inside the per-subscriber loop regardless — redoing potentially
+     expensive serialization of the changed row N times per event on a popular table with many
+     subscribers, on Node's single event-loop thread. Fixed by stringifying the invariant fields once
+     outside the loop and concatenating those pre-serialized JSON fragments with just each subscriber's
+     `id` to build their message.
 
 ---
 

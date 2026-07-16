@@ -67,6 +67,13 @@ export class RealtimeListenerService implements OnModuleInit, OnModuleDestroy {
       this.logger.error(
         `Failed to establish realtime LISTEN connection: ${(err as Error).message}`,
       );
+      // client.connect() can succeed while the follow-up LISTEN query still fails (e.g. a
+      // transient non-fatal Postgres error) — that failure mode does not itself close the
+      // underlying session or emit 'error'/'end', so without this the connection would be
+      // silently abandoned, still open, still counted against Postgres's max_connections, on
+      // every such retry. Safe to call regardless of which step above failed (including a failed
+      // client.connect() itself), same defensive pattern onModuleDestroy already uses.
+      await client.end().catch(() => undefined);
       this.scheduleReconnect();
     }
   }

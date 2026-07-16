@@ -40,11 +40,29 @@ export class RealtimeService {
     if (!id) {
       return { ok: false, message: 'Subscription id is required' };
     }
-    if (this.byClient.get(client)?.has(id)) {
+
+    // Reserve the id synchronously — the very first thing this method does, before any `await` —
+    // so a second `subscribe` for the same id arriving while this one is still validating (the
+    // gateway dispatches each WS message as an independent, unserialized async task, so two
+    // messages can genuinely be mid-flight at once) sees the reservation immediately instead of
+    // racing the eventual registry write. JS's single-threaded, run-to-first-await execution
+    // makes this check-and-reserve atomic: nothing else can run between the `.has()` check and
+    // the `.set()` below.
+    if (!this.byClient.has(client)) {
+      this.byClient.set(client, new Map());
+    }
+    const clientSubscriptions = this.byClient.get(client)!;
+    if (clientSubscriptions.has(id)) {
       return { ok: false, message: `Subscription id '${id}' is already in use` };
     }
+    // Placeholder: reserves the id in byClient immediately. Deliberately NOT added to byTable yet
+    // — dispatch() must never match a subscription whose schema/grant/filter haven't been
+    // validated, so the placeholder stays invisible to fan-out until finalized below.
+    const reserved: Subscription = { id, client, schema: '', table };
+    clientSubscriptions.set(id, reserved);
+
     if (!IDENTIFIER_RE.test(table)) {
-      return { ok: false, message: `Invalid table name '${table}'` };
+      return this.releaseReservation(client, id, `Invalid table name '${table}'`);
     }
 
     let filterColumn: string | undefined;
@@ -52,7 +70,11 @@ export class RealtimeService {
     if (message.filter !== undefined) {
       const match = FILTER_RE.exec(message.filter);
       if (!match) {
-        return { ok: false, message: "Invalid filter (expected '<column>=eq.<value>')" };
+        return this.releaseReservation(
+          client,
+          id,
+          "Invalid filter (expected '<column>=eq.<value>')",
+        );
       }
       [, filterColumn, filterValue] = match;
     }
@@ -63,7 +85,7 @@ export class RealtimeService {
       schema = project.schema_name;
     } catch (err) {
       this.logger.error(`Failed to resolve project for subscribe: ${(err as Error).message}`);
-      return { ok: false, message: 'Could not resolve your project' };
+      return this.releaseReservation(client, id, 'Could not resolve your project');
     }
 
     // A single misbehaving query here must never take down the whole gateway process (every
@@ -72,22 +94,40 @@ export class RealtimeService {
     try {
       const hasGrant = await this.hasSelectGrant(client.claims.role, schema, table);
       if (!hasGrant) {
-        return {
-          ok: false,
-          message: `Role '${client.claims.role}' does not have SELECT on '${schema}.${table}'`,
-        };
+        return this.releaseReservation(
+          client,
+          id,
+          `Role '${client.claims.role}' does not have SELECT on '${schema}.${table}'`,
+        );
       }
 
       if (filterColumn && !(await this.columnExists(schema, table, filterColumn))) {
-        return { ok: false, message: `Unknown column '${filterColumn}' on '${schema}.${table}'` };
+        return this.releaseReservation(
+          client,
+          id,
+          `Unknown column '${filterColumn}' on '${schema}.${table}'`,
+        );
       }
     } catch (err) {
       this.logger.error(`Subscribe authorization query failed: ${(err as Error).message}`);
-      return { ok: false, message: 'Could not verify table access' };
+      return this.releaseReservation(client, id, 'Could not verify table access');
     }
 
-    const subscription: Subscription = { id, client, schema, table, filterColumn, filterValue };
-    this.addSubscription(subscription);
+    // The reservation can have been cancelled out from under us while the checks above were
+    // awaiting — an 'unsubscribe' for this same id, or the client disconnecting entirely
+    // (removeClient), both run synchronously and don't know a validation is in flight. Finalizing
+    // anyway would resurrect a subscription the client already cancelled: live in byTable
+    // (receiving events forever) but unreachable via byClient (so a later 'unsubscribe' would
+    // report "unknown subscription id"). Identity check (not just existence) — a different
+    // subscribe for the same id could have taken the slot by now.
+    if (this.byClient.get(client)?.get(id) !== reserved) {
+      return { ok: false, message: `Subscription id '${id}' was cancelled before it could be confirmed` };
+    }
+
+    reserved.schema = schema;
+    reserved.filterColumn = filterColumn;
+    reserved.filterValue = filterValue;
+    this.addToByTable(reserved);
     return { ok: true };
   }
 
@@ -110,6 +150,15 @@ export class RealtimeService {
       return;
     }
 
+    // table/operation/record are identical for every subscriber matched above — they all share
+    // this one NOTIFY event — so stringify each exactly once instead of redoing it per subscriber
+    // inside the loop (this is the hottest path in the module: it runs on every INSERT/UPDATE/
+    // DELETE for any subscribed table, potentially fanning out to many open connections). Only
+    // `id` varies per subscriber, so only it needs its own (cheap, short) JSON.stringify call.
+    const tableJson = JSON.stringify(payload.table);
+    const operationJson = JSON.stringify(payload.operation);
+    const recordJson = JSON.stringify(payload.record);
+
     for (const subscription of subscriptions.values()) {
       if (subscription.filterColumn) {
         const value = payload.record[subscription.filterColumn];
@@ -121,13 +170,7 @@ export class RealtimeService {
         continue;
       }
       subscription.client.send(
-        JSON.stringify({
-          type: 'event',
-          id: subscription.id,
-          table: subscription.table,
-          operation: payload.operation,
-          record: payload.record,
-        }),
+        `{"type":"event","id":${JSON.stringify(subscription.id)},"table":${tableJson},"operation":${operationJson},"record":${recordJson}}`,
       );
     }
   }
@@ -143,12 +186,16 @@ export class RealtimeService {
     this.byClient.delete(client);
   }
 
-  private addSubscription(subscription: Subscription): void {
-    if (!this.byClient.has(subscription.client)) {
-      this.byClient.set(subscription.client, new Map());
-    }
-    this.byClient.get(subscription.client)!.set(subscription.id, subscription);
+  private releaseReservation(
+    client: RealtimeClient,
+    id: string,
+    message: string,
+  ): SubscriptionResult {
+    this.byClient.get(client)?.delete(id);
+    return { ok: false, message };
+  }
 
+  private addToByTable(subscription: Subscription): void {
     const key = this.tableKey(subscription);
     if (!this.byTable.has(key)) {
       this.byTable.set(key, new Map());

@@ -27,9 +27,22 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   ) {}
 
   async handleConnection(client: WebSocket, request: IncomingMessage): Promise<void> {
+    // Attach a buffering listener synchronously — the very first thing this method does, before
+    // the auth check's `await` below. verifyAccessToken is genuine async work (EdDSA verification
+    // on Node's threadpool), and the underlying socket is already able to receive frames the
+    // instant handleConnection starts running — ws does not buffer 'message' events for listeners
+    // that don't exist yet, so a client that sends its first message immediately after seeing the
+    // connection open (a common, reasonable pattern) would otherwise have it silently dropped.
+    const buffered: RawData[] = [];
+    const bufferMessage = (data: RawData) => {
+      buffered.push(data);
+    };
+    client.on('message', bufferMessage);
+
     const token = new URL(request.url ?? '', 'ws://localhost').searchParams.get('access_token');
     const claims = token ? await this.jwt.verifyAccessToken(token) : null;
     if (!claims) {
+      client.off('message', bufferMessage);
       client.close(ACCESS_TOKEN_REQUIRED_CLOSE_CODE, 'Access token required');
       return;
     }
@@ -40,9 +53,15 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     this.logger.log(`Realtime client connected: user=${claims.sub} project=${claims.projectId}`);
     this.send(authenticated, { type: 'connected' });
 
+    // Swap the buffering listener for the real handler, then replay anything that arrived during
+    // the auth window, in the order it arrived.
+    authenticated.off('message', bufferMessage);
     authenticated.on('message', (data) => {
       void this.handleMessage(authenticated, data);
     });
+    for (const data of buffered) {
+      void this.handleMessage(authenticated, data);
+    }
   }
 
   handleDisconnect(client: RealtimeClient): void {
