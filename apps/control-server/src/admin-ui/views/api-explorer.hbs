@@ -12,6 +12,7 @@
   <main class="page api-explorer-page">
     <h1>API Explorer</h1>
     <div class="api-explorer-toolbar toolbar">
+      <label class="field">Project <select id="project-select"></select></label>
       <button id="refresh-api-btn" type="button" class="btn btn-primary">Refresh</button>
       <button id="toggle-openapi-btn" type="button" class="btn btn-outline">View OpenAPI Spec</button>
       <span id="api-status" class="run-status"></span>
@@ -32,6 +33,7 @@
 
   <script src="/admin/static/js/topbar.js"></script>
   <script src="/admin/static/js/clipboard.js"></script>
+  <script src="/admin/static/js/project-selector.js"></script>
   <script type="module" src="/admin/static/js/api-explorer.js"></script>
 </body>
 </html>

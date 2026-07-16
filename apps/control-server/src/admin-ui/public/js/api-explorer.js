@@ -5,8 +5,19 @@ const toggleOpenapiBtn = document.getElementById('toggle-openapi-btn');
 const downloadOpenapiBtn = document.getElementById('download-openapi-btn');
 const openapiPanel = document.getElementById('openapi-panel');
 const openapiJsonEl = document.getElementById('openapi-json');
+const projectSelect = document.getElementById('project-select');
 
 let openapiSpec = null;
+let allSchemas = [];
+let currentSchemaName = null;
+
+// PostgREST multi-schema project selection (Phase 9, scope.md §23): Accept-Profile picks the
+// schema for reads (GET/HEAD), Content-Profile for writes (POST/PATCH/PUT/DELETE) — without one
+// of these, PostgREST resolves against whichever schema is first in db-schemas, so every
+// generated snippet needs the right one or it silently targets the wrong project.
+function profileHeaderName(method) {
+  return method === 'GET' || method === 'HEAD' ? 'Accept-Profile' : 'Content-Profile';
+}
 
 function escapeHtml(value) {
   return String(value).replace(
@@ -63,26 +74,37 @@ function tableSnippets(table) {
   const url = restUrl(table.name);
   const pk = table.primaryKey?.columns[0];
   const filterExample = pk ? `?${pk}=eq.1` : '?id=eq.1';
+  const acceptProfile = profileHeaderName('GET');
+  const contentProfile = profileHeaderName('POST');
 
   let html = '';
-  html += codeBlock('Get all rows (cURL)', `curl "${url}?select=*&limit=10"`);
+  html += codeBlock(
+    'Get all rows (cURL)',
+    `curl "${url}?select=*&limit=10" \\\n  -H "${acceptProfile}: ${currentSchemaName}"`,
+  );
   html += codeBlock(
     'Get all rows (fetch)',
-    `const res = await fetch("${url}?select=*&limit=10");\nconst data = await res.json();`,
+    `const res = await fetch("${url}?select=*&limit=10", {\n  headers: { "${acceptProfile}": "${currentSchemaName}" },\n});\nconst data = await res.json();`,
   );
 
   if (table.kind === 'table' || table.kind === 'partitioned_table') {
     const body = exampleBody(table.columns);
     html += codeBlock(
       'Insert a row (cURL)',
-      `curl -X POST "${url}" \\\n  -H "Content-Type: application/json" \\\n  -H "Prefer: return=representation" \\\n  -d '${body}'`,
+      `curl -X POST "${url}" \\\n  -H "Content-Type: application/json" \\\n  -H "${contentProfile}: ${currentSchemaName}" \\\n  -H "Prefer: return=representation" \\\n  -d '${body}'`,
     );
     html += codeBlock(
       'Insert a row (fetch)',
-      `const res = await fetch("${url}", {\n  method: "POST",\n  headers: { "Content-Type": "application/json", "Prefer": "return=representation" },\n  body: JSON.stringify(${body}),\n});\nconst data = await res.json();`,
+      `const res = await fetch("${url}", {\n  method: "POST",\n  headers: { "Content-Type": "application/json", "${contentProfile}": "${currentSchemaName}", "Prefer": "return=representation" },\n  body: JSON.stringify(${body}),\n});\nconst data = await res.json();`,
     );
-    html += codeBlock('Update a row (cURL)', `curl -X PATCH "${url}${filterExample}" \\\n  -H "Content-Type: application/json" \\\n  -d '${body}'`);
-    html += codeBlock('Delete a row (cURL)', `curl -X DELETE "${url}${filterExample}"`);
+    html += codeBlock(
+      'Update a row (cURL)',
+      `curl -X PATCH "${url}${filterExample}" \\\n  -H "Content-Type: application/json" \\\n  -H "${contentProfile}: ${currentSchemaName}" \\\n  -d '${body}'`,
+    );
+    html += codeBlock(
+      'Delete a row (cURL)',
+      `curl -X DELETE "${url}${filterExample}" \\\n  -H "${contentProfile}: ${currentSchemaName}"`,
+    );
   }
 
   return html;
@@ -90,7 +112,11 @@ function tableSnippets(table) {
 
 function functionSnippet(fn) {
   const url = `${window.location.origin}/rest/v1/rpc/${fn.name}`;
-  return codeBlock(`Call ${fn.name}() (cURL)`, `curl -X POST "${url}" \\\n  -H "Content-Type: application/json" \\\n  -d '{}'`);
+  const contentProfile = profileHeaderName('POST');
+  return codeBlock(
+    `Call ${fn.name}() (cURL)`,
+    `curl -X POST "${url}" \\\n  -H "Content-Type: application/json" \\\n  -H "${contentProfile}: ${currentSchemaName}" \\\n  -d '{}'`,
+  );
 }
 
 function renderTableCard(table) {
@@ -137,6 +163,25 @@ function renderFunctionCard(fn) {
   return card;
 }
 
+function renderApiObjects() {
+  const apiSchema = allSchemas.find((s) => s.name === currentSchemaName);
+
+  container.innerHTML = '';
+  if (!apiSchema || (apiSchema.tables.length === 0 && apiSchema.functions.length === 0)) {
+    container.innerHTML = `<p>No objects exposed in the <code>${escapeHtml(currentSchemaName || '')}</code> schema yet — create one in the SQL editor.</p>`;
+    statusEl.textContent = '';
+    return;
+  }
+
+  for (const table of apiSchema.tables) {
+    container.appendChild(renderTableCard(table));
+  }
+  for (const fn of apiSchema.functions) {
+    container.appendChild(renderFunctionCard(fn));
+  }
+  statusEl.textContent = `${apiSchema.tables.length} object(s), ${apiSchema.functions.length} function(s)`;
+}
+
 async function loadApiObjects() {
   statusEl.textContent = 'Loading…';
   try {
@@ -150,36 +195,38 @@ async function loadApiObjects() {
       return;
     }
     const { schemas } = await response.json();
-    const apiSchema = schemas.find((s) => s.name === 'api');
-
-    container.innerHTML = '';
-    if (!apiSchema || (apiSchema.tables.length === 0 && apiSchema.functions.length === 0)) {
-      container.innerHTML = '<p>No objects exposed in the <code>api</code> schema yet — create one in the SQL editor.</p>';
-      statusEl.textContent = '';
-      return;
-    }
-
-    for (const table of apiSchema.tables) {
-      container.appendChild(renderTableCard(table));
-    }
-    for (const fn of apiSchema.functions) {
-      container.appendChild(renderFunctionCard(fn));
-    }
-    statusEl.textContent = `${apiSchema.tables.length} object(s), ${apiSchema.functions.length} function(s)`;
+    allSchemas = schemas;
+    renderApiObjects();
   } catch (err) {
     statusEl.textContent = err instanceof Error ? err.message : 'Failed to load API objects';
   }
 }
 
 refreshBtn.addEventListener('click', loadApiObjects);
-loadApiObjects();
+initProjectSelector(
+  projectSelect,
+  (schemaName) => {
+    currentSchemaName = schemaName;
+    openapiSpec = null;
+    openapiJsonEl.textContent = '';
+    if (allSchemas.length > 0) {
+      renderApiObjects();
+    } else {
+      loadApiObjects();
+    }
+  },
+  { optionValue: 'schemaName' },
+);
 
 async function loadOpenapiSpec() {
   openapiJsonEl.textContent = 'Loading…';
   try {
     // PostgREST's own root endpoint (proxied at /rest/v1/) doubles as its OpenAPI document —
-    // no control-server endpoint needed, this is a same-origin request through Caddy.
-    const response = await fetch('/rest/v1/');
+    // no control-server endpoint needed, this is a same-origin request through Caddy. The
+    // Accept-Profile header picks which project's schema the spec describes (Phase 9).
+    const response = await fetch('/rest/v1/', {
+      headers: { 'Accept-Profile': currentSchemaName },
+    });
     openapiSpec = await response.json();
     openapiJsonEl.textContent = JSON.stringify(openapiSpec, null, 2);
   } catch (err) {

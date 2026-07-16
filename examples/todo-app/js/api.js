@@ -33,6 +33,15 @@
     return 'Bearer ' + (session ? session.accessToken : global.APP_CONFIG.anonKey);
   }
 
+  // PostgREST multi-schema project selection (Phase 9, scope.md §23): with more than one
+  // project's schema configured in db-schemas, a request must say which one it means or
+  // PostgREST resolves against whichever schema is listed first. Accept-Profile picks the
+  // schema for reads (GET/HEAD), Content-Profile for writes (POST/PATCH/PUT/DELETE) — PostgREST
+  // treats these as two separate headers rather than one, so pick the right one per method.
+  function profileHeaderName(method) {
+    return method === 'GET' || method === 'HEAD' ? 'Accept-Profile' : 'Content-Profile';
+  }
+
   // Low-level request helper. Retries exactly once after a transparent token refresh on 401.
   // Body/Content-Type are prepared once; only the Authorization header is recomputed per
   // attempt, since a refresh in between attempts changes the current access token.
@@ -44,6 +53,9 @@
     if (body !== undefined && !isFormData && typeof body !== 'string') {
       baseHeaders['Content-Type'] = 'application/json';
       body = JSON.stringify(body);
+    }
+    if (path.indexOf('/rest/v1/') === 0) {
+      baseHeaders[profileHeaderName(options.method || 'GET')] = global.APP_CONFIG.schemaName;
     }
 
     function attempt(allowRetry) {

@@ -13,6 +13,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { DatabaseModule } from './modules/database/database.module';
 import { DbExplorerModule } from './modules/db-explorer/db-explorer.module';
 import { HealthModule } from './modules/health/health.module';
+import { LandingModule } from './modules/landing/landing.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { SqlConsoleModule } from './modules/sql-console/sql-console.module';
@@ -39,6 +40,7 @@ import { StorageModule } from './modules/storage/storage.module';
     }),
     DatabaseModule,
     AdminDbModule,
+    LandingModule,
     HealthModule,
     MetricsModule,
     ProjectsModule,

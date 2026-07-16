@@ -5,6 +5,11 @@
 --
 -- RLS policies below are the "owner-only" template from
 -- apps/control-server/src/admin-ui/public/js/rls-snippets.js, with <table_name> -> todos.
+--
+-- Written for the default project (schema `api`, role `authenticated`). If you're running this
+-- app against a different project, substitute `api.` -> `<your_schema_name>.` and
+-- `to authenticated` -> `to authenticated_<slug>` throughout before running it — see README.md
+-- "Using a different project".
 
 create table api.todos (
     id uuid primary key default gen_random_uuid(),

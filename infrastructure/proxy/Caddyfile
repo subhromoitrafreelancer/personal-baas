@@ -1,5 +1,6 @@
 # Single public entry point (scope.md §13). Routes, shared by both the plain-HTTP (:8000, dev
 # convenience) and HTTPS (:443, Phase 6 #1 TLS) entry points below:
+#   /             -> control-server (public landing page)
 #   /rest/v1/*    -> PostgREST (prefix stripped; PostgREST itself has no /rest/v1 prefix)
 #   /auth/*       -> control-server (application auth API)
 #   /storage/v1/* -> control-server (Phase 7 object storage API)
@@ -11,6 +12,12 @@
 
 (routes) {
 	encode gzip
+
+	# Exact root only ("handle /" matches "/" exactly, not every path) — everything else falls
+	# through to the more specific handlers below, or the catch-all 404 at the bottom.
+	handle / {
+		reverse_proxy control-server:3000
+	}
 
 	handle /rest/v1/* {
 		uri strip_prefix /rest/v1
