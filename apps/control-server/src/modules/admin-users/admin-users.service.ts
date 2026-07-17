@@ -30,8 +30,9 @@ export class AdminUsersService {
     email: string,
     password: string | undefined,
     adminEmail: string,
+    projectId?: string,
   ): Promise<{ user: PublicUser; temporaryPassword?: string }> {
-    const project = await this.projects.getDefault();
+    const project = projectId ? await this.projects.getById(projectId) : await this.projects.getDefault();
     const existing = await this.usersRepo.findByEmail(email, project.id);
     if (existing) {
       throw new UnprocessableEntityException({ message: 'User already registered' });

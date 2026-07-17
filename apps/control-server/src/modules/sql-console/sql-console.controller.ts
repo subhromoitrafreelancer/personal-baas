@@ -13,7 +13,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AdminSessionGuard } from '../admin-auth/admin-session.guard';
 import { RequestWithAdmin } from '../admin-auth/admin.types';
-import { MulterErrorFilter } from './multer-error.filter';
+import { MulterErrorFilter } from '../../common/multer-error.filter';
 import {
   cancelRequestSchema,
   executeRequestSchema,

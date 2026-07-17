@@ -8,14 +8,17 @@ import {
   Req,
   Res,
   UploadedFile,
+  UseFilters,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
+import { MulterErrorFilter } from '../../common/multer-error.filter';
 import { AccessTokenGuard } from '../auth/access-token.guard';
 import { RequestWithUser } from '../auth/auth.types';
 import { normalizeObjectPath } from './storage-path.util';
+import { STORAGE_MAX_UPLOAD_BYTES } from './storage-upload-limit';
 import { StorageRequester, StorageService } from './storage.service';
 
 function requesterFor(req: RequestWithUser): StorageRequester {
@@ -34,7 +37,8 @@ export class StorageObjectController {
   constructor(private readonly storage: StorageService) {}
 
   @Post(':bucket/*path')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseFilters(MulterErrorFilter)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: STORAGE_MAX_UPLOAD_BYTES } }))
   async upload(
     @Param('bucket') bucket: string,
     @Param('path') path: string[] | string,

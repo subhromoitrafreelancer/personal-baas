@@ -105,21 +105,17 @@ export class ProjectsService {
       );
     }
 
-    await this.repository.provisionSchemaAndRoles({
-      schemaName,
-      anonRole,
-      authenticatedRole,
-      serviceRoleRole,
-    });
-
-    const project = await this.repository.insert({
-      slug: input.slug,
-      name: input.name,
-      schemaName,
-      anonRole,
-      authenticatedRole,
-      serviceRoleRole,
-    });
+    const project = await this.repository.provisionAndInsert(
+      { schemaName, anonRole, authenticatedRole, serviceRoleRole },
+      {
+        slug: input.slug,
+        name: input.name,
+        schemaName,
+        anonRole,
+        authenticatedRole,
+        serviceRoleRole,
+      },
+    );
 
     // Prepares postgrest.conf's db-schemas line — doesn't take effect until a human runs
     // `docker compose restart postgrest` (scope.md §23 point 7). The project row/schema/roles

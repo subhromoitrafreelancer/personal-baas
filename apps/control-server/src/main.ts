@@ -11,6 +11,7 @@ import hbs from 'hbs';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { EnvConfig } from './config/env.schema';
+import { sameOriginGuard } from './common/same-origin.middleware';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
@@ -33,6 +34,10 @@ async function bootstrap() {
   // same-origin from the server-rendered admin console.
   app.use('/auth', cors({ origin: true }));
   app.use('/storage', cors({ origin: true }));
+  // No CORS is configured for /admin (above) — it's cookie-authenticated and same-origin-only.
+  // sameOriginGuard rejects unsafe methods that don't carry a same-origin signal, as an
+  // application-level CSRF control that doesn't depend solely on sameSite cookie behavior.
+  app.use('/admin', sameOriginGuard);
 
   app.useStaticAssets(join(__dirname, 'admin-ui', 'public'), { prefix: '/admin/static' });
   app.setBaseViewsDir(join(__dirname, 'admin-ui', 'views'));

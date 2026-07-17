@@ -2,11 +2,13 @@ import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, 
 import { z } from 'zod';
 import { AdminSessionGuard } from '../admin-auth/admin-session.guard';
 import { RequestWithAdmin } from '../admin-auth/admin.types';
+import { paginationQuerySchema } from '../../common/pagination.dto';
 import { AdminUsersService } from './admin-users.service';
 
 const createUserBodySchema = z.object({
   email: z.string().email(),
   password: z.string().min(8, 'Password must be at least 8 characters').optional(),
+  projectId: z.string().uuid().optional(),
 });
 
 const setStatusBodySchema = z.object({
@@ -25,12 +27,11 @@ export class AdminUsersController {
     @Query('offset') offset?: string,
     @Query('projectId') projectId?: string,
   ) {
-    return this.adminUsers.list(
-      search?.trim() || null,
-      Math.min(Number(limit) || 50, 200),
-      Number(offset) || 0,
-      projectId,
-    );
+    const parsed = paginationQuerySchema.safeParse({ limit, offset });
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.issues.map((issue) => issue.message).join('; '));
+    }
+    return this.adminUsers.list(search?.trim() || null, parsed.data.limit, parsed.data.offset, projectId);
   }
 
   @Post()
@@ -39,7 +40,12 @@ export class AdminUsersController {
     if (!parsed.success) {
       throw new BadRequestException(parsed.error.issues.map((issue) => issue.message).join('; '));
     }
-    return this.adminUsers.create(parsed.data.email, parsed.data.password, req.admin!.email);
+    return this.adminUsers.create(
+      parsed.data.email,
+      parsed.data.password,
+      req.admin!.email,
+      parsed.data.projectId,
+    );
   }
 
   @Patch(':id/status')

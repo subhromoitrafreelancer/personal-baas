@@ -8,14 +8,17 @@ import {
   Post,
   Res,
   UploadedFile,
+  UseFilters,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { z } from 'zod';
+import { MulterErrorFilter } from '../../common/multer-error.filter';
 import { AdminSessionGuard } from '../admin-auth/admin-session.guard';
 import { normalizeObjectPath } from './storage-path.util';
+import { STORAGE_MAX_UPLOAD_BYTES } from './storage-upload-limit';
 import { StorageService } from './storage.service';
 
 const createBucketBodySchema = z.object({
@@ -62,7 +65,8 @@ export class StorageAdminController {
   }
 
   @Post('buckets/:bucket/objects/*path')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseFilters(MulterErrorFilter)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: STORAGE_MAX_UPLOAD_BYTES } }))
   async uploadObject(
     @Param('bucket') bucket: string,
     @Param('path') path: string[] | string,

@@ -1,6 +1,7 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { AdminSessionGuard } from '../admin-auth/admin-session.guard';
 import { AuthAuditEventsRepository } from '../auth/auth-audit-events.repository';
+import { paginationQuerySchema } from '../../common/pagination.dto';
 
 @Controller('admin/v1/audit')
 @UseGuards(AdminSessionGuard)
@@ -9,10 +10,11 @@ export class AuditController {
 
   @Get()
   async list(@Query('limit') limit?: string, @Query('offset') offset?: string) {
-    const { rows, total } = await this.auditEventsRepo.list(
-      Math.min(Number(limit) || 50, 200),
-      Number(offset) || 0,
-    );
+    const parsed = paginationQuerySchema.safeParse({ limit, offset });
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.issues.map((issue) => issue.message).join('; '));
+    }
+    const { rows, total } = await this.auditEventsRepo.list(parsed.data.limit, parsed.data.offset);
     return {
       events: rows.map((row) => ({
         id: row.id,

@@ -1,4 +1,10 @@
-import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  PayloadTooLargeException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Client as MinioClient } from 'minio';
 import { Readable } from 'stream';
@@ -103,6 +109,12 @@ export class StorageService {
     }
 
     const bucket = await this.getBucketOrThrow(params.bucketName);
+    if (bucket.size_limit_bytes !== null && params.buffer.length > Number(bucket.size_limit_bytes)) {
+      throw new PayloadTooLargeException(
+        `Object exceeds bucket "${bucket.name}"'s size limit of ${bucket.size_limit_bytes} bytes`,
+      );
+    }
+
     const existing = await this.objects.findByBucketAndPath(bucket.id, params.path);
     if (existing && !canWrite(params.requester, existing)) {
       throw new ForbiddenException('You do not have permission to overwrite this object');

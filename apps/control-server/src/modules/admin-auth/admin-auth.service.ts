@@ -91,14 +91,30 @@ export class AdminAuthService implements OnModuleInit {
   }
 
   async verifySessionToken(token: string): Promise<AdminIdentity | null> {
+    let sub: string;
     try {
       const { payload } = await jwtVerify(token, this.sessionSecret);
       if (typeof payload.sub !== 'string' || typeof payload.email !== 'string') {
         return null;
       }
-      return { sub: payload.sub, email: payload.email };
+      sub = payload.sub;
     } catch {
       return null;
     }
+
+    // The JWT itself is stateless and long-lived (12h), so a valid signature alone doesn't
+    // mean the admin is still allowed in — re-check against platform.platform_admins on every
+    // request, mirroring the live revocation check already done for API keys
+    // (platform.check_api_key_revocation). Catches both a deleted admin row and an explicit
+    // disabled_at lockout.
+    const { rows } = await this.pool.query<{ id: string; email: string }>(
+      'SELECT id, email FROM platform.platform_admins WHERE id = $1 AND disabled_at IS NULL',
+      [sub],
+    );
+    const admin = rows[0];
+    if (!admin) {
+      return null;
+    }
+    return { sub: admin.id, email: admin.email };
   }
 }

@@ -46,7 +46,7 @@ export class AdminAuthController {
     const token = await this.adminAuth.createSessionToken(admin);
     res.cookie(ADMIN_SESSION_COOKIE, token, {
       httpOnly: true,
-      sameSite: 'lax',
+      sameSite: 'strict',
       secure: this.config.get('NODE_ENV', { infer: true }) === 'production',
       maxAge: ADMIN_SESSION_TTL_SECONDS * 1000,
     });

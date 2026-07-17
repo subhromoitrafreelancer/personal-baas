@@ -52,6 +52,11 @@ export const envSchema = z.object({
   // The single real MinIO bucket for the whole deployment — developer-facing logical "buckets"
   // are key prefixes within it, tracked in storage.buckets.
   MINIO_BUCKET: z.string().min(1).default('baas-storage'),
+  // Multer memory-buffer backstop for /storage/v1/object and /admin/v1/storage uploads —
+  // independent of each bucket's own admin-configurable size_limit_bytes (storage.buckets),
+  // which is enforced separately in StorageService after the file is already buffered. This
+  // bounds worst-case process memory regardless of bucket config.
+  STORAGE_MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(25 * 1024 * 1024),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
