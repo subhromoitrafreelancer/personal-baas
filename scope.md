@@ -1603,10 +1603,14 @@ Phase 9's project model exists to scope functions to.
    own timer as a second enforcement point, so a hung worker can't pin a CPU
    core indefinitely even if the HTTP-level timeout is somehow bypassed.
 
-   If function-runner is unreachable or its process has restarted (Docker's
-   restart policy handles that automatically, same as any other compose
-   service), an invocation returns 503 to the caller — control-server itself
-   is never affected, which is the whole point of the process boundary.
+   If function-runner is unreachable — crashed, restarting, or otherwise
+   unresponsive — an invocation returns 503 to the caller; control-server
+   itself is never affected, which is the whole point of the process
+   boundary. function-runner is given `restart: unless-stopped` in
+   docker-compose.yml so a crash is also self-healing, not just contained —
+   the one service in this compose file with an explicit restart policy,
+   since it's also the one whose entire job is absorbing crashes from
+   function code.
 
 6. functions.invocations (id, function_id, status, duration_ms, error,
    invoked_at) — audit/observability table, same convention as

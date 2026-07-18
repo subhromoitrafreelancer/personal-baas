@@ -27,5 +27,9 @@ create schema if not exists storage authorization baas_admin;
 -- as storage — never exposed through PostgREST, access enforced entirely in the control
 -- service's own hosting module via its baas_admin connection.
 create schema if not exists hosting authorization baas_admin;
+-- Functions metadata (Phase 12, scope.md §26): functions.functions/functions.invocations. Same
+-- convention — never exposed through PostgREST; function code and invocation history are only
+-- ever reached through the control service's own functions module.
+create schema if not exists functions authorization baas_admin;
 
-revoke all on schema auth, platform, private, storage, hosting from public;
+revoke all on schema auth, platform, private, storage, hosting, functions from public;

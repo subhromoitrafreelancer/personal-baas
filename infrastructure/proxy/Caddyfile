@@ -5,6 +5,7 @@
 #   /auth/*       -> control-server (application auth API)
 #   /storage/v1/* -> control-server (Phase 7 object storage API)
 #   /sites/*      -> control-server (Phase 11 static site hosting, public)
+#   /functions/*  -> control-server (Phase 12 Functions invocation, public)
 #   /realtime/*   -> control-server (Phase 8 WebSocket gateway, upgrade handled transparently)
 #   /admin/*      -> control-server (admin API + admin UI pages)
 #   /health*      -> control-server (liveness/readiness, also used by container healthchecks)
@@ -38,6 +39,13 @@
 	# routes above, which is what lets a deployed site call /rest/v1/*, /auth/v1/*, /storage/v1/*
 	# with no CORS configuration at all.
 	handle /sites/* {
+		reverse_proxy control-server:3000
+	}
+
+	# Functions (Phase 12, scope.md §26) -- always routes to control-server, never directly to
+	# the function-runner sibling process, which has no public route of its own at all (internal
+	# docker-network only, same shape as minio/postgrest).
+	handle /functions/* {
 		reverse_proxy control-server:3000
 	}
 

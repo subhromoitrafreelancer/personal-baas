@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Functions — Personal BaaS Admin</title>
+  <link rel="stylesheet" href="/admin/static/css/admin.css" />
+  <link rel="stylesheet" href="/admin/static/css/functions.css" />
+</head>
+<body>
+  {{> topbar}}
+
+  <main class="page functions-page">
+    <h1>Functions</h1>
+    <div class="toolbar">
+      <label class="field">Project <select id="project-select"></select></label>
+    </div>
+
+    <div class="functions-layout">
+      <section class="card function-panel">
+        <div class="card-header">
+          <h2>Functions</h2>
+          <button id="create-function-btn" type="button" class="btn btn-primary btn-sm">New function</button>
+        </div>
+        <div class="card-body">
+          <form id="create-function-form" class="inline-form" hidden>
+            <label class="field">Name <input id="new-function-name" type="text" required placeholder="e.g. send-welcome-email" /></label>
+            <label class="field">Timeout (ms, optional) <input id="new-function-timeout" type="number" min="1" max="60000" /></label>
+            <button type="submit" class="btn btn-primary">Create</button>
+            <button type="button" id="cancel-create-function-btn" class="btn btn-outline">Cancel</button>
+          </form>
+          <ul id="function-list" class="function-list"></ul>
+        </div>
+      </section>
+
+      <section class="card detail-panel">
+        <div class="card-header">
+          <h2 id="detail-title">Select a function</h2>
+          <span id="detail-status" class="run-status"></span>
+        </div>
+        <div class="card-body">
+          <div id="no-function-selected" class="banner banner-warning">Select a function to view or edit it.</div>
+
+          <div id="function-detail" hidden>
+            <p class="hint">Code must <code>export default</code> an async handler: <code>(ctx) =&gt; ({ status, body, headers })</code>. TypeScript/ESM syntax is supported.</p>
+            <textarea id="function-code" class="code-textarea" spellcheck="false" rows="16"></textarea>
+            <div class="detail-actions">
+              <label class="field">Timeout (ms) <input id="function-timeout" type="number" min="1" max="60000" /></label>
+              <button id="save-function-btn" type="button" class="btn btn-primary btn-sm">Save</button>
+              <button id="delete-function-btn" type="button" class="btn btn-danger btn-sm">Delete</button>
+            </div>
+
+            <h3>Test invoke</h3>
+            <textarea id="invoke-body" class="code-textarea" spellcheck="false" rows="4" placeholder="JSON body, e.g. { &quot;name&quot;: &quot;world&quot; }"></textarea>
+            <button id="invoke-btn" type="button" class="btn btn-outline btn-sm">Invoke</button>
+            <pre id="invoke-result" class="invoke-result"></pre>
+
+            <h3>Invocation history</h3>
+            <div class="table-wrap">
+              <table id="invocations-table" class="table">
+                <thead>
+                  <tr>
+                    <th>Status</th>
+                    <th>Duration</th>
+                    <th>Error</th>
+                    <th>Invoked</th>
+                  </tr>
+                </thead>
+                <tbody id="invocations-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  {{> footer}}
+
+  <script src="/admin/static/js/topbar.js"></script>
+  <script src="/admin/static/js/project-selector.js"></script>
+  <script src="/admin/static/js/functions.js"></script>
+</body>
+</html>

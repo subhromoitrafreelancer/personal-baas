@@ -1,0 +1,17 @@
+{
+  "name": "@personal-baas/function-runner",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Sibling process executing project-scoped Functions (Phase 12, scope.md §26) in a fresh worker_thread per invocation. Never talks to Postgres directly -- control-server resolves and hands over already-authorized code+context.",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "esbuild": "^0.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.6.3"
+  }
+}

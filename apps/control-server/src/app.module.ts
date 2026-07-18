@@ -13,6 +13,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { DashboardSummaryModule } from './modules/dashboard-summary/dashboard-summary.module';
 import { DatabaseModule } from './modules/database/database.module';
 import { DbExplorerModule } from './modules/db-explorer/db-explorer.module';
+import { FunctionsModule } from './modules/functions/functions.module';
 import { HealthModule } from './modules/health/health.module';
 import { HostingModule } from './modules/hosting/hosting.module';
 import { LandingModule } from './modules/landing/landing.module';
@@ -59,6 +60,7 @@ import { StorageModule } from './modules/storage/storage.module';
     ApiKeysModule,
     StorageModule,
     HostingModule,
+    FunctionsModule,
     DashboardSummaryModule,
     RealtimeModule,
   ],

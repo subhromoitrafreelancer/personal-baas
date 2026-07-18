@@ -64,6 +64,10 @@ export const envSchema = z.object({
   // is typically much bigger than a single object upload.
   HOSTING_MAX_DEPLOY_BYTES: z.coerce.number().int().positive().default(100 * 1024 * 1024),
   HOSTING_MAX_FILE_COUNT: z.coerce.number().int().positive().default(2000),
+  // Functions (Phase 12, scope.md §26) — the function-runner sibling process's internal
+  // docker-network address. Never routed through Caddy; only control-server talks to it,
+  // same "internal service, no host port" shape as MINIO_ENDPOINT/POSTGREST_URL.
+  FUNCTION_RUNNER_URL: z.string().url().default('http://function-runner:3002'),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

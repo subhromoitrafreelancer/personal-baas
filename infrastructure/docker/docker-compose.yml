@@ -110,6 +110,9 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       MINIO_BUCKET: ${MINIO_BUCKET:-baas-storage}
+      # Functions (Phase 12) — internal docker-network address only, never routed through Caddy.
+      # control-server is the only thing that ever talks to function-runner.
+      FUNCTION_RUNNER_URL: http://function-runner:3002
     ports:
       - '3000:3000'
     volumes:
@@ -123,10 +126,40 @@ services:
         condition: service_completed_successfully
       postgrest-init:
         condition: service_completed_successfully
+      function-runner:
+        condition: service_healthy
     healthcheck:
       # Use 127.0.0.1, not localhost: on Alpine, wget resolves localhost to ::1 first, but the
       # server only binds IPv4 (0.0.0.0), so "localhost" spuriously fails with "connection refused".
       test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3000/health']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Function execution sibling process (Phase 12, scope.md §26 point 5) — a separate OS process
+  # from control-server specifically so a rogue or crashing function can't take control-server
+  # down with it. Holds no database credential and never talks to Postgres directly; it only
+  # ever executes the code+ctx handed to it in one POST /run call. No host port published: only
+  # control-server (over the docker network) ever talks to this, same shape as minio/postgrest.
+  function-runner:
+    build:
+      context: ../../
+      dockerfile: apps/function-runner/Dockerfile
+    # No other service in this compose file sets a restart policy, but function-runner is the
+    # one service whose entire job is absorbing crashes from arbitrary function code — without
+    # this, a crashed runner process stays dead until someone notices and runs `docker compose
+    # up` again, silently 503-ing every invocation in the meantime.
+    restart: unless-stopped
+    environment:
+      PORT: 3002
+      # Reaches PostgREST directly rather than through Caddy — one fewer network hop, and this
+      # service never needs anything Caddy provides (TLS termination, the public routing table).
+      POSTGREST_URL: http://postgrest:3001
+    depends_on:
+      postgrest:
+        condition: service_started
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3002/health']
       interval: 5s
       timeout: 5s
       retries: 10
