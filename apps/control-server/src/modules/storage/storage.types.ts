@@ -1,5 +1,6 @@
 export interface StorageBucketRow {
   id: string;
+  project_id: string;
   name: string;
   public: boolean;
   size_limit_bytes: string | null;

@@ -7,27 +7,33 @@ import { StorageBucketRow } from './storage.types';
 export class StorageBucketsRepository {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
-  async create(name: string, isPublic: boolean, sizeLimitBytes: number | null): Promise<StorageBucketRow> {
+  async create(
+    projectId: string,
+    name: string,
+    isPublic: boolean,
+    sizeLimitBytes: number | null,
+  ): Promise<StorageBucketRow> {
     const { rows } = await this.pool.query<StorageBucketRow>(
-      `INSERT INTO storage.buckets (name, public, size_limit_bytes)
-       VALUES ($1, $2, $3)
+      `INSERT INTO storage.buckets (project_id, name, public, size_limit_bytes)
+       VALUES ($1, $2, $3, $4)
        RETURNING *`,
-      [name, isPublic, sizeLimitBytes],
+      [projectId, name, isPublic, sizeLimitBytes],
     );
     return rows[0];
   }
 
-  async list(): Promise<StorageBucketRow[]> {
+  async list(projectId: string): Promise<StorageBucketRow[]> {
     const { rows } = await this.pool.query<StorageBucketRow>(
-      'SELECT * FROM storage.buckets ORDER BY created_at DESC',
+      'SELECT * FROM storage.buckets WHERE project_id = $1 ORDER BY created_at DESC',
+      [projectId],
     );
     return rows;
   }
 
-  async findByName(name: string): Promise<StorageBucketRow | null> {
+  async findByName(projectId: string, name: string): Promise<StorageBucketRow | null> {
     const { rows } = await this.pool.query<StorageBucketRow>(
-      'SELECT * FROM storage.buckets WHERE name = $1',
-      [name],
+      'SELECT * FROM storage.buckets WHERE project_id = $1 AND name = $2',
+      [projectId, name],
     );
     return rows[0] ?? null;
   }

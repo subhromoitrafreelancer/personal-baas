@@ -23,7 +23,7 @@ import { StorageRequester, StorageService } from './storage.service';
 
 function requesterFor(req: RequestWithUser): StorageRequester {
   const user = req.user!;
-  return { kind: 'app-user', sub: user.sub, role: user.role };
+  return { kind: 'app-user', sub: user.sub, role: user.role, projectId: user.projectId };
 }
 
 // Public object API (Phase 7 #3/#4, scope.md §21) — the only storage surface application

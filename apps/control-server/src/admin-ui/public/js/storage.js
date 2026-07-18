@@ -14,8 +14,10 @@ const uploadFile = document.getElementById('upload-file');
 const uploadPath = document.getElementById('upload-path');
 const objectsTable = document.getElementById('objects-table');
 const objectsTbody = document.getElementById('objects-tbody');
+const projectSelect = document.getElementById('project-select');
 
 let selectedBucket = null;
+let currentProjectId = null;
 
 function escapeHtml(value) {
   return String(value).replace(
@@ -26,7 +28,7 @@ function escapeHtml(value) {
 
 function objectUrl(bucketName, path) {
   const encodedPath = path.split('/').map(encodeURIComponent).join('/');
-  return `/admin/v1/storage/buckets/${encodeURIComponent(bucketName)}/objects/${encodedPath}`;
+  return `/admin/v1/storage/buckets/${encodeURIComponent(bucketName)}/objects/${encodedPath}?projectId=${encodeURIComponent(currentProjectId)}`;
 }
 
 async function apiFetch(url, options) {
@@ -51,7 +53,7 @@ function renderBucketRow(bucket) {
 }
 
 async function loadBuckets() {
-  const res = await apiFetch('/admin/v1/storage/buckets');
+  const res = await apiFetch(`/admin/v1/storage/buckets?projectId=${encodeURIComponent(currentProjectId)}`);
   if (!res) return;
   if (!res.ok) return;
   const { buckets } = await res.json();
@@ -84,7 +86,9 @@ function renderObjectRow(bucketName, object) {
 
 async function loadObjects(bucketName) {
   objectsStatus.textContent = 'Loading…';
-  const res = await apiFetch(`/admin/v1/storage/buckets/${encodeURIComponent(bucketName)}/objects`);
+  const res = await apiFetch(
+    `/admin/v1/storage/buckets/${encodeURIComponent(bucketName)}/objects?projectId=${encodeURIComponent(currentProjectId)}`,
+  );
   if (!res) return;
   if (!res.ok) {
     objectsStatus.textContent = 'Failed to load objects';
@@ -124,7 +128,7 @@ createBucketForm.addEventListener('submit', async (e) => {
   const res = await apiFetch('/admin/v1/storage/buckets', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, public: newBucketPublic.checked, sizeLimitBytes }),
+    body: JSON.stringify({ name, public: newBucketPublic.checked, sizeLimitBytes, projectId: currentProjectId }),
   });
   if (!res) return;
   if (!res.ok) {
@@ -161,4 +165,20 @@ uploadForm.addEventListener('submit', async (e) => {
   loadObjects(selectedBucket);
 });
 
-loadBuckets();
+function resetObjectPanel() {
+  selectedBucket = null;
+  objectPanelTitle.textContent = 'Objects';
+  noBucketSelected.hidden = false;
+  uploadForm.hidden = true;
+  objectsTable.hidden = true;
+  objectsTbody.innerHTML = '';
+  objectsStatus.textContent = '';
+}
+
+initProjectSelector(projectSelect, (projectId) => {
+  currentProjectId = projectId;
+  // A bucket selected under the previous project has no meaning under the new one — buckets
+  // are project-scoped (Phase 10, scope.md §24), not just filtered by name.
+  resetObjectPanel();
+  loadBuckets();
+});

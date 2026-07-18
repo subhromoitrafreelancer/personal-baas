@@ -57,6 +57,13 @@ export const envSchema = z.object({
   // which is enforced separately in StorageService after the file is already buffered. This
   // bounds worst-case process memory regardless of bucket config.
   STORAGE_MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(25 * 1024 * 1024),
+  // Static hosting (Phase 11, scope.md §25) — caps on a single admin-console zip deploy.
+  // HOSTING_MAX_DEPLOY_BYTES bounds total *uncompressed* size across every file in the zip
+  // (checked while iterating entries, before anything is written to MinIO or Postgres) —
+  // deliberately larger than STORAGE_MAX_UPLOAD_BYTES since a static site bundle (JS/CSS/images)
+  // is typically much bigger than a single object upload.
+  HOSTING_MAX_DEPLOY_BYTES: z.coerce.number().int().positive().default(100 * 1024 * 1024),
+  HOSTING_MAX_FILE_COUNT: z.coerce.number().int().positive().default(2000),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

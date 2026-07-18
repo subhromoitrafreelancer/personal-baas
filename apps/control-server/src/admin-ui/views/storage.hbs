@@ -11,6 +11,9 @@
 
   <main class="page storage-page">
     <h1>Storage</h1>
+    <div class="storage-toolbar toolbar">
+      <label class="field">Project <select id="project-select"></select></label>
+    </div>
 
     <div class="storage-layout">
       <section class="card bucket-panel">
@@ -67,6 +70,7 @@
   {{> footer}}
 
   <script src="/admin/static/js/topbar.js"></script>
+  <script src="/admin/static/js/project-selector.js"></script>
   <script src="/admin/static/js/storage.js"></script>
 </body>
 </html>

@@ -18,12 +18,19 @@ import { StorageBucketRow, StorageObjectRow } from './storage.types';
 // console (full access, no ownership concept — mirrors service_role) and application users
 // authenticated via their own JWT (owner-based access, scope.md §21 point 4). Keeping these
 // as a discriminated union rather than a generic "role" string makes it impossible to
-// accidentally grant admin-level access to an app-user request.
-export type StorageRequester = { kind: 'admin' } | { kind: 'app-user'; sub: string; role: string };
+// accidentally grant admin-level access to an app-user request. Both variants carry a
+// projectId (Phase 10, scope.md §24) — for app-user requests this is the caller's own JWT
+// projectId claim; for admin requests it's resolved by the admin controller from an optional
+// ?projectId= query param, same convention as ApiKeysService. Bucket lookups are always scoped
+// to this projectId, never to name alone — that's the actual cross-project isolation boundary.
+export type StorageRequester =
+  | { kind: 'admin'; projectId: string }
+  | { kind: 'app-user'; sub: string; role: string; projectId: string };
 
 function toPublicBucket(row: StorageBucketRow) {
   return {
     id: row.id,
+    projectId: row.project_id,
     name: row.name,
     public: row.public,
     sizeLimitBytes: row.size_limit_bytes,
@@ -73,22 +80,22 @@ export class StorageService {
     this.minioBucket = config.get('MINIO_BUCKET', { infer: true });
   }
 
-  async createBucket(name: string, isPublic: boolean, sizeLimitBytes: number | null) {
-    const existing = await this.buckets.findByName(name);
+  async createBucket(projectId: string, name: string, isPublic: boolean, sizeLimitBytes: number | null) {
+    const existing = await this.buckets.findByName(projectId, name);
     if (existing) {
       throw new ForbiddenException(`Bucket "${name}" already exists`);
     }
-    const row = await this.buckets.create(name, isPublic, sizeLimitBytes);
+    const row = await this.buckets.create(projectId, name, isPublic, sizeLimitBytes);
     return toPublicBucket(row);
   }
 
-  async listBuckets() {
-    const rows = await this.buckets.list();
+  async listBuckets(projectId: string) {
+    const rows = await this.buckets.list(projectId);
     return rows.map(toPublicBucket);
   }
 
-  async listObjects(bucketName: string) {
-    const bucket = await this.getBucketOrThrow(bucketName);
+  async listObjects(projectId: string, bucketName: string) {
+    const bucket = await this.getBucketOrThrow(projectId, bucketName);
     const rows = await this.objects.listByBucket(bucket.id);
     return rows.map(toPublicObject);
   }
@@ -108,7 +115,7 @@ export class StorageService {
       throw new ForbiddenException('Anonymous requests cannot upload objects');
     }
 
-    const bucket = await this.getBucketOrThrow(params.bucketName);
+    const bucket = await this.getBucketOrThrow(params.requester.projectId, params.bucketName);
     if (bucket.size_limit_bytes !== null && params.buffer.length > Number(bucket.size_limit_bytes)) {
       throw new PayloadTooLargeException(
         `Object exceeds bucket "${bucket.name}"'s size limit of ${bucket.size_limit_bytes} bytes`,
@@ -144,7 +151,7 @@ export class StorageService {
     path: string;
     requester: StorageRequester;
   }): Promise<{ stream: Readable; contentType: string | null; size: number }> {
-    const bucket = await this.getBucketOrThrow(params.bucketName);
+    const bucket = await this.getBucketOrThrow(params.requester.projectId, params.bucketName);
     const object = await this.objects.findByBucketAndPath(bucket.id, params.path);
     if (!object) {
       throw new NotFoundException('Object not found');
@@ -158,7 +165,7 @@ export class StorageService {
   }
 
   async deleteObject(params: { bucketName: string; path: string; requester: StorageRequester }) {
-    const bucket = await this.getBucketOrThrow(params.bucketName);
+    const bucket = await this.getBucketOrThrow(params.requester.projectId, params.bucketName);
     const object = await this.objects.findByBucketAndPath(bucket.id, params.path);
     if (!object) {
       throw new NotFoundException('Object not found');
@@ -171,8 +178,12 @@ export class StorageService {
     await this.objects.delete(bucket.id, params.path);
   }
 
-  private async getBucketOrThrow(name: string): Promise<StorageBucketRow> {
-    const bucket = await this.buckets.findByName(name);
+  // Scoped to (projectId, name), never name alone — this is the actual cross-project isolation
+  // boundary (scope.md §24 point 4). A project-B caller asking for a bucket that only exists in
+  // project A gets the same 404 as a bucket that doesn't exist at all, never a 403 — it must not
+  // be possible to detect another project's bucket names by probing.
+  private async getBucketOrThrow(projectId: string, name: string): Promise<StorageBucketRow> {
+    const bucket = await this.buckets.findByName(projectId, name);
     if (!bucket) {
       throw new NotFoundException(`Bucket "${name}" not found`);
     }

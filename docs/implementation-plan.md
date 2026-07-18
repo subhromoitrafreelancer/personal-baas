@@ -536,31 +536,51 @@ delete any other project's bucket by name. Treat as a priority fix, not a backlo
 
 ## Phase 12 — Functions
 
-Sandbox strategy (scope.md §26 point 5) is an open decision the user needs to confirm before
-this phase's execution-path items (2-3 below) can be built as anything but a stub — item 1
-(schema/CRUD) has no dependency on that decision and can land first regardless.
+Sandbox decision resolved 2026-07-18: a separate `function-runner` sibling process (scope.md
+§26 point 5), chosen for OS-process-boundary crash containment over an in-process V8 isolate,
+and to avoid reopening the Docker-socket question §23 point 7 already closed by using a fixed
+compose service instead of per-invocation containers.
 
 1. **`functions` schema + CRUD** — `functions.functions` (`id`, `project_id`, `name`,
    `code text`, `timeout_ms` default 10000, `created_at`, `updated_at`), unique
    `(project_id, name)`; `functions.invocations` (`id`, `function_id`, `status`, `duration_ms`,
    `error`, `invoked_at`). Admin CRUD API + page (list/create/edit, reusing the SQL editor's
-   vendored CodeMirror 6 with a JS/TS mode).
-2. **Execution runtime** — depends on the sandbox decision (scope.md §26 point 5, options
-   a/b/c); implements the `ctx` invocation contract (§26 point 3) regardless of which option is
-   chosen.
-3. **`ctx.rest` binding** — a fetch wrapper pre-bound to this deployment's own `/rest/v1/*`,
-   forwarding the invoking caller's JWT unmodified — no raw Postgres credential ever reaches
-   function code.
-4. **Invocation endpoint** — `POST /functions/v1/:name`, `AccessTokenGuard`-authenticated,
-   project resolved from the caller's JWT `projectId` claim, writes a `functions.invocations`
-   row per call (status/duration/error).
-5. **Caddy routing** — add `handle /functions/*` forwarding to `control-server:3000`, same shape
-   as `/storage/*`/`/auth/*`.
-6. **Test-invoke + history UI** — admin page: JSON body input, response viewer, invocation
+   vendored CodeMirror 6 with a JS/TS mode). No dependency on items 2-4 below — can land first.
+2. **`function-runner` service scaffold** — new `apps/function-runner`: a minimal Node.js HTTP
+   server (own `Dockerfile`, own `docker-compose.yml` entry — internal Docker network only, no
+   host port published, same "only control-server ever talks to this" shape as `minio`), with a
+   `/health` endpoint and a `POST /run` endpoint accepting `{ functionId, code, ctx, timeoutMs }`.
+   The runner holds **no** database credential and never queries Postgres — it only ever
+   executes what one `/run` call hands it (scope.md §26 point 7b is the actual security property
+   here, not just a convention).
+3. **Worker execution** — `/run` spawns a **fresh `worker_thread` per invocation** (no pooling/
+   reuse in v1 — rules out any cross-invocation global-state leakage by construction, per §26
+   point 5), evaluates `code` as the invocation contract's default-export handler (§26 point 3)
+   inside it, enforces `timeoutMs` via `worker.terminate()` as a second enforcement layer beneath
+   control-server's own HTTP-level timeout, and returns `{ status, body, headers }` or a
+   structured error.
+4. **`ctx.rest` binding** — constructed control-server-side before dispatch (not inside the
+   runner): a fetch wrapper pre-bound to this deployment's own `/rest/v1/*`, forwarding the
+   invoking caller's JWT unmodified — no raw Postgres credential ever reaches function code.
+   Passed as part of `ctx` in the `/run` request body.
+5. **Invocation endpoint** — `POST /functions/v1/:name` on control-server,
+   `AccessTokenGuard`-authenticated. Resolves the function via
+   `functions.functions WHERE project_id = $1 AND name = $2` (never `WHERE name = $2` alone —
+   this query is the actual cross-project isolation boundary, scope.md §26 point 7a) before ever
+   calling function-runner; a project-A JWT against a project-B function name 404s here, before
+   the runner is contacted at all. Proxies to function-runner's `/run` over internal HTTP, writes
+   a `functions.invocations` row per call (status/duration/error), returns 503 if the runner is
+   unreachable.
+6. **Caddy routing** — add `handle /functions/*` forwarding to `control-server:3000` only (not
+   directly to `function-runner`, which has no public route at all), same shape as
+   `/storage/*`/`/auth/*`.
+7. **Test-invoke + history UI** — admin page: JSON body input, response viewer, invocation
    history table reading `functions.invocations`.
    - **Acceptance**: a function reading `ctx.auth.sub` and calling `ctx.rest` returns different
      data for two different users' JWTs, each seeing only what their own JWT could already read
-     directly via `/rest/v1/*`; a project-A JWT invoking a project-B function 404s.
+     directly via `/rest/v1/*`; a project-A JWT invoking a project-B function 404s; killing the
+     `function-runner` container mid-invocation returns 503 to the caller while control-server's
+     own `/health` stays healthy throughout, and the runner recovers via Docker's restart policy.
 
 ## Phase 13 — Scheduler
 
@@ -606,5 +626,5 @@ Depends on Phase 12 — a scheduled job's unit of work is a function invocation.
 - Phase 6b: exercise rate limits and backup/restore scripts against the dev stack. (deferred)
 - Phase 10: two projects with same-named private buckets, two real users; confirm 404 (not 403) cross-project, plus a regression check that `examples/todo-app`'s storage flow is unaffected by the backfill.
 - Phase 11: deploy a zip via the admin console, load it in a browser at `/sites/<slug>/`, confirm same-origin API calls succeed with no CORS config and SPA fallback behaves correctly.
-- Phase 12: two real users invoking the same function via their own JWTs see only their own data through `ctx.rest`; cross-project invocation 404s.
+- Phase 12: two real users invoking the same function via their own JWTs see only their own data through `ctx.rest`; cross-project invocation 404s; killing the `function-runner` container mid-invocation returns 503 without affecting control-server's own health.
 - Phase 13: a scheduled function's writes and `scheduler.job_runs` both advance unattended; disabling a job stops it.

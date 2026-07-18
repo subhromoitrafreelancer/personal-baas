@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Hosting — Personal BaaS Admin</title>
+  <link rel="stylesheet" href="/admin/static/css/admin.css" />
+  <link rel="stylesheet" href="/admin/static/css/hosting.css" />
+</head>
+<body>
+  {{> topbar}}
+
+  <main class="page">
+    <h1>Hosting</h1>
+    <div class="toolbar">
+      <label class="field">Project <select id="project-select"></select></label>
+    </div>
+
+    <section class="card">
+      <div class="card-header">
+        <h2>Static site</h2>
+        <span id="hosting-status" class="run-status"></span>
+      </div>
+      <div class="card-body">
+        <dl class="detail-list">
+          <dt>Files</dt>
+          <dd id="hosting-file-count">—</dd>
+          <dt>Total size</dt>
+          <dd id="hosting-total-bytes">—</dd>
+          <dt>Last deployed</dt>
+          <dd id="hosting-last-deployed">—</dd>
+          <dt>Live URL</dt>
+          <dd><a id="hosting-live-link" href="#" target="_blank" rel="noopener">—</a></dd>
+        </dl>
+
+        <form id="deploy-form" class="inline-form">
+          <label class="field">Zip file <input id="deploy-file" type="file" accept=".zip" required /></label>
+          <button type="submit" class="btn btn-primary">Deploy</button>
+        </form>
+        <p class="hint">Zip must contain an <code>index.html</code> at its root. Deploying replaces every file from the previous deployment.</p>
+      </div>
+    </section>
+  </main>
+
+  {{> footer}}
+
+  <script src="/admin/static/js/topbar.js"></script>
+  <script src="/admin/static/js/project-selector.js"></script>
+  <script src="/admin/static/js/hosting.js"></script>
+</body>
+</html>

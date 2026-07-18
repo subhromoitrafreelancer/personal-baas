@@ -4,6 +4,7 @@
 #   /rest/v1/*    -> PostgREST (prefix stripped; PostgREST itself has no /rest/v1 prefix)
 #   /auth/*       -> control-server (application auth API)
 #   /storage/v1/* -> control-server (Phase 7 object storage API)
+#   /sites/*      -> control-server (Phase 11 static site hosting, public)
 #   /realtime/*   -> control-server (Phase 8 WebSocket gateway, upgrade handled transparently)
 #   /admin/*      -> control-server (admin API + admin UI pages)
 #   /health*      -> control-server (liveness/readiness, also used by container healthchecks)
@@ -30,6 +31,13 @@
 	}
 
 	handle /storage/* {
+		reverse_proxy control-server:3000
+	}
+
+	# Public static site hosting (Phase 11, scope.md §25) -- path-based, same-origin with the
+	# routes above, which is what lets a deployed site call /rest/v1/*, /auth/v1/*, /storage/v1/*
+	# with no CORS configuration at all.
+	handle /sites/* {
 		reverse_proxy control-server:3000
 	}
 

@@ -68,6 +68,16 @@ export class ProjectsService {
   }
 
   /**
+   * Public-facing, nullable lookup by slug — for callers resolving a project from something an
+   * outside caller supplied (e.g. the static hosting serve route's /sites/:project/* path
+   * segment, Phase 11), where a nonexistent slug is an ordinary 404, not a referential-integrity
+   * violation the way getById()'s callers treat a miss.
+   */
+  async findBySlug(slug: string): Promise<ProjectRow | null> {
+    return this.repository.findBySlug(slug);
+  }
+
+  /**
    * Looks up a project a caller already knows the id of (e.g. from a user row's or API key
    * row's own project_id column). Throws rather than returning null since a project_id stored
    * on another row is a foreign key — a miss here means referential integrity was violated.

@@ -1113,7 +1113,8 @@ See §25 Static Hosting Model for the full design.
 
 * HTTP-invoked, project-scoped JavaScript/TypeScript functions
 * `ctx.rest`-mediated data access — a function can't do anything its invoking caller couldn't already do via `/rest/v1/*`
-* Code-execution sandbox strategy is an open decision, not yet made — see §26 point 5
+* Executed in a separate `function-runner` sibling process (fresh `worker_thread` per invocation) — a rogue or crashing function cannot take down control-server
+* Cross-project invocation is structurally impossible: control-server resolves `(project_id, name)` before the runner is ever contacted, and the runner holds no DB credential to look anything up itself
 
 See §26 Functions Model for the full design.
 
@@ -1520,9 +1521,7 @@ genuinely missing asset still 404s.
 
 Phase 12. Project-scoped server-side JavaScript/TypeScript functions, invoked over HTTP — a
 small "lambda"-style execution surface, promoted from §16's original exclusion list now that
-Phase 9's project model exists to scope functions to. **The code-execution sandbox is the one
-genuinely open decision in this section — see point 5; the rest of this design (schema,
-invocation contract, API surface) holds regardless of which sandbox option is chosen.**
+Phase 9's project model exists to scope functions to.
 
 ```text
 1. Trigger surface: HTTP-invoked only in v1 (POST /functions/v1/<name>,
@@ -1568,48 +1567,88 @@ invocation contract, API surface) holds regardless of which sandbox option is ch
    admin_sql_history (Phase 1 point 5) and auth.audit_events (Phase 3
    point 8).
 
-5. OPEN DECISION — sandbox strategy. All three options below keep the
-   invocation contract in point 3 identical; they differ in isolation
-   strength, operational cost, and how far each reopens the precedent §23
-   point 7 already set (Docker-socket access into control-server was
-   considered and explicitly rejected as too large an attack surface, for a
-   feature far lower-stakes than arbitrary code execution).
+5. Sandbox: a new sibling service, `apps/function-runner` — its own Node.js
+   process/container (own Dockerfile, own docker-compose entry, internal
+   Docker network only, no host port published, same "control-server is the
+   only thing that ever talks to this" shape MinIO already has). Chosen over
+   an in-process V8 isolate specifically for the crash-containment property:
+   a rogue or crashing function must not be able to take down control-server
+   itself, which an in-process option can't fully guarantee (a native-module
+   crash or fatal V8 error inside the same OS process can still kill the
+   host process; a separate OS process boundary can't be breached that way).
+   Also declined the heavier option — a real per-invocation container
+   (Docker/gVisor/Firecracker) — since that would reopen the Docker-socket
+   question §23 point 7 already closed for a much smaller need (restarting
+   PostgREST); a fixed sibling service needs no Docker-socket access at all,
+   it's just another compose service like postgrest/minio.
 
-   a) In-process V8 isolate (e.g. `isolated-vm`, or Node's built-in `vm`
-      module with a curated global scope). No new service, no Docker socket,
-      no new container lifecycle to operate. Isolation is resource/CPU/
-      memory-limit enforcement, not a hard security boundary. Fits this
-      platform's actual current trust model — a single admin who manages
-      every project (§23 point 8) and already has unrestricted SQL access via
-      the admin console (§5.2) — under which sandboxing beyond resource
-      limits is arguably no more necessary for functions than it is for the
-      SQL console today.
+   Internally, function-runner uses Node `worker_threads` to execute each
+   invocation: one **fresh worker per invocation**, never reused — control-
+   server's own process is protected by the OS-process boundary regardless,
+   and a fresh worker per call additionally rules out one invocation's
+   leftover global state (module cache, global variables, timers) ever being
+   observable by a later invocation, which matters most for point 7 below.
+   Pooling/reusing workers is a valid later optimization if cold-start
+   latency proves to matter in practice, but any such pool must be pinned to
+   a single project — a pooled worker may only ever be reused for later
+   invocations of the *same* project_id, never across projects.
 
-   b) Separate function-runner sibling process (a new service using Node
-      worker_threads with a restricted global scope, talking to
-      control-server over an internal API — same "new sibling service" shape
-      as postgrest/minio in docker-compose.yml). Contains a crash or resource
-      exhaustion to one process rather than all of control-server, without
-      real container isolation. More operational surface than (a): a new
-      service to build, deploy, and keep healthy.
+   Control-server calls function-runner over plain internal HTTP (same
+   transport choice as its existing postgrest/minio calls): `POST /run` with
+   `{ functionId, code, ctx, timeoutMs }`, where `code` and `ctx` are the
+   already-resolved values from point 7 below — the runner is handed
+   everything it needs for this one invocation and looks nothing up itself.
+   Control-server enforces the function's `timeout_ms` on its own HTTP call
+   to the runner; the runner additionally calls `worker.terminate()` on its
+   own timer as a second enforcement point, so a hung worker can't pin a CPU
+   core indefinitely even if the HTTP-level timeout is somehow bypassed.
 
-   c) Per-invocation container (Docker, or a stronger primitive like gVisor/
-      Firecracker). Real isolation — the right answer if function authors
-      across projects are ever *mutually untrusted* (a genuine multi-tenant
-      SaaS posture). Directly reopens the Docker-socket question §23 point 7
-      closed for a much smaller feature (restarting PostgREST); revisiting it
-      here needs its own explicit decision, not an implicit one made by
-      picking this option. Also the slowest cold start and heaviest
-      operational lift of the three.
+   If function-runner is unreachable or its process has restarted (Docker's
+   restart policy handles that automatically, same as any other compose
+   service), an invocation returns 503 to the caller — control-server itself
+   is never affected, which is the whole point of the process boundary.
 
-   Recommendation if forced to pick today: (a) — it matches this platform's
-   actual current trust model exactly and adds zero new infrastructure. But
-   this depends entirely on one premise holding: that function authors are
-   always the same trusted platform operator, never a less-trusted third
-   party. If that premise might not hold, (a) is the wrong choice and this
-   needs revisiting before Phase 12 starts.
+6. functions.invocations (id, function_id, status, duration_ms, error,
+   invoked_at) — audit/observability table, same convention as
+   admin_sql_history (Phase 1 point 5) and auth.audit_events (Phase 3
+   point 8).
 
-6. Admin UI: /admin/functions/:project — list, create/edit (reuses the SQL
+7. Cross-project invocation isolation — the mechanism that guarantees a
+   project-A token can never execute a project-B function, even against a
+   fully compromised function-runner process:
+
+   a) The enforcement point is control-server's own function lookup, not
+      anything the runner does. `POST /functions/v1/<name>` resolves the
+      caller's `project_id` from their JWT (AccessTokenGuard, same as every
+      other project-scoped route), then queries
+      `functions.functions WHERE project_id = $1 AND name = $2` — never
+      `WHERE name = $2` alone. If no row matches, the response is a 404
+      before function-runner is ever contacted. A project-A JWT structurally
+      cannot cause project B's function to be looked up, the same way a
+      project-A JWT can't look up project B's storage bucket (§24 point 4)
+      or hosting site.
+
+   b) function-runner itself holds no database credential and never queries
+      `functions.functions`. It only ever executes the specific `code` it
+      was handed in one `/run` call's request body — even a fully
+      compromised runner process has no independent way to ask "give me
+      project B's function code," because it has no capability to look
+      anything up by project or name at all. This is the actual security
+      property, not merely a convention: the blast radius of a compromised
+      runner is "can misbehave within the one invocation it was given,"
+      never "can reach across projects."
+
+   c) If function code or resolved function metadata is ever cached (not
+      part of v1, but a likely later optimization once real usage exists),
+      the cache key must be the function's own row `id` (a UUID, globally
+      unique), never `name` alone — names are only unique per
+      `(project_id, name)` (point 2), so two different projects can have
+      identically-named functions with different code, and a name-keyed
+      cache would silently serve the wrong project's code to the wrong
+      caller. Any future caching work must treat this as a hard constraint,
+      not a tuning choice.
+
+8. Admin UI: /admin/functions/:project — list, create/edit (reuses the SQL
    editor's vendored CodeMirror 6 setup with a JS/TS language mode instead of
    SQL), a test-invoke panel (arbitrary JSON body + view response), and an
    invocation history view reading functions.invocations.
@@ -1618,7 +1657,9 @@ invocation contract, API surface) holds regardless of which sandbox option is ch
 **Acceptance**: a function reading ctx.auth.sub and calling ctx.rest returns different data
 for two different users' JWTs, each seeing only what their own JWT could already read
 directly via /rest/v1/* (proving point 3's isolation property); a project-A JWT invoking a
-project-B function 404s.
+project-B function 404s; killing the function-runner container mid-invocation (e.g.
+`docker compose kill function-runner`) returns a 503 to the caller and control-server's own
+`/health` stays healthy throughout.
 
 ---
 

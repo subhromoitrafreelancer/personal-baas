@@ -23,5 +23,9 @@ create schema if not exists private authorization baas_admin;
 -- through PostgREST (not in PGRST_DB_SCHEMAS) — access is enforced entirely in the control
 -- service's own storage module via its baas_admin connection, same as platform/auth.
 create schema if not exists storage authorization baas_admin;
+-- Hosting metadata (Phase 11, scope.md §25): hosting.sites/hosting.site_files. Same convention
+-- as storage — never exposed through PostgREST, access enforced entirely in the control
+-- service's own hosting module via its baas_admin connection.
+create schema if not exists hosting authorization baas_admin;
 
-revoke all on schema auth, platform, private, storage from public;
+revoke all on schema auth, platform, private, storage, hosting from public;
