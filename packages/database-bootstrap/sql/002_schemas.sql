@@ -3,7 +3,13 @@
 -- superuser running this bootstrap) and superusers have. Phase 9 (scope.md §23) has
 -- baas_admin create a new api_<slug> schema at runtime for each project, so it needs this
 -- grant even though every schema created during bootstrap itself is fine without it.
-grant create on database current_database() to baas_admin;
+-- GRANT ... ON DATABASE requires a literal identifier, not an expression, so
+-- current_database() can't be used directly as the target — EXECUTE/format() it instead.
+do $$
+begin
+  execute format('grant create on database %I to baas_admin', current_database());
+end
+$$;
 
 -- Schema exposure convention (scope.md §12): only `api` is ever exposed through PostgREST.
 -- Owned by baas_admin (scope.md §9: "baas_admin: schema administration, SQL editor

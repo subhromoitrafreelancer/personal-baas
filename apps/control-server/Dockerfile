@@ -19,6 +19,10 @@ WORKDIR /repo
 COPY --from=deps /repo/node_modules ./node_modules
 COPY --from=build /repo/apps/control-server/dist ./apps/control-server/dist
 COPY apps/control-server/package.json ./apps/control-server/package.json
+# Not run here — this image is also used by the control-server-migrate one-shot service
+# (docker-compose.yml), which runs `npm run migrate:up` against these files before
+# control-server itself starts.
+COPY apps/control-server/migrations ./apps/control-server/migrations
 
 WORKDIR /repo/apps/control-server
 EXPOSE 3000

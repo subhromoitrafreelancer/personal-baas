@@ -811,6 +811,8 @@ This boundary is important. Otherwise, the project quickly becomes a Supabase cl
 
 Storage and Realtime subscriptions, originally excluded here and listed under §18 Later Roadmap, have since been promoted to real phases (§17 Phase 7 and Phase 8) — see §21 and §22 for their models. Multi-project support, originally listed under §18 Later Roadmap as "Expansion 1," has likewise been promoted to a real phase (§17 Phase 9) — see §23 for its model. GraphQL remains excluded.
 
+Edge/serverless functions, also originally excluded, are promoted to a real phase (§17 Phase 12) now that Phase 9's multi-project model exists to scope functions to — see §26. Static hosting and a job scheduler were not part of the original exclusion list at all; they're new, later additions covered by §25 and §27. Separately, storage's per-project isolation is being retrofitted in §17 Phase 10 to close a gap Phase 7 shipped before Phase 9's project model existed — see §24.
+
 ---
 
 # 17. Development Phases
@@ -1085,6 +1087,48 @@ This produces the first internally production-usable release.
 
 ---
 
+## Phase 10 — Project-scoped storage (retrofit)
+
+### Features
+
+* `project_id` added to `storage.buckets`; bucket names become unique per project, not globally
+* Admin console storage page gains a required project selector, matching every other admin page since Phase 9
+* Existing single-project storage data backfilled to the default project
+
+Closes an authorization gap in already-shipped code — Phase 7 storage predates Phase 9's project model, so a valid JWT from any project can currently read/write/delete any other project's bucket by name. See §24 Project-Scoped Storage Model for the full design.
+
+## Phase 11 — Static hosting
+
+### Features
+
+* Path-based per-project static site hosting at `/sites/<slug>/*`, same-origin with that project's own APIs
+* Zip-based, full-replace deploy via the admin console — no build step, no custom domains, no previews
+* SPA `index.html` fallback for extensionless paths
+
+See §25 Static Hosting Model for the full design.
+
+## Phase 12 — Functions
+
+### Features
+
+* HTTP-invoked, project-scoped JavaScript/TypeScript functions
+* `ctx.rest`-mediated data access — a function can't do anything its invoking caller couldn't already do via `/rest/v1/*`
+* Code-execution sandbox strategy is an open decision, not yet made — see §26 point 5
+
+See §26 Functions Model for the full design.
+
+## Phase 13 — Scheduler
+
+### Features
+
+* Cron-scheduled invocation of Phase 12 functions, run with `service_role`-level trust
+* In-process timer loop — no OS cron, no `pg_cron`, no new sibling service
+* Single-instance limitation, same caveat shape as Phase 8 Realtime's
+
+Depends on Phase 12 — a scheduled job's unit of work is a function invocation, not a separate execution primitive. See §27 Scheduler Model for the full design.
+
+---
+
 # 18. Later Roadmap
 
 After the initial product is stable, add features in this order:
@@ -1340,6 +1384,301 @@ This is a v1 design for Phase 9, not a frozen architectural decision — the man
 PostgREST-restart step in particular may be revisited (e.g. a `SIGUSR1`-driven config
 hot-reload instead of a full container restart) if the operational friction proves
 worse in practice than the added attack surface of automating it.
+
+---
+
+# 24. Project-Scoped Storage Model (retrofit)
+
+Phase 10. Closes a gap Phase 7 (§21) shipped before Phase 9 (§23) introduced multi-project
+support: `storage.buckets`/`storage.objects` currently have no `project_id` at all, bucket
+names are globally unique, and `StorageRequester` carries no project context — meaning any
+project's valid JWT can currently read/write/delete any other project's bucket by name. This
+is an authorization gap in already-shipped code, not a new feature; treat it with the same
+priority as a bug fix.
+
+```text
+1. storage.buckets gains project_id uuid not null references platform.projects(id).
+   The existing unique index on `name` is dropped and replaced with a composite
+   unique index on (project_id, name) — bucket names become unique per project,
+   not globally. storage.objects needs no direct project_id column: its bucket_id
+   foreign key already pins it to exactly one project transitively.
+
+2. Migration path for existing data: same "backfill before NOT NULL" pattern as
+   Phase 9 point 3 (auth.users/platform.api_keys) — add the column nullable,
+   backfill every existing row (Phase 7's single-project dev data, e.g. the
+   examples/todo-app's todo-attachments bucket) to the default project's id, then
+   apply the NOT NULL constraint.
+
+3. StorageRequester gains a projectId field on both variants. For app-user
+   requests this comes from the caller's own JWT projectId claim
+   (AppAccessTokenClaims already carries this since Phase 9 point 4 — no new
+   claim needed). For admin requests, the admin console's existing
+   project-selector convention applies: every /admin/v1/storage/* route gains a
+   required :project path segment, mirroring the selector Phase 9 point 7 added
+   to the SQL console/DB explorer/API-keys pages — storage predates that change
+   and never got one.
+
+4. Bucket lookup moves from name alone to (projectId, name). A project-B JWT
+   requesting bucket "avatars" that only exists in project A gets a 404, not a
+   403 — the same "doesn't leak existence across the isolation boundary"
+   property RLS-based isolation gives elsewhere on this platform.
+
+5. No MinIO-level change needed. Object keys are already namespaced by the
+   bucket's own UUID, so cross-project physical key collisions were never
+   possible — this was always a Postgres/application-authorization gap, not a
+   storage-backend one, consistent with §21 point 4 (MinIO holds bytes; the
+   metadata tables are the access-decision source of truth).
+
+6. Optional: auto-provision one default bucket per project at project-creation
+   time, named after the project slug, private by default. This matches "during
+   project create we create this bucket," but should ship as an opt-in the admin
+   can decline per project, not a forced side effect — Phase 7a's todo-app
+   instead created its bucket manually post-creation via the admin UI, and that
+   manual path must keep working regardless of this default.
+
+7. Note on "RLS" framing: storage authorization has never been Postgres RLS —
+   §21 point 4 is explicit that access is enforced in application code, not in
+   MinIO or via Postgres row policies, since MinIO has no row-level concept.
+   This phase gives storage the same *isolation guarantee* RLS gives api.*
+   tables (a project boundary a single forgotten check can't cross), but via
+   the same Postgres-role-grant-style project scoping §23 point 2 already uses
+   for schemas — not by introducing real RLS policies into a storage table.
+```
+
+**Acceptance**: two projects, each with a same-named private bucket ("avatars") and a distinct
+real signed-up/logged-in user; project A's JWT gets 404 against project B's identically-named
+bucket and vice versa; the admin storage page requires a project selection before listing or
+creating buckets.
+
+---
+
+# 25. Static Hosting Model
+
+Phase 11. Path-based static site hosting per project — a developer builds a client-side app
+(plain HTML/JS, or a bundled SPA's build output) and deploys it to be served directly by the
+platform, same-origin with that project's REST/Auth/Storage/Functions APIs.
+
+```text
+1. Routing: path-based, not subdomain-based — GET /sites/<project-slug>/*path on
+   the existing single Caddy entry point (:8000/:443), reusing the exact
+   `handle /sites/*` -> control-server pattern already used for /storage/*. No
+   wildcard DNS or wildcard TLS cert needed — and, the useful side effect of
+   choosing path-based, a hosted site calling /rest/v1/*, /auth/v1/*,
+   /storage/v1/*, /functions/v1/* on the same origin needs no CORS
+   configuration at all, since browser same-origin rules are satisfied by
+   construction. Subdomain-based routing is the closer analogue to Vercel's
+   actual UX but was declined for this reason plus the wildcard-cert
+   operational cost; revisitable later, same as §21 flags its own MinIO
+   architecture as revisitable.
+
+2. Storage: reuses MinIO — no new storage subsystem — via a new `hosting`
+   schema. hosting.sites (id, project_id unique, created_at, updated_at): one
+   active deployment per project in v1, not a history of named
+   environments/previews. hosting.site_files (id, site_id, path, size,
+   content_type, deployed_at), unique(site_id, path). Physical MinIO key:
+   hosting/<project_id>/<path>, same UUID-namespacing pattern §21/§24 already
+   use to avoid cross-project key collisions at the storage-backend level.
+
+3. Deploy: POST /admin/v1/hosting/:project/deploy, admin-authenticated
+   (AdminSessionGuard — same trust level as the SQL console; v1 has no
+   service_role/CI-token deploy path, though that's an obvious later
+   addition), multipart .zip upload. Control-server unzips server-side and
+   does a full replace of that project's hosting.site_files, not an
+   incremental diff — simplest correct behavior for a v1 "deploy" action.
+   Enforce a total-uncompressed-size cap and a max-file-count cap, same
+   STORAGE_MAX_UPLOAD_BYTES-style env-configurable convention as Phase 7
+   point 5.
+
+4. Serve: GET /sites/:project/*path (public, unauthenticated by design — a
+   browser loads this with no token) resolves the project by slug, looks up
+   hosting.site_files by (site_id, normalized path), streams from MinIO with
+   the stored content_type. SPA fallback: an extensionless path with no
+   matching file serves that site's index.html instead of 404 — the standard
+   behavior client-rendered SPA routers expect. A path with an extension (a
+   genuinely missing .js/.css asset) 404s normally, no fallback.
+
+5. No custom domains, no build step, no environment variables injected into
+   the deployed bundle, no preview deployments in v1. A developer who needs
+   env-style config (e.g. which BaaS URL to call) handles it the same way
+   examples/todo-app's config.js already does: a plain JS file in the
+   deployed bundle the developer edits before zipping, not a platform
+   feature.
+
+6. Admin UI: /admin/hosting/:project — file count, total size, last-deployed
+   timestamp, a deploy (zip upload) action, and a "view live site" link to
+   /sites/:project/.
+```
+
+**Acceptance**: deploy a zip whose JS calls this same deployment's /rest/v1/* with no CORS
+setup anywhere; open /sites/<slug>/ in a browser and confirm the call succeeds same-origin;
+hit a client-side route with no matching file and confirm it serves index.html, while a
+genuinely missing asset still 404s.
+
+---
+
+# 26. Functions Model
+
+Phase 12. Project-scoped server-side JavaScript/TypeScript functions, invoked over HTTP — a
+small "lambda"-style execution surface, promoted from §16's original exclusion list now that
+Phase 9's project model exists to scope functions to. **The code-execution sandbox is the one
+genuinely open decision in this section — see point 5; the rest of this design (schema,
+invocation contract, API surface) holds regardless of which sandbox option is chosen.**
+
+```text
+1. Trigger surface: HTTP-invoked only in v1 (POST /functions/v1/<name>,
+   AccessTokenGuard-authenticated same as /storage/v1/*, project resolved from
+   the caller's JWT projectId claim — no new header, same convention §23
+   point 5 established). Any caller whose JWT resolves to that project can
+   invoke any of that project's functions in v1 — there is no per-function
+   grant table, same "don't build a permission system, trust the platform
+   operator" posture §5.2 already takes for the SQL console. Database-
+   triggered invocation (a Postgres trigger calling a function on row change)
+   is explicitly deferred — it would couple this feature to Realtime's
+   LISTEN/NOTIFY infrastructure and is real added design surface, not a small
+   extension.
+
+2. functions.functions (id, project_id, name, code text, timeout_ms default
+   10000, created_at, updated_at), unique(project_id, name). v1 stores
+   function source directly as a text column in Postgres — same
+   "developer pastes code, platform runs it, no build step" spirit as the SQL
+   editor's own paste-and-execute model — rather than a zip/bundle in MinIO.
+   v1 functions are therefore single-file and cannot npm-install a
+   dependency; multi-file bundles with a package.json are a reasonable later
+   extension once real usage patterns justify the added complexity, matching
+   §21's own "not a frozen decision" framing for exactly this kind of
+   judgment call.
+
+3. Invocation contract: a function's code must `export default` an async
+   handler of shape
+   `(ctx: { body, headers, query, project: { id, slug }, auth: { sub, role,
+   email } | null }) => Promise<{ status?, body, headers? }>`.
+   No raw Postgres credential is ever handed to function code — a function
+   that needs to read/write the project's own data gets `ctx.rest`, a fetch
+   wrapper pre-bound to that same deployment's /rest/v1/* with the *invoking
+   caller's* JWT forwarded automatically. This keeps a function's DB access no
+   wider than what PostgREST/RLS already grant that specific caller — it
+   can't do anything the caller couldn't already do by calling /rest/v1/*
+   directly, consistent with §19 point 3 ("the control service does not
+   create CRUD controllers for application tables... does not duplicate
+   PostgREST") extended to functions: functions consume the Data API, they
+   don't bypass it.
+
+4. functions.invocations (id, function_id, status, duration_ms, error,
+   invoked_at) — audit/observability table, same convention as
+   admin_sql_history (Phase 1 point 5) and auth.audit_events (Phase 3
+   point 8).
+
+5. OPEN DECISION — sandbox strategy. All three options below keep the
+   invocation contract in point 3 identical; they differ in isolation
+   strength, operational cost, and how far each reopens the precedent §23
+   point 7 already set (Docker-socket access into control-server was
+   considered and explicitly rejected as too large an attack surface, for a
+   feature far lower-stakes than arbitrary code execution).
+
+   a) In-process V8 isolate (e.g. `isolated-vm`, or Node's built-in `vm`
+      module with a curated global scope). No new service, no Docker socket,
+      no new container lifecycle to operate. Isolation is resource/CPU/
+      memory-limit enforcement, not a hard security boundary. Fits this
+      platform's actual current trust model — a single admin who manages
+      every project (§23 point 8) and already has unrestricted SQL access via
+      the admin console (§5.2) — under which sandboxing beyond resource
+      limits is arguably no more necessary for functions than it is for the
+      SQL console today.
+
+   b) Separate function-runner sibling process (a new service using Node
+      worker_threads with a restricted global scope, talking to
+      control-server over an internal API — same "new sibling service" shape
+      as postgrest/minio in docker-compose.yml). Contains a crash or resource
+      exhaustion to one process rather than all of control-server, without
+      real container isolation. More operational surface than (a): a new
+      service to build, deploy, and keep healthy.
+
+   c) Per-invocation container (Docker, or a stronger primitive like gVisor/
+      Firecracker). Real isolation — the right answer if function authors
+      across projects are ever *mutually untrusted* (a genuine multi-tenant
+      SaaS posture). Directly reopens the Docker-socket question §23 point 7
+      closed for a much smaller feature (restarting PostgREST); revisiting it
+      here needs its own explicit decision, not an implicit one made by
+      picking this option. Also the slowest cold start and heaviest
+      operational lift of the three.
+
+   Recommendation if forced to pick today: (a) — it matches this platform's
+   actual current trust model exactly and adds zero new infrastructure. But
+   this depends entirely on one premise holding: that function authors are
+   always the same trusted platform operator, never a less-trusted third
+   party. If that premise might not hold, (a) is the wrong choice and this
+   needs revisiting before Phase 12 starts.
+
+6. Admin UI: /admin/functions/:project — list, create/edit (reuses the SQL
+   editor's vendored CodeMirror 6 setup with a JS/TS language mode instead of
+   SQL), a test-invoke panel (arbitrary JSON body + view response), and an
+   invocation history view reading functions.invocations.
+```
+
+**Acceptance**: a function reading ctx.auth.sub and calling ctx.rest returns different data
+for two different users' JWTs, each seeing only what their own JWT could already read
+directly via /rest/v1/* (proving point 3's isolation property); a project-A JWT invoking a
+project-B function 404s.
+
+---
+
+# 27. Scheduler Model
+
+Phase 13. Cron-style scheduling of Functions (§26) — depends on Phase 12 shipping first, since
+a scheduled job's unit of work *is* a function invocation, not a separate execution primitive.
+
+```text
+1. scheduler.scheduled_jobs (id, project_id, name, function_id references
+   functions.functions(id), cron_expression text, enabled boolean default
+   true, next_run_at, last_run_at, last_status, created_at, updated_at),
+   unique(project_id, name).
+
+2. In-process scheduler inside control-server — no OS cron, no pg_cron
+   extension, no new sibling service. Uses a cron-expression parser (e.g.
+   `cron-parser`) to compute each job's next_run_at and a single timer loop
+   that wakes for the nearest one, the same "one persistent in-process
+   worker" shape as Realtime's own LISTEN connection (Phase 8 point 4) rather
+   than a library that polls every tick.
+
+3. On fire: invoke the target function in-process via the same execution path
+   §26 point 3 defines, but with a synthetic caller identity —
+   `ctx.auth = { sub: null, role: 'service_role' }` — since a scheduled run
+   has no invoking user. A scheduled job's ctx.rest calls therefore run with
+   service_role's full access (bypasses RLS, per §9's existing service_role
+   definition), a meaningfully wider grant than any real end-user invocation
+   of the same function would get — worth surfacing clearly in the admin UI,
+   not just this doc.
+
+4. scheduler.job_runs (id, job_id, started_at, finished_at, status, error) —
+   same audit-table convention as functions.invocations/admin_sql_history.
+
+5. Concurrency: a job whose previous run hasn't finished when its next
+   scheduled time arrives is skipped for that tick, not queued or run in
+   parallel with itself.
+
+6. Missed-run policy: if control-server was down (deploy, restart, crash)
+   when a run was due, v1 behavior is skip — no catch-up/backfill on restart.
+   Simplest correct v1 behavior; a durable job queue with catch-up semantics
+   is a reasonable later extension, not required for a first useful
+   scheduler.
+
+7. Known limitation, same shape as Realtime's already-documented one (Phase 8
+   point 5's admin-card caveat): today's deployment target is single-instance
+   control-server, so the in-process timer loop is correct as designed. If
+   this is ever run as multiple replicas, every replica would independently
+   fire every job — needs a DB-level claim/lock (e.g. SELECT ... FOR UPDATE
+   SKIP LOCKED on the due job row) before that's safe, not needed today.
+
+8. Admin UI: /admin/scheduler/:project — list jobs (name, function, cron
+   expression, next/last run, enabled toggle), create/edit form, a "run now"
+   button bypassing the schedule for manual testing, and a run-history view
+   reading scheduler.job_runs.
+```
+
+**Acceptance**: a function that writes a timestamp row via ctx.rest, scheduled at a short
+interval via the admin UI, produces matching scheduler.job_runs and function-owned rows
+unattended over several minutes with no invoking JWT involved; disabling the job stops it
+firing.
 
 [9]: https://min.io/docs/minio/linux/index.html "MinIO Object Storage Documentation"
 

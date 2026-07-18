@@ -11,10 +11,12 @@ const secretBanner = document.getElementById('secret-banner');
 const prevPageBtn = document.getElementById('prev-page-btn');
 const nextPageBtn = document.getElementById('next-page-btn');
 const pageInfo = document.getElementById('page-info');
+const projectSelect = document.getElementById('project-select');
 
 const LIMIT = 25;
 let offset = 0;
 let total = 0;
+let currentProjectId = null;
 
 function escapeHtml(value) {
   return String(value).replace(
@@ -73,7 +75,9 @@ function renderRow(user) {
     const res = await apiFetch(`/admin/v1/users/${user.id}/reset-token`, { method: 'POST' });
     if (!res?.ok) return;
     const body = await res.json();
-    showSecret(`Reset token for ${user.email} (expires ${new Date(body.expiresAt).toLocaleString()}): ${body.token}`);
+    showSecret(
+      `Reset token for ${user.email} (expires ${new Date(body.expiresAt).toLocaleString()}): ${body.token}`,
+    );
   });
 
   tr.querySelector('[data-action="temp-password"]').addEventListener('click', async () => {
@@ -91,6 +95,7 @@ async function loadUsers() {
   const search = searchInput.value.trim();
   const params = new URLSearchParams({ limit: LIMIT, offset });
   if (search) params.set('search', search);
+  if (currentProjectId) params.set('projectId', currentProjectId);
 
   const res = await apiFetch(`/admin/v1/users?${params}`);
   if (!res) return;
@@ -146,7 +151,7 @@ createUserForm.addEventListener('submit', async (e) => {
   const res = await apiFetch('/admin/v1/users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, projectId: currentProjectId }),
   });
   if (!res) return;
   if (!res.ok) {
@@ -166,4 +171,8 @@ createUserForm.addEventListener('submit', async (e) => {
   loadUsers();
 });
 
-loadUsers();
+initProjectSelector(projectSelect, (projectId) => {
+  currentProjectId = projectId;
+  offset = 0;
+  loadUsers();
+});

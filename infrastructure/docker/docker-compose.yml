@@ -65,6 +65,22 @@ services:
     # HTTP client to run one with. control-server's /health/ready checks this service's
     # reachability instead, and Caddy's own healthcheck below exercises the real proxy path to it.
 
+  # One-shot: runs node-pg-migrate against the fresh database before control-server itself
+  # starts, so a clean `docker compose up` (e.g. after `down -v`) doesn't need a manual
+  # `npm run migrate:up` step. Same image/build as control-server, just a different command —
+  # mirrors the postgrest-init / minio-createbucket one-shot init pattern above.
+  control-server-migrate:
+    build:
+      context: ../../
+      dockerfile: apps/control-server/Dockerfile
+    environment:
+      DATABASE_URL: postgres://baas_admin:${BAAS_ADMIN_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    working_dir: /repo/apps/control-server
+    entrypoint: ['npm', 'run', 'migrate:up']
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   control-server:
     build:
       context: ../../
@@ -101,6 +117,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      control-server-migrate:
+        condition: service_completed_successfully
       minio-createbucket:
         condition: service_completed_successfully
       postgrest-init:

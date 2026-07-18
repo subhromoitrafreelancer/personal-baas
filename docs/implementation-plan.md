@@ -474,6 +474,114 @@ user's direction — not dropped.
      outside the loop and concatenating those pre-serialized JSON fragments with just each subscriber's
      `id` to build their message.
 
+## Phase 10 — Project-scoped storage (retrofit)
+
+Closes an authorization gap in already-shipped code (scope.md §24) — Phase 7 storage predates
+Phase 9 multi-project, so buckets are currently global: any project's valid JWT can read/write/
+delete any other project's bucket by name. Treat as a priority fix, not a backlog feature.
+
+1. **`project_id` migration** — node-pg-migrate: add `storage.buckets.project_id` nullable,
+   backfill every existing row to the default project's id (`ProjectsService.getDefault()`),
+   then set `NOT NULL` + FK to `platform.projects`. Drop the existing unique index on `name`,
+   add a unique index on `(project_id, name)`.
+2. **`StorageRequester` project scoping** — `storage.service.ts`: `StorageRequester` gains
+   `projectId: string` on both the `admin` and `app-user` variants. `getBucketOrThrow`/all
+   bucket lookups filter by `(projectId, name)` instead of `name` alone.
+3. **App-user route project resolution** — `storage-object.controller.ts`'s `requesterFor()`
+   reads `user.projectId` (already present on `AppAccessTokenClaims` since Phase 9 #4) into the
+   requester — no route/URL shape change for `/storage/v1/object/:bucket/*path`, project
+   resolution stays JWT-derived, consistent with every other project-scoped endpoint.
+4. **Admin routes gain a project segment** — `/admin/v1/storage/:project/buckets`,
+   `/admin/v1/storage/:project/buckets/:bucket/objects[/*path]`, etc. `StorageAdminController`
+   resolves `:project` via `ProjectsService` the same way `admin-projects`/SQL console/DB
+   explorer already do (Phase 9 #7) before constructing the `{ kind: 'admin', projectId }`
+   requester.
+5. **Admin UI project selector** — `/admin/storage` gains the same project-selector pattern as
+   the SQL console/DB explorer/API-keys pages, defaulting to the seeded default project.
+6. **Optional default-bucket-per-project** — `ProjectsService.create()` gains an opt-in flag to
+   auto-create one private bucket named after the project slug; off by default, so
+   `examples/todo-app`'s existing manual-bucket-creation flow (Phase 7a #2) is unaffected.
+7. **Two-project storage isolation verification** — same rigor as Phase 9 #8: two projects, each
+   with a same-named private bucket, two real signed-up-and-logged-in users; confirm project A's
+   JWT gets 404 (not 403) against project B's identically-named bucket, and vice versa.
+   - **Acceptance**: existing single-project flows (todo-app's `todo-attachments`) keep working
+     with zero client-side changes after the backfill; a same-named bucket in a second project is
+     fully invisible to the first project's JWTs.
+
+## Phase 11 — Static hosting
+
+1. **`hosting` schema migrations** — `hosting.sites` (`id`, `project_id` unique, `created_at`,
+   `updated_at`), `hosting.site_files` (`id`, `site_id`, `path`, `size`, `content_type`,
+   `deployed_at`), unique `(site_id, path)`, via node-pg-migrate, same convention as
+   `storage`/`functions`/`scheduler`.
+2. **Deploy module** — new `apps/control-server/src/modules/hosting/`:
+   `POST /admin/v1/hosting/:project/deploy` (`AdminSessionGuard`, multipart zip,
+   `FileInterceptor`, a size/file-count cap mirroring `STORAGE_MAX_UPLOAD_BYTES`), unzips
+   server-side (new dependency, e.g. `unzipper`), streams each entry into MinIO at
+   `hosting/<project_id>/<path>`, full-replace of that project's `hosting.site_files` rows in
+   one transaction (delete-then-insert, not diffed).
+3. **Serve module** — `GET /sites/:project/*path` (public, no guard): resolve project by slug,
+   look up `(site_id, normalized path)`, stream from MinIO with stored `content_type`; on miss,
+   if the requested path has no file extension, retry against `index.html` (SPA fallback) before
+   returning 404.
+4. **Caddy routing** — add `handle /sites/*` forwarding to `control-server:3000`, same shape as
+   the existing `/storage/*` block.
+5. **Admin UI** — new `/admin/hosting` page: per-project card (file count, total size,
+   last-deployed timestamp), zip-upload deploy action, "view live site" link to `/sites/:project/`.
+   - **Acceptance**: deploy a zip containing `index.html` + JS that calls this same deployment's
+     `/rest/v1/*` with no CORS setup anywhere; open `/sites/<slug>/` in a browser and confirm the
+     API call succeeds same-origin; hit a client-side SPA route with no matching file and confirm
+     it serves `index.html`, while a genuinely missing asset (e.g. `/sites/<slug>/missing.js`)
+     still 404s.
+
+## Phase 12 — Functions
+
+Sandbox strategy (scope.md §26 point 5) is an open decision the user needs to confirm before
+this phase's execution-path items (2-3 below) can be built as anything but a stub — item 1
+(schema/CRUD) has no dependency on that decision and can land first regardless.
+
+1. **`functions` schema + CRUD** — `functions.functions` (`id`, `project_id`, `name`,
+   `code text`, `timeout_ms` default 10000, `created_at`, `updated_at`), unique
+   `(project_id, name)`; `functions.invocations` (`id`, `function_id`, `status`, `duration_ms`,
+   `error`, `invoked_at`). Admin CRUD API + page (list/create/edit, reusing the SQL editor's
+   vendored CodeMirror 6 with a JS/TS mode).
+2. **Execution runtime** — depends on the sandbox decision (scope.md §26 point 5, options
+   a/b/c); implements the `ctx` invocation contract (§26 point 3) regardless of which option is
+   chosen.
+3. **`ctx.rest` binding** — a fetch wrapper pre-bound to this deployment's own `/rest/v1/*`,
+   forwarding the invoking caller's JWT unmodified — no raw Postgres credential ever reaches
+   function code.
+4. **Invocation endpoint** — `POST /functions/v1/:name`, `AccessTokenGuard`-authenticated,
+   project resolved from the caller's JWT `projectId` claim, writes a `functions.invocations`
+   row per call (status/duration/error).
+5. **Caddy routing** — add `handle /functions/*` forwarding to `control-server:3000`, same shape
+   as `/storage/*`/`/auth/*`.
+6. **Test-invoke + history UI** — admin page: JSON body input, response viewer, invocation
+   history table reading `functions.invocations`.
+   - **Acceptance**: a function reading `ctx.auth.sub` and calling `ctx.rest` returns different
+     data for two different users' JWTs, each seeing only what their own JWT could already read
+     directly via `/rest/v1/*`; a project-A JWT invoking a project-B function 404s.
+
+## Phase 13 — Scheduler
+
+Depends on Phase 12 — a scheduled job's unit of work is a function invocation.
+
+1. **`scheduler` schema** — `scheduler.scheduled_jobs` (`id`, `project_id`, `name`,
+   `function_id` references `functions.functions`, `cron_expression`, `enabled`, `next_run_at`,
+   `last_run_at`, `last_status`, `created_at`, `updated_at`), unique `(project_id, name)`;
+   `scheduler.job_runs` (`id`, `job_id`, `started_at`, `finished_at`, `status`, `error`).
+2. **In-process scheduler service** — new `@Global()` module (`OnModuleInit`/`OnModuleDestroy`,
+   same lifecycle convention as Realtime's listener), `cron-parser` computes `next_run_at`, a
+   single timer loop wakes for the nearest due job, invokes it via Phase 12's execution path
+   with `ctx.auth = { sub: null, role: 'service_role' }`, writes a `scheduler.job_runs` row,
+   skips a tick if the previous run for that job hasn't finished.
+3. **Admin CRUD + run-now** — `/admin/v1/scheduler/:project/jobs` API + `/admin/scheduler/:project`
+   page: list/create/edit jobs, enable/disable toggle, a "run now" action bypassing the schedule.
+4. **Run history UI** — table reading `scheduler.job_runs` per job.
+   - **Acceptance**: a function that inserts a timestamp row via `ctx.rest`, scheduled every
+     minute, produces matching `scheduler.job_runs` and function-owned rows unattended over
+     several minutes with no invoking JWT; disabling the job stops further runs.
+
 ---
 
 ## Cross-cutting conventions
@@ -496,3 +604,7 @@ user's direction — not dropped.
 - Phase 8: two real WebSocket connections with different filters, verifying correct fan-out/exclusion — same rigor as the Phase 4.5 two-user RLS verification.
 - Phase 9: create a second project, restart PostgREST once, confirm its user/JWT/RLS stack works independently and a cross-project `Accept-Profile` request is rejected at the role/grant level — plus a regression check that the pre-existing project's flows (including `examples/todo-app`) are unaffected.
 - Phase 6b: exercise rate limits and backup/restore scripts against the dev stack. (deferred)
+- Phase 10: two projects with same-named private buckets, two real users; confirm 404 (not 403) cross-project, plus a regression check that `examples/todo-app`'s storage flow is unaffected by the backfill.
+- Phase 11: deploy a zip via the admin console, load it in a browser at `/sites/<slug>/`, confirm same-origin API calls succeed with no CORS config and SPA fallback behaves correctly.
+- Phase 12: two real users invoking the same function via their own JWTs see only their own data through `ctx.rest`; cross-project invocation 404s.
+- Phase 13: a scheduled function's writes and `scheduler.job_runs` both advance unattended; disabling a job stops it.

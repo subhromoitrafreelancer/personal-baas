@@ -1,0 +1,126 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------------------
+ * Design system: "casefile" -- a warm, paper-toned working surface with an
+ * ochre "highlighter" accent, evoking a recruiter's dossier rather than a
+ * generic SaaS dashboard. Fraunces (an editorial serif with real character)
+ * carries page/section titles; IBM Plex Sans handles dense UI/table text
+ * (needs to stay legible small); IBM Plex Mono marks system identifiers --
+ * job codes, department codes, timestamps -- so "system-generated" data
+ * reads visually distinct from human-entered text at a glance.
+ * ------------------------------------------------------------------------- */
+
+:root {
+  --background: #fbf8f2;
+  --foreground: #1b2430;
+  --card: #ffffff;
+  --card-foreground: #1b2430;
+  --border: #e4ddc9;
+  --input: #e4ddc9;
+  --ring: #b8722a;
+
+  --primary: #b8722a;
+  --primary-foreground: #fffbf2;
+  --secondary: #f1ece1;
+  --secondary-foreground: #1b2430;
+  --muted: #f1ece1;
+  --muted-foreground: #7a7365;
+  --accent: #f0ddb8;
+  --accent-foreground: #5a3d14;
+
+  --success: #4b7c59;
+  --success-foreground: #f7fbf6;
+  --danger: #b0483c;
+  --danger-foreground: #fdf5f3;
+  --destructive: #b0483c;
+  --destructive-foreground: #fdf5f3;
+
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: #14161c;
+  --foreground: #f1ece1;
+  --card: #1b1e26;
+  --card-foreground: #f1ece1;
+  --border: #2c2f38;
+  --input: #2c2f38;
+  --ring: #d98f3f;
+
+  --primary: #d98f3f;
+  --primary-foreground: #1b1000;
+  --secondary: #23262f;
+  --secondary-foreground: #f1ece1;
+  --muted: #23262f;
+  --muted-foreground: #9c9689;
+  --accent: #3a2f1c;
+  --accent-foreground: #f0dcb0;
+
+  --success: #6fa47d;
+  --success-foreground: #0e1a12;
+  --danger: #d66a55;
+  --danger-foreground: #1e0e0a;
+  --destructive: #d66a55;
+  --destructive-foreground: #1e0e0a;
+}
+
+@theme inline {
+  --font-display: 'Fraunces', ui-serif, Georgia, serif;
+  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --radius-sm: calc(var(--radius) - 0.25rem);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 0.25rem);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-display;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
