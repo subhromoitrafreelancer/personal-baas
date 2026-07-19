@@ -1,3 +1,14 @@
+import {
+  EditorView,
+  basicSetup,
+  EditorState,
+  javascript,
+  json,
+  placeholder,
+  indentWithTab,
+  keymap,
+} from '/admin/static/js/vendor/codemirror.bundle.js';
+
 const projectSelect = document.getElementById('project-select');
 const functionList = document.getElementById('function-list');
 const createFunctionBtn = document.getElementById('create-function-btn');
@@ -10,11 +21,9 @@ const detailTitle = document.getElementById('detail-title');
 const detailStatus = document.getElementById('detail-status');
 const noFunctionSelected = document.getElementById('no-function-selected');
 const functionDetail = document.getElementById('function-detail');
-const functionCode = document.getElementById('function-code');
 const functionTimeout = document.getElementById('function-timeout');
 const saveFunctionBtn = document.getElementById('save-function-btn');
 const deleteFunctionBtn = document.getElementById('delete-function-btn');
-const invokeBody = document.getElementById('invoke-body');
 const invokeBtn = document.getElementById('invoke-btn');
 const invokeResult = document.getElementById('invoke-result');
 const invocationsTbody = document.getElementById('invocations-tbody');
@@ -23,6 +32,42 @@ const DEFAULT_CODE = `export default async function (ctx) {
   return { status: 200, body: { hello: ctx.auth ? ctx.auth.email : 'anonymous' } };
 }
 `;
+
+// Same vendored CodeMirror 6 setup the SQL editor uses (scope.md §26 point 8 / Phase 14
+// point 7), swapped to a JS/TS language mode for function source and a JSON mode for the
+// test-invoke body — replaces the plain <textarea> Phase 12 shipped as a scoping cut.
+const functionCodeEditor = new EditorView({
+  state: EditorState.create({
+    doc: '',
+    extensions: [basicSetup, javascript({ typescript: true }), keymap.of([indentWithTab])],
+  }),
+  parent: document.getElementById('function-code-cm'),
+});
+
+const invokeBodyEditor = new EditorView({
+  state: EditorState.create({
+    doc: '',
+    extensions: [
+      basicSetup,
+      json(),
+      keymap.of([indentWithTab]),
+      placeholder(document.getElementById('invoke-body-cm').dataset.placeholder || ''),
+    ],
+  }),
+  parent: document.getElementById('invoke-body-cm'),
+});
+
+function setFunctionCode(code) {
+  functionCodeEditor.dispatch({
+    changes: { from: 0, to: functionCodeEditor.state.doc.length, insert: code },
+  });
+}
+
+function setInvokeBody(text) {
+  invokeBodyEditor.dispatch({
+    changes: { from: 0, to: invokeBodyEditor.state.doc.length, insert: text },
+  });
+}
 
 let currentProjectId = null;
 let functions = [];
@@ -90,10 +135,10 @@ function selectFunction(id) {
   detailTitle.textContent = fn.name;
   noFunctionSelected.hidden = true;
   functionDetail.hidden = false;
-  functionCode.value = fn.code;
+  setFunctionCode(fn.code);
   functionTimeout.value = fn.timeoutMs;
   invokeResult.textContent = '';
-  invokeBody.value = '';
+  setInvokeBody('');
 
   loadFunctions();
   loadInvocations(id);
@@ -137,7 +182,10 @@ saveFunctionBtn.addEventListener('click', async () => {
   const res = await apiFetch(`/admin/v1/functions/${selectedFunctionId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code: functionCode.value, timeoutMs: Number(functionTimeout.value) || undefined }),
+    body: JSON.stringify({
+      code: functionCodeEditor.state.doc.toString(),
+      timeoutMs: Number(functionTimeout.value) || undefined,
+    }),
   });
   if (!res) return;
   if (!res.ok) {
@@ -166,9 +214,10 @@ deleteFunctionBtn.addEventListener('click', async () => {
 
 invokeBtn.addEventListener('click', async () => {
   if (!selectedFunctionId) return;
+  const bodyText = invokeBodyEditor.state.doc.toString().trim();
   let body;
   try {
-    body = invokeBody.value.trim() ? JSON.parse(invokeBody.value) : undefined;
+    body = bodyText ? JSON.parse(bodyText) : undefined;
   } catch {
     invokeResult.textContent = 'Invalid JSON body';
     return;

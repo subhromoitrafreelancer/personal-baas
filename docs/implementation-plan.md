@@ -602,6 +602,56 @@ Depends on Phase 12 — a scheduled job's unit of work is a function invocation.
      minute, produces matching `scheduler.job_runs` and function-owned rows unattended over
      several minutes with no invoking JWT; disabling the job stops further runs.
 
+## Phase 14 — Admin UI redesign
+
+Visual/UX pass across every page in `apps/control-server/src/admin-ui` (scope.md §28) — no
+schema, route, or auth changes anywhere in this phase. Full redesign, not a triage of the worst
+pages: each item below still lands as its own independently reviewable PR.
+
+1. **Design tokens + shared components** — `admin.css`: add `--color-accent`/`--color-accent-hover`
+   and switch `.btn-primary`, active `.topnav a`, links, and focus rings onto it; add a shared
+   control-height token applied to `.btn`, `input`, `select`, `textarea`; add a `.page-header`
+   component (title + optional description left, actions right) and adopt it on every page,
+   replacing the bare `<h1>` + separate `.toolbar` div pattern.
+2. **Icon set** — a new shared inline-SVG icon partial (copy, edit, delete, save, add, close,
+   view, upload, download, refresh, chevron, external-link, search, run, history, warning), each
+   usage carrying `aria-label` + `title`. No new npm/CDN dependency. Swap bare-text action
+   buttons ("Copy", "Edit", "Delete", "Revoke", "Refresh") across every page's JS-rendered rows
+   for icon buttons; keep visible labels on primary actions and add matching icons to them.
+3. **Database Explorer redesign** — `database-explorer.hbs`/`.css`/`.js`: sticky schema-name jump
+   strip above the accordion; only the first table per schema expanded by default; per-table
+   detail reflowed to columns-full-width-on-top + keys/indexes/policies as a responsive
+   multi-column card row; read an initial `?schema=` query param on load and scroll/expand to it.
+4. **Projects page cross-links** — `projects.js`: project name renders as a link to
+   `/admin/api?projectId=<id>`; schema name renders as a link to
+   `/admin/database?schema=<schemaName>`. `api-explorer.js`/`database-explorer.js` read those
+   query params on load and pre-select accordingly (small addition to each, on top of point 3's
+   `?schema=` handling for the DB explorer side).
+5. **SQL editor toolbar/layout** — `sql-editor.hbs`/`.css`: regroup the toolbar into
+   visually-separated clusters (project | run/cancel | row-limit/snippet/upload | history), icon
+   + label buttons with tooltips for run/cancel/history/upload, reusing point 2's icon set.
+6. **API Keys / Users secret-panel dismiss fix** — `api-keys.js`, `admin-users.js`: add a close
+   button to `#secret-banner` (both pages use the identical pattern) that hides it; auto-hide it
+   on project-selector change and whenever a new create/view action fires for a different key or
+   user.
+7. **Functions CodeMirror editor** — `scripts/build-vendor.mjs`/`vendor-entry.js`: add
+   `@codemirror/lang-javascript` and `@codemirror/lang-json`, export `javascript`/`json`
+   extensions, rebuild the vendored bundle. `functions.hbs` + `functions.js`: replace the
+   function-code `<textarea>` with a CodeMirror instance using the JS/TS mode (same
+   `EditorView`/`basicSetup` setup the SQL editor already uses) and the invoke-body `<textarea>`
+   with a JSON-mode CodeMirror instance.
+8. **Remaining pages pass** — Dashboard, Storage, Hosting, Users, Audit, API Explorer, login,
+   landing: adopt points 1-2 (page-header, icon actions, alignment) plus per-page tightening
+   (Dashboard KPI/table card styling, Storage/Hosting panel treatment matching the redesigned
+   Functions layout, Users/Audit pagination + toolbar alignment).
+   - **Acceptance**: every page manually verified in a real browser (no visual regression) —
+     this is a UI-only phase, so browser walkthroughs are the verification method, not automated
+     UI tests; DB Explorer's `?schema=` deep link correctly scrolls to and expands the target
+     schema; Projects page name/schema links land on the correctly pre-filtered API Explorer /
+     Database Explorer view; the API Keys secret panel dismisses via its close button and does
+     not persist across a project switch; the Functions code and invoke-body editors both show
+     real JS/TS and JSON syntax highlighting.
+
 ---
 
 ## Cross-cutting conventions
@@ -628,3 +678,4 @@ Depends on Phase 12 — a scheduled job's unit of work is a function invocation.
 - Phase 11: deploy a zip via the admin console, load it in a browser at `/sites/<slug>/`, confirm same-origin API calls succeed with no CORS config and SPA fallback behaves correctly.
 - Phase 12: two real users invoking the same function via their own JWTs see only their own data through `ctx.rest`; cross-project invocation 404s; killing the `function-runner` container mid-invocation returns 503 without affecting control-server's own health.
 - Phase 13: a scheduled function's writes and `scheduler.job_runs` both advance unattended; disabling a job stops it.
+- Phase 14: manual browser walkthrough of every admin page (no headless/Playwright testing — same convention as every prior admin-UI phase); confirm the DB Explorer `?schema=` deep link, Projects page cross-links, dismissible API Keys secret panel, and Functions CodeMirror editors all behave as designed.

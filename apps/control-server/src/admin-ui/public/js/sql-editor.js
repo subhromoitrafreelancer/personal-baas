@@ -112,7 +112,7 @@ function renderStatementResult(statement, index) {
     const exportBtn = document.createElement('button');
     exportBtn.type = 'button';
     exportBtn.className = 'btn btn-outline btn-sm';
-    exportBtn.textContent = 'Export CSV';
+    exportBtn.innerHTML = `${window.Icons.markup('download')} Export CSV`;
     exportBtn.addEventListener('click', () =>
       downloadCsv(statement.fields, statement.rows, `query-result-${index + 1}.csv`),
     );

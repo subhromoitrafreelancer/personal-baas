@@ -43,7 +43,7 @@ function formatBytes(bytes) {
 function projectRow(project) {
   const warnings =
     project.unprotectedTableCount > 0
-      ? `<span class="badge exposure-danger">⚠ ${project.unprotectedTableCount} table(s) without RLS</span>`
+      ? `<span class="badge exposure-danger">${window.Icons.markup('warning', { size: 12 })} ${project.unprotectedTableCount} table(s) without RLS</span>`
       : '';
   return `
     <tr>

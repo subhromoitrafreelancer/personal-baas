@@ -17,16 +17,25 @@ function escapeHtml(value) {
   );
 }
 
+function hideSecretBanner() {
+  secretBanner.hidden = true;
+  secretBanner.innerHTML = '';
+}
+
 function showSecretBanner({ title, note, token }) {
   secretBanner.hidden = false;
   secretBanner.innerHTML = `
-    <div>${escapeHtml(title)}</div>
+    <div class="secret-banner-header">
+      <div>${escapeHtml(title)}</div>
+      <button type="button" class="btn btn-icon secret-banner-close" aria-label="Dismiss" title="Dismiss">${window.Icons.markup('close')}</button>
+    </div>
     <p class="secret-banner-note">${escapeHtml(note)}</p>
     <div class="secret-banner-token-row">
       <code id="secret-banner-token">${escapeHtml(token)}</code>
-      <button type="button" class="btn btn-outline btn-sm" data-copy-target="secret-banner-token">Copy</button>
+      <button type="button" class="btn btn-outline btn-sm" data-copy-target="secret-banner-token">${window.Icons.markup('copy')} Copy</button>
     </div>
   `;
+  secretBanner.querySelector('.secret-banner-close').addEventListener('click', hideSecretBanner);
 }
 
 async function apiFetch(url, options) {
@@ -49,8 +58,8 @@ function renderRow(key) {
     <td>${escapeHtml(key.createdBy)}</td>
     <td>${escapeHtml(status)}</td>
     <td class="actions-cell">
-      ${canView ? '<button type="button" class="btn btn-outline btn-sm" data-action="view">View</button>' : ''}
-      ${key.revokedAt ? '' : '<button type="button" class="btn btn-danger btn-sm" data-action="revoke">Revoke</button>'}
+      ${canView ? `<button type="button" class="btn btn-outline btn-sm" data-action="view">${window.Icons.markup('view')} View</button>` : ''}
+      ${key.revokedAt ? '' : `<button type="button" class="btn btn-danger btn-sm" data-action="revoke">${window.Icons.markup('delete')} Revoke</button>`}
     </td>
   `;
 
@@ -145,5 +154,6 @@ createKeyForm.addEventListener('submit', async (e) => {
 
 initProjectSelector(projectSelect, (projectId) => {
   currentProjectId = projectId;
+  hideSecretBanner();
   loadKeys();
 });

@@ -63,7 +63,7 @@ function codeBlock(label, code) {
     <div class="snippet-block">
       <h4>${escapeHtml(label)}</h4>
       <div class="snippet-code-wrap">
-        <button class="snippet-copy-btn" type="button" data-copy-target="${id}">Copy</button>
+        <button class="snippet-copy-btn" type="button" data-copy-target="${id}" aria-label="Copy" title="Copy">${window.Icons.markup('copy')}</button>
         <pre id="${id}">${escapeHtml(code)}</pre>
       </div>
     </div>
@@ -215,7 +215,7 @@ initProjectSelector(
       loadApiObjects();
     }
   },
-  { optionValue: 'schemaName' },
+  { optionValue: 'schemaName', initialValue: new URLSearchParams(window.location.search).get('schema') },
 );
 
 async function loadOpenapiSpec() {

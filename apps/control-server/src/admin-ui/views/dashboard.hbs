@@ -10,7 +10,12 @@
   {{> topbar}}
 
   <main class="page dashboard-page">
-    <h1>Dashboard</h1>
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Dashboard</h1>
+        <p class="page-description">At-a-glance health across every project on this instance.</p>
+      </div>
+    </div>
 
     <h2>Projects</h2>
     <div id="projects-table-wrap" class="table-wrap">
@@ -43,6 +48,7 @@
 
   {{> footer}}
 
+  <script src="/admin/static/js/icons.js"></script>
   <script src="/admin/static/js/topbar.js"></script>
   <script src="/admin/static/js/clipboard.js"></script>
   <script type="module" src="/admin/static/js/dashboard.js"></script>

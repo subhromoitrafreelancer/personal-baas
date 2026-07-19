@@ -29,7 +29,7 @@ async function apiFetch(url, options) {
 function updateLiveLink() {
   const url = `${window.location.origin}/sites/${encodeURIComponent(currentProjectSlug)}/`;
   liveLinkEl.href = url;
-  liveLinkEl.textContent = url;
+  liveLinkEl.innerHTML = `${window.Icons.markup('external-link')} ${url}`;
 }
 
 async function loadStats() {

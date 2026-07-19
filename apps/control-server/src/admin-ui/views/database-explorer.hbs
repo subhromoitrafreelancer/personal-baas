@@ -10,17 +10,26 @@
   {{> topbar}}
 
   <main class="page db-explorer-page">
-    <h1>Database</h1>
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Database</h1>
+        <p class="page-description">Browse every schema, table, and view PostgREST can see.</p>
+      </div>
+      <div class="page-header-actions">
+        <label class="field">Project <select id="project-select"></select></label>
+        <button id="refresh-objects-btn" type="button" class="btn btn-primary" data-icon="refresh">Refresh</button>
+      </div>
+    </div>
     <div class="db-explorer-toolbar toolbar">
-      <label class="field">Project <select id="project-select"></select></label>
-      <button id="refresh-objects-btn" type="button" class="btn btn-primary">Refresh</button>
       <span id="objects-status" class="run-status"></span>
     </div>
+    <nav id="schema-nav" class="schema-nav" aria-label="Jump to schema"></nav>
     <div id="schemas-container"></div>
   </main>
 
   {{> footer}}
 
+  <script src="/admin/static/js/icons.js"></script>
   <script src="/admin/static/js/topbar.js"></script>
   <script src="/admin/static/js/clipboard.js"></script>
   <script src="/admin/static/js/project-selector.js"></script>

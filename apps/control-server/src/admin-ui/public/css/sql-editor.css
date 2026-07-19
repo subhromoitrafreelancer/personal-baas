@@ -1,5 +1,22 @@
 .sql-toolbar {
   flex-wrap: wrap;
+  row-gap: var(--space-3);
+}
+
+/* Toolbar clusters (Phase 14, scope.md §28 point 5): run actions | query options | history,
+   visually separated so the toolbar reads as an instrument panel rather than a wrapped list. */
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.toolbar-divider {
+  width: 1px;
+  align-self: stretch;
+  min-height: 1.6rem;
+  background: var(--color-border);
 }
 
 .row-limit-label,
@@ -10,11 +27,6 @@
   display: flex;
   align-items: center;
   gap: 0.4rem;
-}
-
-#snippet-select,
-#row-limit-input {
-  padding: 0.3rem;
 }
 
 #row-limit-input {

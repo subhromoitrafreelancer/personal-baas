@@ -1725,6 +1725,117 @@ interval via the admin UI, produces matching scheduler.job_runs and function-own
 unattended over several minutes with no invoking JWT involved; disabling the job stops it
 firing.
 
+---
+
+# 28. Admin UI Redesign
+
+Phase 14. A visual/UX pass across the entire admin console (`apps/control-server/src/admin-ui`),
+not a new backend capability — no schema, route, or auth changes. Triggered by the console
+having grown organically across Phases 0-12 (each phase adding its own page/CSS file with no
+shared review of the whole), leaving real usability problems: the Database Explorer is close to
+unreadable once a schema has more than a few tables, several controls (buttons vs. selects vs.
+inputs) don't align on a shared baseline, action affordances are plain text buttons ("Copy",
+"Edit", "Delete") instead of recognizable icons, and the API Keys secret-reveal panel has no way
+to dismiss it once shown. Scope is deliberately **every** page (full redesign, not just the
+worst offenders), decided directly rather than treated as still-open — see the per-page list
+below.
+
+```text
+1. Design tokens: a --color-accent / --color-accent-hover pair is added alongside the existing
+   monochrome tokens in admin.css and takes over --color-primary's job on primary buttons,
+   active nav state, links, and focus rings; the surface/border/text tokens stay as they are —
+   this is an accent addition, not a repaint. A shared control-height token is introduced and
+   applied consistently to .btn, input, select, and textarea so a button sitting next to a
+   select in the same toolbar row lines up on both height and vertical-center, the concrete
+   "buttons and select boxes are not aligned" complaint. A shared .page-header pattern (title +
+   optional one-line description on the left, primary actions on the right, both vertically
+   centered) replaces the current bare <h1> followed by a separately-laid-out .toolbar div, used
+   on every page from here on.
+
+2. Icon system: no new npm dependency, no icon font, no CDN — consistent with this project's
+   existing "vendor what you need with esbuild, never load third-party script tags" posture
+   (the CodeMirror bundle, scope.md §5.2). A small hand-picked set of inline SVG icons (copy,
+   edit, delete/trash, save, add/plus, close/×, view/eye, upload, download, refresh, chevron
+   expand/collapse, external-link, search, run/play, history, warning) lives in one shared
+   partial/snippet set and is used to replace bare-text action buttons ("Copy" → a copy icon)
+   everywhere across the console. Every icon-only control keeps a text label available to
+   assistive tech and mouse users: an `aria-label` plus a native `title` attribute (the "alt
+   text" the icons need) — no icon ever ships silent. Labelled buttons that already carry visible
+   text (e.g. "Create project") get an icon *in addition to* the label, not instead of it — icons
+   only fully replace text where the action is unambiguous and space-constrained (row-level
+   actions in dense tables/lists).
+
+3. Database Explorer (worst-offending page, the direct trigger for this phase): replaces the
+   current single long vertical stack of every table's details with a sticky top strip of
+   schema-name jump links (one per schema currently returned by /admin/v1/database/objects) plus
+   a grouped accordion below it — clicking a schema name in the strip scrolls to and expands that
+   schema's group; within a group, only the first table starts expanded, the rest collapsed,
+   same interaction the SQL editor's history panel already uses for progressive disclosure. A
+   single table's own detail view (currently columns/keys/indexes/policies stacked one after
+   another as separate <h4> blocks) is reorganized so the columns table (the thing read most
+   often) renders full-width at the top, with keys/indexes/policies laid out as a responsive
+   multi-column card row below it instead of a continued vertical stack. Deep-linkable via a
+   `?schema=<name>` query param, read on page load, so the Projects page (point 4) and any other
+   future page can link directly into a specific schema's group already expanded/scrolled-to.
+
+4. Projects page: the project name in the table becomes a link to `/admin/api?projectId=<id>`
+   (API Explorer, already project-scoped via the existing project selector — the link just
+   pre-selects it) and the schema name becomes a link to `/admin/database?schema=<schemaName>`
+   (Database Explorer, consuming the deep-link param from point 3). No new backend route needed
+   for either — both target pages already have the data, this only wires an existing selector to
+   a query param on page load.
+
+5. SQL Editor toolbar: the current single flat-wrapping row (project select, two run buttons,
+   cancel, row-limit input, history toggle, snippet select, upload button, status text) is
+   regrouped into logical clusters with a visual divider between them — [project selector] |
+   [run statement, run script, cancel] | [row limit, snippet picker, upload] | [history toggle] —
+   with icon+label buttons for the run/cancel/history/upload actions (point 2's icon set) each
+   carrying a tooltip via `title`, so the toolbar reads as a coherent instrument panel rather than
+   a wrapped list of controls.
+
+6. API Keys secret-reveal panel: the concrete reported bug — "when public keys are displayed, it
+   can't be closed, it stays there" — is that `#secret-banner` has no dismiss control at all once
+   `showSecretBanner()` populates it (api-keys.js), and admin-users.js's identical pattern has
+   the same gap. Fixed by adding an explicit close (×) icon button that hides the panel, plus
+   auto-hiding it whenever the project selector changes or a different key's reveal/create action
+   fires (so an old token can't linger on screen looking like it belongs to whatever's currently
+   selected).
+
+7. Functions editor: replaces the plain `<textarea class="code-textarea">` for both the function
+   code and the test-invoke JSON body with the SQL editor's already-vendored CodeMirror 6 setup
+   (scope.md §26 point 8 called for this directly; Phase 12 shipped a textarea instead as a
+   scoping cut, not a decision reversal). Requires adding `@codemirror/lang-javascript` (and
+   `@codemirror/lang-json` for the invoke-body editor) to the same `scripts/build-vendor.mjs`
+   entry that already produces `codemirror.bundle.js`, exporting a `javascript`/`json` language
+   extension alongside the existing `sql`/`PostgreSQL` one — no new runtime dependency shape, the
+   same vendoring pipeline the SQL editor already uses.
+
+8. Remaining pages (Dashboard, Storage, Hosting, Users, Audit, API Explorer, login, landing) —
+   each gets the same page-header pattern (point 1), icon-ified actions (point 2), and alignment
+   fixes, plus whatever page-specific tightening falls out of applying those consistently: the
+   Dashboard's KPI grid and per-project table get consistent card styling with the rest of the
+   console; Storage/Hosting's two-panel layouts get the same visual treatment as the redesigned
+   Functions page (point 7) since they already share its master-detail shape; Users/Audit's
+   pagination controls and toolbars get the same icon/alignment pass as the SQL editor's.
+
+9. Explicit non-goals for this phase: no dark mode (not requested, real added surface — every
+   page would need verifying under both themes), no new UI framework or client-side router (the
+   console stays server-rendered Handlebars + vanilla JS per page, consistent with every prior
+   phase), no new icon-library/font dependency (point 2), no schema/API changes of any kind —
+   this phase touches `admin-ui/` only.
+```
+
+**Acceptance**: every page loads with no visual regression in a real browser (this is a UI
+phase — Playwright/headless testing is not the verification method, manual browsing is, same as
+every prior admin-UI phase); the Database Explorer's schema-jump strip correctly scrolls to and
+expands the target schema for a database with several schemas and many tables each; a Projects
+page row's name and schema links land on the correct pre-filtered API Explorer / Database
+Explorer view; the API Keys secret panel can be dismissed and does not persist across a project
+switch; the Functions code editor and invoke-body editor both apply real JS/TS and JSON syntax
+highlighting respectively.
+
+---
+
 [9]: https://min.io/docs/minio/linux/index.html "MinIO Object Storage Documentation"
 
 [1]: https://supabase.com/docs/guides/api?utm_source=chatgpt.com "Data REST API - Supabase Docs"

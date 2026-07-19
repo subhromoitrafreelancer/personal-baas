@@ -1,14 +1,65 @@
+/* Sticky schema-name jump strip (Phase 14, scope.md §28 point 3) — sits below the toolbar and
+   above the accordion, always visible while scrolling through a database with many schemas. */
+.schema-nav {
+  position: sticky;
+  top: 3.4rem;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.schema-nav:empty {
+  display: none;
+}
+
+.schema-nav-link {
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.schema-nav-link:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-faint);
+}
+
+.schema-nav-link.current {
+  color: var(--color-accent);
+  background: var(--color-accent-bg);
+  border-color: var(--color-accent);
+}
+
 .schema-block {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   overflow: hidden;
+  scroll-margin-top: 6.5rem;
 }
 
 .schema-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   background: var(--color-surface-muted);
   padding: 0.6rem 0.9rem;
   font-weight: 600;
   font-size: 0.95rem;
+}
+
+.schema-header .schema-table-count {
+  font-weight: 400;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
 }
 
 .table-block {
@@ -28,19 +79,28 @@
   background: #fafafa;
 }
 
+.table-header .icon.chevron {
+  transition: transform 0.12s ease;
+  color: var(--color-text-faint);
+}
+
+.table-header[aria-expanded='true'] .icon.chevron {
+  transform: rotate(180deg);
+}
+
 .table-header .table-name {
   font-family: var(--font-mono);
   font-weight: 600;
 }
 
 .table-details {
-  padding: 0 0.9rem 0.9rem 1.5rem;
+  padding: 0 0.9rem 1rem 1.9rem;
   font-size: 0.85rem;
 }
 
 .table-details h4 {
-  margin: 0.6rem 0 0.3rem;
-  font-size: 0.8rem;
+  margin: 0.9rem 0 0.4rem;
+  font-size: 0.75rem;
   color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -54,13 +114,38 @@
 .table-details th,
 .table-details td {
   text-align: left;
-  padding: 0.25rem 0.6rem;
+  padding: 0.3rem 0.6rem;
   border-bottom: 1px solid #eee;
 }
 
 .table-details ul {
   margin: 0;
   padding-left: 1.2rem;
+}
+
+/* Columns render full-width first (the thing read most often); everything else — keys,
+   indexes, policies — flows into a responsive multi-column card row beneath it, instead of a
+   continued single-column vertical stack (Phase 14, scope.md §28 point 3). */
+.table-detail-columns {
+  margin-bottom: 0.4rem;
+}
+
+.table-detail-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.table-detail-meta-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.75rem;
+  background: var(--color-surface);
+}
+
+.table-detail-meta-card h4 {
+  margin: 0 0 0.4rem;
 }
 
 .functions-block {

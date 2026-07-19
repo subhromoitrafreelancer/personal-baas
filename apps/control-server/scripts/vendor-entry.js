@@ -4,5 +4,7 @@
 export { EditorView, basicSetup } from 'codemirror';
 export { EditorState } from '@codemirror/state';
 export { sql, PostgreSQL } from '@codemirror/lang-sql';
+export { javascript } from '@codemirror/lang-javascript';
+export { json } from '@codemirror/lang-json';
 export { indentWithTab } from '@codemirror/commands';
-export { keymap } from '@codemirror/view';
+export { keymap, placeholder } from '@codemirror/view';

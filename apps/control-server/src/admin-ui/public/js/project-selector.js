@@ -8,6 +8,8 @@
 //   becomes the default selection instead of the seeded 'default' project — used by pages
 //   (like the DB explorer) where filtering down to one project by default would hide schemas
 //   an admin still wants to see (auth, platform, private, storage).
+// options.initialValue: if set (Phase 14 cross-link support, e.g. a `?schema=` query param from
+//   the Projects page), that option is pre-selected instead of the 'default'-project fallback.
 //
 // `project` (the second onChange argument) is the full matching project row — undefined for
 // the "show everything" option, if present — so a caller that needs more than just the
@@ -39,7 +41,9 @@ async function initProjectSelector(selectEl, onChange, options) {
     const option = document.createElement('option');
     option.value = getOptionValue(project);
     option.textContent = `${project.name} (${project.slug})`;
-    if (!opts.allLabel && project.slug === 'default') {
+    if (opts.initialValue) {
+      option.selected = option.value === opts.initialValue;
+    } else if (!opts.allLabel && project.slug === 'default') {
       option.selected = true;
     }
     selectEl.appendChild(option);

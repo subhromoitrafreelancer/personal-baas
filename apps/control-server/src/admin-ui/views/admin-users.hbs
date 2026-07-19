@@ -10,13 +10,21 @@
   {{> topbar}}
 
   <main class="page admin-users-page">
-    <h1>Users</h1>
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Users</h1>
+        <p class="page-description">Application end users, scoped to the selected project.</p>
+      </div>
+      <div class="page-header-actions">
+        <label class="field">Project <select id="project-select"></select></label>
+        <button id="create-user-btn" type="button" class="btn btn-primary" data-icon="add">Create user</button>
+        <span id="users-status" class="run-status"></span>
+      </div>
+    </div>
+
     <div class="admin-users-toolbar toolbar">
-      <label class="field">Project <select id="project-select"></select></label>
       <input id="search-input" type="search" placeholder="Search by email…" />
-      <button id="search-btn" type="button" class="btn btn-outline">Search</button>
-      <button id="create-user-btn" type="button" class="btn btn-primary">Create user</button>
-      <span id="users-status" class="run-status"></span>
+      <button id="search-btn" type="button" class="btn btn-outline" data-icon="search">Search</button>
     </div>
 
     <div id="secret-banner" class="secret-banner" hidden></div>
@@ -24,8 +32,8 @@
     <form id="create-user-form" class="inline-form" hidden>
       <label class="field">Email <input id="new-user-email" type="email" required /></label>
       <label class="field">Password (optional — leave blank to auto-generate) <input id="new-user-password" type="text" /></label>
-      <button type="submit" class="btn btn-primary">Create</button>
-      <button type="button" id="cancel-create-btn" class="btn btn-outline">Cancel</button>
+      <button type="submit" class="btn btn-primary" data-icon="save">Create</button>
+      <button type="button" id="cancel-create-btn" class="btn btn-outline" data-icon="close">Cancel</button>
     </form>
 
     <div class="table-wrap">
@@ -53,6 +61,7 @@
 
   {{> footer}}
 
+  <script src="/admin/static/js/icons.js"></script>
   <script src="/admin/static/js/topbar.js"></script>
   <script src="/admin/static/js/clipboard.js"></script>
   <script src="/admin/static/js/project-selector.js"></script>

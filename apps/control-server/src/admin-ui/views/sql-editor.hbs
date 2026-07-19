@@ -10,36 +10,56 @@
   {{> topbar}}
 
   <main class="page sql-editor-page">
-    <h1>SQL Editor</h1>
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>SQL Editor</h1>
+        <p class="page-description">Run raw SQL against a project's schema.</p>
+      </div>
+      <div class="page-header-actions">
+        <label class="field">Project <select id="project-select"></select></label>
+      </div>
+    </div>
+
     <div class="sql-toolbar toolbar">
-      <label class="field">Project <select id="project-select"></select></label>
-      <button id="run-statement-btn" type="button" class="btn btn-primary">Run statement</button>
-      <button id="run-script-btn" type="button" class="btn btn-primary">Run script</button>
-      <button id="cancel-btn" type="button" class="btn btn-danger" hidden>Cancel</button>
-      <label class="row-limit-label">
-        Row limit
-        <input id="row-limit-input" type="number" min="1" max="5000" value="500" />
-      </label>
-      <button id="toggle-history-btn" type="button" class="btn btn-outline">History</button>
-      <label class="snippet-label">
-        Snippet
-        <select id="snippet-select">
-          <option value="">Insert a snippet…</option>
-          <optgroup label="RLS">
-            <option value="owner-only">Owner-only access</option>
-            <option value="public-read-auth-write">Public read / authenticated write</option>
-            <option value="admin-only">Admin-only (service_role)</option>
-            <option value="authenticated-crud">Authenticated CRUD (no ownership)</option>
-          </optgroup>
-          <optgroup label="Realtime">
-            <option value="realtime-notify-trigger">Attach change-notify trigger</option>
-          </optgroup>
-        </select>
-      </label>
-      <label class="upload-label">
-        <input id="sql-file-input" type="file" accept=".sql,text/plain" hidden />
-        <button id="upload-btn" type="button" class="btn btn-outline">Upload .sql file</button>
-      </label>
+      <div class="toolbar-group" role="group" aria-label="Run">
+        <button id="run-statement-btn" type="button" class="btn btn-primary" data-icon="run" title="Run the statement at the cursor">Run statement</button>
+        <button id="run-script-btn" type="button" class="btn btn-primary" data-icon="run" title="Run the entire script">Run script</button>
+        <button id="cancel-btn" type="button" class="btn btn-danger" data-icon="close" title="Cancel the running query" hidden>Cancel</button>
+      </div>
+
+      <div class="toolbar-divider" aria-hidden="true"></div>
+
+      <div class="toolbar-group" role="group" aria-label="Query options">
+        <label class="row-limit-label" title="Maximum rows returned per statement">
+          Row limit
+          <input id="row-limit-input" type="number" min="1" max="5000" value="500" />
+        </label>
+        <label class="snippet-label">
+          <select id="snippet-select" title="Insert a snippet">
+            <option value="">Insert a snippet…</option>
+            <optgroup label="RLS">
+              <option value="owner-only">Owner-only access</option>
+              <option value="public-read-auth-write">Public read / authenticated write</option>
+              <option value="admin-only">Admin-only (service_role)</option>
+              <option value="authenticated-crud">Authenticated CRUD (no ownership)</option>
+            </optgroup>
+            <optgroup label="Realtime">
+              <option value="realtime-notify-trigger">Attach change-notify trigger</option>
+            </optgroup>
+          </select>
+        </label>
+        <label class="upload-label">
+          <input id="sql-file-input" type="file" accept=".sql,text/plain" hidden />
+          <button id="upload-btn" type="button" class="btn btn-outline btn-icon" data-icon="upload" aria-label="Upload .sql file" title="Upload .sql file"></button>
+        </label>
+      </div>
+
+      <div class="toolbar-divider" aria-hidden="true"></div>
+
+      <div class="toolbar-group" role="group" aria-label="History">
+        <button id="toggle-history-btn" type="button" class="btn btn-outline btn-icon" data-icon="history" aria-label="Execution history" title="Execution history"></button>
+      </div>
+
       <span id="run-status" class="run-status"></span>
     </div>
 
@@ -55,7 +75,7 @@
       <aside id="history-panel" class="history-panel" hidden>
         <div class="history-panel-header">
           <h2>Execution history</h2>
-          <button id="refresh-history-btn" type="button" class="btn btn-outline btn-sm">Refresh</button>
+          <button id="refresh-history-btn" type="button" class="btn btn-outline btn-sm" data-icon="refresh">Refresh</button>
         </div>
         <ul id="history-list" class="history-list"></ul>
       </aside>
@@ -64,6 +84,7 @@
 
   {{> footer}}
 
+  <script src="/admin/static/js/icons.js"></script>
   <script src="/admin/static/js/topbar.js"></script>
   <script src="/admin/static/js/clipboard.js"></script>
   <script src="/admin/static/js/project-selector.js"></script>

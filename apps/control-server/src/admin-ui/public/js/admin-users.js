@@ -25,9 +25,20 @@ function escapeHtml(value) {
   );
 }
 
+function hideSecret() {
+  secretBanner.hidden = true;
+  secretBanner.innerHTML = '';
+}
+
 function showSecret(message) {
   secretBanner.hidden = false;
-  secretBanner.textContent = message;
+  secretBanner.innerHTML = `
+    <div class="secret-banner-header">
+      <span>${escapeHtml(message)}</span>
+      <button type="button" class="btn btn-icon secret-banner-close" aria-label="Dismiss" title="Dismiss">${window.Icons.markup('close')}</button>
+    </div>
+  `;
+  secretBanner.querySelector('.secret-banner-close').addEventListener('click', hideSecret);
 }
 
 async function apiFetch(url, options) {
@@ -47,7 +58,7 @@ function renderRow(user) {
     <td>
       <span class="copyable-cell">
         ${escapeHtml(user.email)}
-        <button type="button" class="copy-btn" data-copy-value="${escapeHtml(user.email)}">Copy</button>
+        <button type="button" class="copy-btn" data-copy-value="${escapeHtml(user.email)}" aria-label="Copy" title="Copy">${window.Icons.markup('copy')}</button>
       </span>
     </td>
     <td><span class="badge status-${escapeHtml(user.status)}">${escapeHtml(user.status)}</span></td>
@@ -56,8 +67,8 @@ function renderRow(user) {
     <td>${user.lastSignInAt ? new Date(user.lastSignInAt).toLocaleString() : '—'}</td>
     <td class="actions-cell">
       <button type="button" class="btn btn-outline btn-sm" data-action="status" data-status="${nextStatus}">${disableLabel}</button>
-      <button type="button" class="btn btn-outline btn-sm" data-action="reset-token">Reset link</button>
-      <button type="button" class="btn btn-outline btn-sm" data-action="temp-password">Temp password</button>
+      <button type="button" class="btn btn-outline btn-sm" data-action="reset-token">${window.Icons.markup('external-link')} Reset link</button>
+      <button type="button" class="btn btn-outline btn-sm" data-action="temp-password">${window.Icons.markup('view')} Temp password</button>
     </td>
   `;
 
@@ -174,5 +185,6 @@ createUserForm.addEventListener('submit', async (e) => {
 initProjectSelector(projectSelect, (projectId) => {
   currentProjectId = projectId;
   offset = 0;
+  hideSecret();
   loadUsers();
 });

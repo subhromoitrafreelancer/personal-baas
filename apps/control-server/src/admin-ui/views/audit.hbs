@@ -10,10 +10,15 @@
   {{> topbar}}
 
   <main class="page audit-page">
-    <h1>Audit Log</h1>
-    <div class="audit-toolbar toolbar">
-      <button id="refresh-audit-btn" type="button" class="btn btn-primary">Refresh</button>
-      <span id="audit-status" class="run-status"></span>
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Audit Log</h1>
+        <p class="page-description">Security-relevant admin and auth events, newest first.</p>
+      </div>
+      <div class="page-header-actions">
+        <button id="refresh-audit-btn" type="button" class="btn btn-primary" data-icon="refresh">Refresh</button>
+        <span id="audit-status" class="run-status"></span>
+      </div>
     </div>
 
     <div class="table-wrap">
@@ -40,6 +45,7 @@
 
   {{> footer}}
 
+  <script src="/admin/static/js/icons.js"></script>
   <script src="/admin/static/js/topbar.js"></script>
   <script src="/admin/static/js/clipboard.js"></script>
   <script src="/admin/static/js/audit.js"></script>

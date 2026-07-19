@@ -1,4 +1,5 @@
 const container = document.getElementById('schemas-container');
+const schemaNav = document.getElementById('schema-nav');
 const statusEl = document.getElementById('objects-status');
 const refreshBtn = document.getElementById('refresh-objects-btn');
 const projectSelect = document.getElementById('project-select');
@@ -13,6 +14,14 @@ function escapeHtml(value) {
   );
 }
 
+function schemaAnchorId(schemaName) {
+  return `schema-${schemaName.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+}
+
+function copyButton(value) {
+  return `<button type="button" class="copy-btn" data-copy-value="${escapeHtml(value)}" aria-label="Copy" title="Copy">${window.Icons.markup('copy')}</button>`;
+}
+
 function renderColumns(columns) {
   if (columns.length === 0) return '';
   const rows = columns
@@ -21,7 +30,7 @@ function renderColumns(columns) {
         <td>
           <span class="copyable-cell">
             ${escapeHtml(col.name)}
-            <button type="button" class="copy-btn" data-copy-value="${escapeHtml(col.name)}">Copy</button>
+            ${copyButton(col.name)}
           </span>
         </td>
         <td>${escapeHtml(col.dataType)}</td>
@@ -30,29 +39,29 @@ function renderColumns(columns) {
       </tr>`,
     )
     .join('');
-  return `<h4>Columns</h4><table><thead><tr><th>Name</th><th>Type</th><th>Nullable</th><th>Default</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return `<div class="table-detail-columns"><h4>Columns</h4><table><thead><tr><th>Name</th><th>Type</th><th>Nullable</th><th>Default</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 function renderKeys(table) {
   const parts = [];
   if (table.primaryKey) {
-    parts.push(`<h4>Primary key</h4><div>${escapeHtml(table.primaryKey.name)} (${table.primaryKey.columns.map(escapeHtml).join(', ')})</div>`);
+    parts.push(`<div class="table-detail-meta-card"><h4>Primary key</h4><div>${escapeHtml(table.primaryKey.name)} (${table.primaryKey.columns.map(escapeHtml).join(', ')})</div></div>`);
   }
   if (table.uniqueConstraints.length > 0) {
     parts.push(
-      `<h4>Unique constraints</h4><ul>${table.uniqueConstraints
+      `<div class="table-detail-meta-card"><h4>Unique constraints</h4><ul>${table.uniqueConstraints
         .map((u) => `<li>${escapeHtml(u.name)} (${u.columns.map(escapeHtml).join(', ')})</li>`)
-        .join('')}</ul>`,
+        .join('')}</ul></div>`,
     );
   }
   if (table.foreignKeys.length > 0) {
     parts.push(
-      `<h4>Foreign keys</h4><ul>${table.foreignKeys
+      `<div class="table-detail-meta-card"><h4>Foreign keys</h4><ul>${table.foreignKeys
         .map(
           (fk) =>
             `<li>${escapeHtml(fk.name)}: (${fk.columns.map(escapeHtml).join(', ')}) &rarr; ${escapeHtml(fk.referencesSchema)}.${escapeHtml(fk.referencesTable)} (${fk.referencesColumns.map(escapeHtml).join(', ')})</li>`,
         )
-        .join('')}</ul>`,
+        .join('')}</ul></div>`,
     );
   }
   return parts.join('');
@@ -60,21 +69,21 @@ function renderKeys(table) {
 
 function renderIndexes(indexes) {
   if (indexes.length === 0) return '';
-  return `<h4>Indexes</h4><ul>${indexes
+  return `<div class="table-detail-meta-card"><h4>Indexes</h4><ul>${indexes
     .map((idx) => `<li><code>${escapeHtml(idx.definition)}</code></li>`)
-    .join('')}</ul>`;
+    .join('')}</ul></div>`;
 }
 
 function renderPolicies(policies) {
   if (policies.length === 0) return '';
-  return `<h4>Policies</h4><ul>${policies
+  return `<div class="table-detail-meta-card"><h4>Policies</h4><ul>${policies
     .map(
       (p) =>
         `<li>${escapeHtml(p.name)} (${escapeHtml(p.command)}, roles: ${p.roles.map(escapeHtml).join(', ')})${
           p.using ? ` — using: <code>${escapeHtml(p.using)}</code>` : ''
         }${p.withCheck ? ` — with check: <code>${escapeHtml(p.withCheck)}</code>` : ''}</li>`,
     )
-    .join('')}</ul>`;
+    .join('')}</ul></div>`;
 }
 
 // Only api-schema tables/views are ever reachable through PostgREST, so exposure risk is
@@ -85,39 +94,56 @@ function renderPolicies(policies) {
 function exposureWarning(table) {
   if (!table.apiExposed) return '';
   if (!table.rlsEnabled) {
-    return '<span class="badge exposure-danger">⚠ No RLS — unrestricted for any granted role</span>';
+    return `<span class="badge exposure-danger">${window.Icons.markup('warning', { size: 12 })} No RLS — unrestricted for any granted role</span>`;
   }
   if (table.policies.length === 0) {
-    return '<span class="badge exposure-info">ℹ RLS on, no policies — default-deny</span>';
+    return '<span class="badge exposure-info">RLS on, no policies — default-deny</span>';
   }
   return '';
 }
 
-function renderTable(table, schemaName) {
+function renderTable(table, schemaName, expanded) {
   const block = document.createElement('div');
   block.className = 'table-block';
   const qualifiedName = `${schemaName}.${table.name}`;
 
   const header = document.createElement('div');
   header.className = 'table-header';
+  header.setAttribute('role', 'button');
+  header.setAttribute('tabindex', '0');
+  header.setAttribute('aria-expanded', String(expanded));
   header.innerHTML = `
+    ${window.Icons.markup('chevron', { size: 14 })}
     <span class="table-name">${escapeHtml(table.name)}</span>
-    <button type="button" class="copy-btn" data-copy-value="${escapeHtml(qualifiedName)}">Copy</button>
+    ${copyButton(qualifiedName)}
     <span class="badge">${escapeHtml(table.kind)}</span>
     ${table.apiExposed ? '<span class="badge api-exposed">API exposed</span>' : ''}
     <span class="badge ${table.rlsEnabled ? 'rls-on' : 'rls-off'}">${table.rlsEnabled ? 'RLS enabled' : 'RLS disabled'}</span>
     ${exposureWarning(table)}
   `;
+  header.querySelector('.icon').classList.add('chevron');
 
   const details = document.createElement('div');
   details.className = 'table-details';
-  details.hidden = true;
+  details.hidden = !expanded;
   details.innerHTML =
-    renderColumns(table.columns) + renderKeys(table) + renderIndexes(table.indexes) + renderPolicies(table.policies);
+    renderColumns(table.columns) +
+    `<div class="table-detail-meta">${renderKeys(table)}${renderIndexes(table.indexes)}${renderPolicies(table.policies)}</div>`;
 
+  const toggle = () => {
+    const next = details.hidden;
+    details.hidden = !next;
+    header.setAttribute('aria-expanded', String(next));
+  };
   header.addEventListener('click', (event) => {
     if (event.target.closest('.copy-btn')) return;
-    details.hidden = !details.hidden;
+    toggle();
+  });
+  header.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      toggle();
+    }
   });
 
   block.appendChild(header);
@@ -128,15 +154,16 @@ function renderTable(table, schemaName) {
 function renderSchema(schema) {
   const block = document.createElement('div');
   block.className = 'schema-block';
+  block.id = schemaAnchorId(schema.name);
 
   const header = document.createElement('div');
   header.className = 'schema-header';
-  header.textContent = schema.name;
+  header.innerHTML = `${escapeHtml(schema.name)} <span class="schema-table-count">${schema.tables.length} table${schema.tables.length === 1 ? '' : 's'}</span>`;
   block.appendChild(header);
 
-  for (const table of schema.tables) {
-    block.appendChild(renderTable(table, schema.name));
-  }
+  schema.tables.forEach((table, index) => {
+    block.appendChild(renderTable(table, schema.name, index === 0));
+  });
 
   if (schema.functions.length > 0) {
     const functionsBlock = document.createElement('div');
@@ -153,15 +180,40 @@ function renderSchema(schema) {
   return block;
 }
 
+function renderSchemaNav(schemas) {
+  schemaNav.innerHTML = schemas
+    .map((schema) => `<button type="button" class="schema-nav-link" data-schema="${escapeHtml(schema.name)}">${escapeHtml(schema.name)}</button>`)
+    .join('');
+}
+
+function jumpToSchema(schemaName) {
+  const target = document.getElementById(schemaAnchorId(schemaName));
+  if (!target) return;
+  target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const firstHeader = target.querySelector('.table-header');
+  if (firstHeader && firstHeader.getAttribute('aria-expanded') === 'false') {
+    firstHeader.click();
+  }
+  schemaNav.querySelectorAll('.schema-nav-link').forEach((link) => {
+    link.classList.toggle('current', link.dataset.schema === schemaName);
+  });
+}
+
 function renderSchemas() {
   const schemas = schemaFilter ? allSchemas.filter((s) => s.name === schemaFilter) : allSchemas;
   container.innerHTML = '';
   for (const schema of schemas) {
     container.appendChild(renderSchema(schema));
   }
+  renderSchemaNav(schemas);
   statusEl.textContent = schemaFilter
     ? `Loaded ${schemas.length} of ${allSchemas.length} schema(s)`
     : `Loaded ${schemas.length} schema(s)`;
+
+  const requestedSchema = new URLSearchParams(window.location.search).get('schema');
+  if (requestedSchema && schemas.some((s) => s.name === requestedSchema)) {
+    jumpToSchema(requestedSchema);
+  }
 }
 
 async function loadObjects() {
@@ -183,6 +235,12 @@ async function loadObjects() {
     statusEl.textContent = err instanceof Error ? err.message : 'Failed to load database objects';
   }
 }
+
+schemaNav.addEventListener('click', (event) => {
+  const link = event.target.closest('.schema-nav-link');
+  if (!link) return;
+  jumpToSchema(link.dataset.schema);
+});
 
 refreshBtn.addEventListener('click', loadObjects);
 initProjectSelector(

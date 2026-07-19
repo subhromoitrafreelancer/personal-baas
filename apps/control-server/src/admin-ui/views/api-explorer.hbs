@@ -10,11 +10,18 @@
   {{> topbar}}
 
   <main class="page api-explorer-page">
-    <h1>API Explorer</h1>
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>API Explorer</h1>
+        <p class="page-description">Copy-paste request snippets for every table, view, and function.</p>
+      </div>
+      <div class="page-header-actions">
+        <label class="field">Project <select id="project-select"></select></label>
+        <button id="refresh-api-btn" type="button" class="btn btn-primary" data-icon="refresh">Refresh</button>
+        <button id="toggle-openapi-btn" type="button" class="btn btn-outline" data-icon="view">View OpenAPI Spec</button>
+      </div>
+    </div>
     <div class="api-explorer-toolbar toolbar">
-      <label class="field">Project <select id="project-select"></select></label>
-      <button id="refresh-api-btn" type="button" class="btn btn-primary">Refresh</button>
-      <button id="toggle-openapi-btn" type="button" class="btn btn-outline">View OpenAPI Spec</button>
       <span id="api-status" class="run-status"></span>
     </div>
     <div id="api-objects-container"></div>
@@ -22,8 +29,8 @@
     <section id="openapi-panel" class="openapi-panel" hidden>
       <div class="openapi-panel-header">
         <h2>PostgREST OpenAPI spec</h2>
-        <a href="/rest/v1/" target="_blank" rel="noopener">Open raw in new tab</a>
-        <button id="download-openapi-btn" type="button" class="btn btn-outline btn-sm">Download JSON</button>
+        <a href="/rest/v1/" target="_blank" rel="noopener" data-icon="external-link">Open raw in new tab</a>
+        <button id="download-openapi-btn" type="button" class="btn btn-outline btn-sm" data-icon="download">Download JSON</button>
       </div>
       <pre id="openapi-json"></pre>
     </section>
@@ -31,6 +38,7 @@
 
   {{> footer}}
 
+  <script src="/admin/static/js/icons.js"></script>
   <script src="/admin/static/js/topbar.js"></script>
   <script src="/admin/static/js/clipboard.js"></script>
   <script src="/admin/static/js/project-selector.js"></script>

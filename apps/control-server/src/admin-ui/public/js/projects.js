@@ -29,7 +29,7 @@ function showRestartBanner(restartCommand) {
     <div>Project created. Run this to make it reachable through the REST API:</div>
     <div class="secret-banner-token-row">
       <code id="restart-command">${escapeHtml(restartCommand)}</code>
-      <button type="button" class="btn btn-outline btn-sm" data-copy-target="restart-command">Copy</button>
+      <button type="button" class="btn btn-outline btn-sm" data-copy-target="restart-command">${window.Icons.markup('copy')} Copy</button>
     </div>
   `;
 }
@@ -37,10 +37,11 @@ function showRestartBanner(restartCommand) {
 function renderRow(project) {
   const tr = document.createElement('tr');
   const isDefault = project.slug === 'default';
+  const schema = encodeURIComponent(project.schemaName);
   tr.innerHTML = `
     <td>${escapeHtml(project.slug)} ${isDefault ? '<span class="default-project-badge">(seeded)</span>' : ''}</td>
-    <td>${escapeHtml(project.name)}</td>
-    <td><code>${escapeHtml(project.schemaName)}</code></td>
+    <td><a href="/admin/api?schema=${schema}" title="Open in API Explorer">${escapeHtml(project.name)}</a></td>
+    <td><a href="/admin/database?schema=${schema}" title="Open in Database Explorer"><code>${escapeHtml(project.schemaName)}</code></a></td>
     <td><code>${escapeHtml(project.anonRole)}</code>, <code>${escapeHtml(project.authenticatedRole)}</code>, <code>${escapeHtml(project.serviceRoleRole)}</code></td>
     <td>${new Date(project.createdAt).toLocaleString()}</td>
   `;

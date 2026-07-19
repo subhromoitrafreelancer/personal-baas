@@ -10,23 +10,28 @@
   {{> topbar}}
 
   <main class="page functions-page">
-    <h1>Functions</h1>
-    <div class="toolbar">
-      <label class="field">Project <select id="project-select"></select></label>
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Functions</h1>
+        <p class="page-description">Project-scoped serverless JS/TS, invoked over HTTP.</p>
+      </div>
+      <div class="page-header-actions">
+        <label class="field">Project <select id="project-select"></select></label>
+      </div>
     </div>
 
     <div class="functions-layout">
       <section class="card function-panel">
         <div class="card-header">
           <h2>Functions</h2>
-          <button id="create-function-btn" type="button" class="btn btn-primary btn-sm">New function</button>
+          <button id="create-function-btn" type="button" class="btn btn-primary btn-sm" data-icon="add">New function</button>
         </div>
         <div class="card-body">
           <form id="create-function-form" class="inline-form" hidden>
             <label class="field">Name <input id="new-function-name" type="text" required placeholder="e.g. send-welcome-email" /></label>
             <label class="field">Timeout (ms, optional) <input id="new-function-timeout" type="number" min="1" max="60000" /></label>
-            <button type="submit" class="btn btn-primary">Create</button>
-            <button type="button" id="cancel-create-function-btn" class="btn btn-outline">Cancel</button>
+            <button type="submit" class="btn btn-primary" data-icon="save">Create</button>
+            <button type="button" id="cancel-create-function-btn" class="btn btn-outline" data-icon="close">Cancel</button>
           </form>
           <ul id="function-list" class="function-list"></ul>
         </div>
@@ -42,16 +47,16 @@
 
           <div id="function-detail" hidden>
             <p class="hint">Code must <code>export default</code> an async handler: <code>(ctx) =&gt; ({ status, body, headers })</code>. TypeScript/ESM syntax is supported.</p>
-            <textarea id="function-code" class="code-textarea" spellcheck="false" rows="16"></textarea>
+            <div id="function-code-cm" class="code-cm"></div>
             <div class="detail-actions">
               <label class="field">Timeout (ms) <input id="function-timeout" type="number" min="1" max="60000" /></label>
-              <button id="save-function-btn" type="button" class="btn btn-primary btn-sm">Save</button>
-              <button id="delete-function-btn" type="button" class="btn btn-danger btn-sm">Delete</button>
+              <button id="save-function-btn" type="button" class="btn btn-primary btn-sm" data-icon="save">Save</button>
+              <button id="delete-function-btn" type="button" class="btn btn-danger btn-sm" data-icon="delete">Delete</button>
             </div>
 
             <h3>Test invoke</h3>
-            <textarea id="invoke-body" class="code-textarea" spellcheck="false" rows="4" placeholder="JSON body, e.g. { &quot;name&quot;: &quot;world&quot; }"></textarea>
-            <button id="invoke-btn" type="button" class="btn btn-outline btn-sm">Invoke</button>
+            <div id="invoke-body-cm" class="code-cm code-cm-sm" data-placeholder='JSON body, e.g. { "name": "world" }'></div>
+            <button id="invoke-btn" type="button" class="btn btn-outline btn-sm" data-icon="run">Invoke</button>
             <pre id="invoke-result" class="invoke-result"></pre>
 
             <h3>Invocation history</h3>
@@ -76,8 +81,9 @@
 
   {{> footer}}
 
+  <script src="/admin/static/js/icons.js"></script>
   <script src="/admin/static/js/topbar.js"></script>
   <script src="/admin/static/js/project-selector.js"></script>
-  <script src="/admin/static/js/functions.js"></script>
+  <script type="module" src="/admin/static/js/functions.js"></script>
 </body>
 </html>

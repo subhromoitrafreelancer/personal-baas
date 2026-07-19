@@ -47,15 +47,18 @@
   word-break: break-all;
 }
 
-.code-textarea {
-  width: 100%;
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  border: 1px solid var(--color-border);
+.code-cm {
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-sm);
-  padding: var(--space-2);
-  box-sizing: border-box;
-  resize: vertical;
+  min-height: 260px;
+}
+
+.code-cm .cm-editor {
+  height: 100%;
+}
+
+.code-cm-sm {
+  min-height: 90px;
 }
 
 .detail-actions {

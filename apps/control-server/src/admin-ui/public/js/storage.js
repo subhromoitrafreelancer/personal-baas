@@ -72,8 +72,8 @@ function renderObjectRow(bucketName, object) {
     <td>${object.owner ? escapeHtml(object.owner) : '—'}</td>
     <td>${new Date(object.createdAt).toLocaleString()}</td>
     <td class="actions-cell">
-      <a class="btn btn-outline btn-sm" href="${objectUrl(bucketName, object.path)}" download="${escapeHtml(object.path)}">Download</a>
-      <button type="button" class="btn btn-danger btn-sm" data-action="delete">Delete</button>
+      <a class="btn btn-outline btn-sm" href="${objectUrl(bucketName, object.path)}" download="${escapeHtml(object.path)}">${window.Icons.markup('download')} Download</a>
+      <button type="button" class="btn btn-danger btn-sm" data-action="delete">${window.Icons.markup('delete')} Delete</button>
     </td>
   `;
   tr.querySelector('[data-action="delete"]').addEventListener('click', async () => {

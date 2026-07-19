@@ -10,24 +10,29 @@
   {{> topbar}}
 
   <main class="page storage-page">
-    <h1>Storage</h1>
-    <div class="storage-toolbar toolbar">
-      <label class="field">Project <select id="project-select"></select></label>
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Storage</h1>
+        <p class="page-description">Project-scoped file buckets, backed by a single MinIO instance.</p>
+      </div>
+      <div class="page-header-actions">
+        <label class="field">Project <select id="project-select"></select></label>
+      </div>
     </div>
 
     <div class="storage-layout">
       <section class="card bucket-panel">
         <div class="card-header">
           <h2>Buckets</h2>
-          <button id="create-bucket-btn" type="button" class="btn btn-primary btn-sm">New bucket</button>
+          <button id="create-bucket-btn" type="button" class="btn btn-primary btn-sm" data-icon="add">New bucket</button>
         </div>
         <div class="card-body">
           <form id="create-bucket-form" class="inline-form" hidden>
             <label class="field">Name <input id="new-bucket-name" type="text" required placeholder="e.g. avatars" /></label>
             <label class="field">Size limit (bytes, optional) <input id="new-bucket-size-limit" type="number" min="1" /></label>
             <label class="field checkbox-field"><input id="new-bucket-public" type="checkbox" /> Public read</label>
-            <button type="submit" class="btn btn-primary">Create</button>
-            <button type="button" id="cancel-create-bucket-btn" class="btn btn-outline">Cancel</button>
+            <button type="submit" class="btn btn-primary" data-icon="save">Create</button>
+            <button type="button" id="cancel-create-bucket-btn" class="btn btn-outline" data-icon="close">Cancel</button>
           </form>
           <ul id="bucket-list" class="bucket-list"></ul>
         </div>
@@ -44,7 +49,7 @@
           <form id="upload-form" class="inline-form" hidden>
             <label class="field">File <input id="upload-file" type="file" required /></label>
             <label class="field">Path <input id="upload-path" type="text" required placeholder="e.g. logo.png" /></label>
-            <button type="submit" class="btn btn-primary">Upload</button>
+            <button type="submit" class="btn btn-primary" data-icon="upload">Upload</button>
           </form>
 
           <div class="table-wrap">
@@ -69,6 +74,7 @@
 
   {{> footer}}
 
+  <script src="/admin/static/js/icons.js"></script>
   <script src="/admin/static/js/topbar.js"></script>
   <script src="/admin/static/js/project-selector.js"></script>
   <script src="/admin/static/js/storage.js"></script>

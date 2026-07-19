@@ -10,9 +10,14 @@
   {{> topbar}}
 
   <main class="page">
-    <h1>Hosting</h1>
-    <div class="toolbar">
-      <label class="field">Project <select id="project-select"></select></label>
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Hosting</h1>
+        <p class="page-description">Vercel-style static site hosting for a project's frontend.</p>
+      </div>
+      <div class="page-header-actions">
+        <label class="field">Project <select id="project-select"></select></label>
+      </div>
     </div>
 
     <section class="card">
@@ -34,7 +39,7 @@
 
         <form id="deploy-form" class="inline-form">
           <label class="field">Zip file <input id="deploy-file" type="file" accept=".zip" required /></label>
-          <button type="submit" class="btn btn-primary">Deploy</button>
+          <button type="submit" class="btn btn-primary" data-icon="upload">Deploy</button>
         </form>
         <p class="hint">Zip must contain an <code>index.html</code> at its root. Deploying replaces every file from the previous deployment.</p>
       </div>
@@ -43,6 +48,7 @@
 
   {{> footer}}
 
+  <script src="/admin/static/js/icons.js"></script>
   <script src="/admin/static/js/topbar.js"></script>
   <script src="/admin/static/js/project-selector.js"></script>
   <script src="/admin/static/js/hosting.js"></script>

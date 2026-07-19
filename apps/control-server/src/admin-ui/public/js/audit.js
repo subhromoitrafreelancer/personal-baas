@@ -24,14 +24,14 @@ function renderRow(event) {
     <td><span class="badge">${escapeHtml(event.eventType)}</span></td>
     <td>${
       userValue
-        ? `<span class="copyable-cell">${escapeHtml(userValue)}<button type="button" class="copy-btn" data-copy-value="${escapeHtml(userValue)}">Copy</button></span>`
+        ? `<span class="copyable-cell">${escapeHtml(userValue)}<button type="button" class="copy-btn" data-copy-value="${escapeHtml(userValue)}" aria-label="Copy" title="Copy">${window.Icons.markup('copy')}</button></span>`
         : '—'
     }</td>
     <td>${escapeHtml(event.ipAddress ?? '—')}</td>
     <td class="metadata-cell">
       <span class="copyable-cell">
         ${escapeHtml(metadataText)}
-        <button type="button" class="copy-btn" data-copy-value="${escapeHtml(metadataText)}">Copy</button>
+        <button type="button" class="copy-btn" data-copy-value="${escapeHtml(metadataText)}" aria-label="Copy" title="Copy">${window.Icons.markup('copy')}</button>
       </span>
     </td>
   `;
