@@ -72,6 +72,7 @@ interface PolicyRow {
 }
 
 interface FunctionRow {
+  oid: string;
   schema: string;
   name: string;
   arguments: string;
@@ -178,6 +179,7 @@ export class DbExplorerService {
     for (const row of functions.rows) {
       const list = functionsBySchema.get(row.schema) ?? [];
       list.push({
+        oid: row.oid,
         name: row.name,
         arguments: row.arguments,
         returnType: row.return_type,

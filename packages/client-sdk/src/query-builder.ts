@@ -10,9 +10,12 @@ export class QueryBuilder<T = Record<string, unknown>> implements PromiseLike<T 
   private selectCols = '*';
   private readonly orderClauses: string[] = [];
   private limitCount: number | null = null;
+  private rangeFrom: number | null = null;
+  private rangeTo: number | null = null;
   private method: Method = 'GET';
   private body: unknown;
   private preferReturn = false;
+  private preferResolution: 'merge-duplicates' | null = null;
   private wantSingle = false;
   private wantMaybeSingle = false;
 
@@ -34,6 +37,14 @@ export class QueryBuilder<T = Record<string, unknown>> implements PromiseLike<T 
     this.method = 'POST';
     this.body = values;
     this.preferReturn = true;
+    return this;
+  }
+
+  upsert(values: Record<string, unknown> | Record<string, unknown>[]): this {
+    this.method = 'POST';
+    this.body = values;
+    this.preferReturn = true;
+    this.preferResolution = 'merge-duplicates';
     return this;
   }
 
@@ -94,6 +105,15 @@ export class QueryBuilder<T = Record<string, unknown>> implements PromiseLike<T 
     return this;
   }
 
+  // Alternative to limit(): an inclusive 0-based row range, sent as PostgREST's Range header
+  // rather than a query param (mirrors the underlying REST API rather than adding a redundant
+  // offset() method).
+  range(from: number, to: number): this {
+    this.rangeFrom = from;
+    this.rangeTo = to;
+    return this;
+  }
+
   // Expect exactly one row; throws (via PostgREST's 406) if zero or more than one match.
   single(): this {
     this.wantSingle = true;
@@ -125,9 +145,17 @@ export class QueryBuilder<T = Record<string, unknown>> implements PromiseLike<T 
 
   private async execute(): Promise<T | T[] | null> {
     const headers: Record<string, string> = {};
-    if (this.preferReturn) headers.Prefer = 'return=representation';
+    const prefer = [
+      this.preferResolution ? `resolution=${this.preferResolution}` : null,
+      this.preferReturn ? 'return=representation' : null,
+    ].filter(Boolean);
+    if (prefer.length) headers.Prefer = prefer.join(',');
     if (this.wantSingle || this.wantMaybeSingle)
       headers.Accept = 'application/vnd.pgrst.object+json';
+    if (this.method === 'GET' && this.rangeFrom != null && this.rangeTo != null) {
+      headers['Range-Unit'] = 'items';
+      headers.Range = `${this.rangeFrom}-${this.rangeTo}`;
+    }
 
     const res = await this.http.request(this.buildPath(), {
       method: this.method,

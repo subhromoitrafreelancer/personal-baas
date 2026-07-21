@@ -4,8 +4,10 @@ Self-hosted, lightweight Backend-as-a-Service: PostgreSQL + PostgREST + a NestJS
 service (SQL editor, database explorer, auth, API configuration) behind a single reverse-proxy
 entry point.
 
-See [`scope.md`](./scope.md) for the full product/architecture spec and
-[`docs/implementation-plan.md`](./docs/implementation-plan.md) for the phased build plan.
+See [`scope.md`](./scope.md) for the full product/architecture spec,
+[`docs/implementation-plan.md`](./docs/implementation-plan.md) for the phased build plan,
+[`docs/install.md`](./docs/install.md) for a full install/deploy walkthrough, and
+[`docs/upgrade.md`](./docs/upgrade.md) for the upgrade procedure.
 
 ## Quick start
 

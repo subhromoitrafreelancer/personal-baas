@@ -1,6 +1,6 @@
 const tbody = document.getElementById('keys-tbody');
 const statusEl = document.getElementById('keys-status');
-const createKeyBtn = document.getElementById('create-key-btn');
+const generateEnvBtn = document.getElementById('generate-env-btn');
 const createKeyForm = document.getElementById('create-key-form');
 const cancelCreateBtn = document.getElementById('cancel-create-btn');
 const newKeyName = document.getElementById('new-key-name');
@@ -113,11 +113,8 @@ async function loadKeys() {
   statusEl.textContent = `${keys.length} key(s)`;
 }
 
-createKeyBtn.addEventListener('click', () => {
-  createKeyForm.hidden = false;
-});
 cancelCreateBtn.addEventListener('click', () => {
-  createKeyForm.hidden = true;
+  createKeyForm.reset();
 });
 
 createKeyForm.addEventListener('submit', async (e) => {
@@ -147,9 +144,54 @@ createKeyForm.addEventListener('submit', async (e) => {
         : 'Copy this token now — it will not be shown again.',
     token: key.token,
   });
-  createKeyForm.hidden = true;
   newKeyName.value = '';
   loadKeys();
+});
+
+generateEnvBtn.addEventListener('click', async () => {
+  if (
+    !confirm(
+      'This mints a fresh secret key (existing keys are untouched) and downloads it as a .env file. Continue?',
+    )
+  ) {
+    return;
+  }
+  generateEnvBtn.disabled = true;
+  statusEl.textContent = 'Generating…';
+  try {
+    const res = await apiFetch('/admin/v1/api-keys/generate-env', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId: currentProjectId }),
+    });
+    if (!res) return;
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      statusEl.textContent = body.message ?? 'Failed to generate .env';
+      return;
+    }
+
+    const { projectSlug, publishableKey, serviceKey } = await res.json();
+    const contents = [
+      `BAAS_URL=${window.location.origin}`,
+      `BAAS_PUBLISHABLE_KEY=${publishableKey}`,
+      `BAAS_SERVICE_KEY=${serviceKey}`,
+      '',
+    ].join('\n');
+    const blob = new Blob([contents], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${projectSlug}.env`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    statusEl.textContent = 'Downloaded .env — the secret key inside it will not be shown again.';
+    loadKeys();
+  } finally {
+    generateEnvBtn.disabled = false;
+  }
 });
 
 initProjectSelector(projectSelect, (projectId) => {

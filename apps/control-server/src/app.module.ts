@@ -13,6 +13,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { DashboardSummaryModule } from './modules/dashboard-summary/dashboard-summary.module';
 import { DatabaseModule } from './modules/database/database.module';
 import { DbExplorerModule } from './modules/db-explorer/db-explorer.module';
+import { DbManagementModule } from './modules/db-management/db-management.module';
 import { FunctionsModule } from './modules/functions/functions.module';
 import { HealthModule } from './modules/health/health.module';
 import { HostingModule } from './modules/hosting/hosting.module';
@@ -53,6 +54,7 @@ import { StorageModule } from './modules/storage/storage.module';
     SqlHistoryModule,
     SqlConsoleModule,
     DbExplorerModule,
+    DbManagementModule,
     ApiExplorerModule,
     AuthModule,
     AdminUsersModule,

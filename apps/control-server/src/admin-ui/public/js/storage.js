@@ -1,5 +1,4 @@
 const bucketList = document.getElementById('bucket-list');
-const createBucketBtn = document.getElementById('create-bucket-btn');
 const createBucketForm = document.getElementById('create-bucket-form');
 const cancelCreateBucketBtn = document.getElementById('cancel-create-bucket-btn');
 const newBucketName = document.getElementById('new-bucket-name');
@@ -112,11 +111,8 @@ function selectBucket(bucketName) {
   loadObjects(bucketName);
 }
 
-createBucketBtn.addEventListener('click', () => {
-  createBucketForm.hidden = false;
-});
 cancelCreateBucketBtn.addEventListener('click', () => {
-  createBucketForm.hidden = true;
+  createBucketForm.reset();
 });
 
 createBucketForm.addEventListener('submit', async (e) => {
@@ -136,7 +132,6 @@ createBucketForm.addEventListener('submit', async (e) => {
     alert(body.message ?? 'Failed to create bucket');
     return;
   }
-  createBucketForm.hidden = true;
   newBucketName.value = '';
   newBucketPublic.checked = false;
   newBucketSizeLimit.value = '';

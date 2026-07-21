@@ -50,6 +50,29 @@ export class ApiKeysService {
     return { ...toPublicKey(row), token };
   }
 
+  // Backs the admin "Generate .env" action (Phase 5, scope.md §29 note on env-file generation).
+  // Publishable keys are stateless/re-signable, so an existing active one is just revealed again;
+  // secret/service_role keys are one-time-reveal by design (see reveal() above), so this always
+  // mints a brand-new one rather than trying to surface an existing key's plaintext. Existing
+  // secret keys are left untouched.
+  async generateEnvBundle(adminEmail: string, projectId?: string) {
+    const project = projectId ? await this.projects.getById(projectId) : await this.projects.getDefault();
+    const rows = await this.apiKeysRepo.list(project.id);
+    const existingPublishable = rows.find((row) => row.kind === 'publishable' && !row.revoked_at);
+
+    const publishableToken = existingPublishable
+      ? (await this.reveal(existingPublishable.id, adminEmail)).token
+      : (await this.create(`env-export-publishable-${Date.now()}`, 'publishable', adminEmail, project.id)).token;
+
+    const secret = await this.create(`env-export-secret-${Date.now()}`, 'secret', adminEmail, project.id);
+
+    return {
+      projectSlug: project.slug,
+      publishableKey: publishableToken,
+      serviceKey: secret.token,
+    };
+  }
+
   async revoke(id: string, adminEmail: string) {
     const row = await this.apiKeysRepo.revoke(id, adminEmail);
     if (!row) {

@@ -27,6 +27,17 @@
     <div id="schemas-container"></div>
   </main>
 
+  <div id="modal-overlay" class="modal-overlay" hidden>
+    <div id="modal" class="modal">
+      <div class="modal-header">
+        <h2 id="modal-title"></h2>
+        <button type="button" id="modal-close-btn" class="btn-icon modal-close" data-icon="close" aria-label="Close" title="Close"></button>
+      </div>
+      <div id="modal-body" class="modal-body"></div>
+      <div id="modal-footer" class="modal-footer"></div>
+    </div>
+  </div>
+
   {{> footer}}
 
   <script src="/admin/static/js/icons.js"></script>

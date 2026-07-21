@@ -11,7 +11,6 @@ import {
 
 const projectSelect = document.getElementById('project-select');
 const functionList = document.getElementById('function-list');
-const createFunctionBtn = document.getElementById('create-function-btn');
 const createFunctionForm = document.getElementById('create-function-form');
 const cancelCreateFunctionBtn = document.getElementById('cancel-create-function-btn');
 const newFunctionName = document.getElementById('new-function-name');
@@ -144,11 +143,8 @@ function selectFunction(id) {
   loadInvocations(id);
 }
 
-createFunctionBtn.addEventListener('click', () => {
-  createFunctionForm.hidden = false;
-});
 cancelCreateFunctionBtn.addEventListener('click', () => {
-  createFunctionForm.hidden = true;
+  createFunctionForm.reset();
 });
 
 createFunctionForm.addEventListener('submit', async (e) => {
@@ -169,7 +165,6 @@ createFunctionForm.addEventListener('submit', async (e) => {
     return;
   }
   const created = await res.json();
-  createFunctionForm.hidden = true;
   newFunctionName.value = '';
   newFunctionTimeout.value = '';
   await loadFunctions();

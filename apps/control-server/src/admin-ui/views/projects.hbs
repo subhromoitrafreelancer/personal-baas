@@ -16,14 +16,13 @@
         <p class="page-description">Each project gets its own isolated schema, roles, and JWTs.</p>
       </div>
       <div class="page-header-actions">
-        <button id="create-project-btn" type="button" class="btn btn-primary" data-icon="add">Create project</button>
         <span id="projects-status" class="run-status"></span>
       </div>
     </div>
 
     <div id="restart-banner" class="banner banner-warning" hidden></div>
 
-    <form id="create-project-form" class="inline-form" hidden>
+    <form id="create-project-form" class="inline-form">
       <label class="field">Slug <input id="new-project-slug" type="text" required placeholder="e.g. acme" pattern="[a-z][a-z0-9_]{2,30}" /></label>
       <label class="field">Name <input id="new-project-name" type="text" required placeholder="e.g. Acme Inc" /></label>
       <button type="submit" class="btn btn-primary" data-icon="save">Create</button>

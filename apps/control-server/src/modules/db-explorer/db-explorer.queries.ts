@@ -118,6 +118,7 @@ export const POLICIES_QUERY = `
 
 export const FUNCTIONS_QUERY = `
   select
+    p.oid::text as oid,
     n.nspname as schema,
     p.proname as name,
     pg_get_function_arguments(p.oid) as arguments,

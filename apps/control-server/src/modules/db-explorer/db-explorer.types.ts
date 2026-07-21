@@ -46,6 +46,7 @@ export interface TableInfo {
 }
 
 export interface FunctionInfo {
+  oid: string;
   name: string;
   arguments: string;
   returnType: string;

@@ -4,10 +4,11 @@
 //
 // options.optionValue: 'id' (default — for API calls that take a projectId) or 'schemaName'
 //   (for pages that filter/target a schema directly, e.g. the DB explorer or SQL console).
-// options.allLabel: if set, adds a leading "show everything" option (value '') and that
-//   becomes the default selection instead of the seeded 'default' project — used by pages
-//   (like the DB explorer) where filtering down to one project by default would hide schemas
-//   an admin still wants to see (auth, platform, private, storage).
+// options.allLabel: if set, adds a leading "show everything" option (value ''). It is available
+//   in the dropdown but is NOT the default selection (Phase 14 — filtering to one project by
+//   default, not an unfiltered "everything" view an admin then has to scroll through, is the
+//   whole point of the selector); the seeded 'default' project still wins the initial pick, same
+//   as pages without allLabel. Pick "show everything" explicitly when you actually want it.
 // options.initialValue: if set (Phase 14 cross-link support, e.g. a `?schema=` query param from
 //   the Projects page), that option is pre-selected instead of the 'default'-project fallback.
 //
@@ -43,7 +44,7 @@ async function initProjectSelector(selectEl, onChange, options) {
     option.textContent = `${project.name} (${project.slug})`;
     if (opts.initialValue) {
       option.selected = option.value === opts.initialValue;
-    } else if (!opts.allLabel && project.slug === 'default') {
+    } else if (project.slug === 'default') {
       option.selected = true;
     }
     selectEl.appendChild(option);

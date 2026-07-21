@@ -989,13 +989,23 @@ This phase makes the product genuinely useful for frontend integration.
 * Authentication persistence
 * Automatic token refresh
 * Fluent data-query builder
-* API explorer
-* Copyable JavaScript examples
+* ~~API explorer / copyable JavaScript examples~~ — deferred, see below
 * Copyable cURL examples
 * Project environment file generation
 * Installation and deployment guide
 
 (The sample application originally planned here was built ahead of schedule as Phase 7a's example todo app — directly against REST/Auth/Storage, since it also needed to demonstrate Storage.)
+
+The user narrowed this phase's build to 5 of the original 7 items: the SDK itself (auth,
+query builder, RPC, storage), its build/packaging, the env-file generator, and docs (install
+guide + an upgrade runbook folded in from Phase 6b). The API-explorer copyable-JS-SDK-snippets
+item stays deferred, same narrowing pattern as Phases 6/6b/7. Env-file generation resolves a
+real design constraint rather than a preference: secret/service_role API keys are one-time-reveal
+by design (never stored server-side, see §6/Phase 4.4), so the "Generate .env" admin action always
+mints a **new** secret key at generation time rather than trying to surface an existing one's
+plaintext — existing keys are left untouched. `BAAS_URL` in the generated file defaults to the
+admin UI's own `window.location.origin` (it's served through the same public Caddy entry point),
+so no new backend `PUBLIC_DOMAIN` plumbing is needed.
 
 Example generated configuration:
 
@@ -1833,6 +1843,106 @@ page row's name and schema links land on the correct pre-filtered API Explorer /
 Explorer view; the API Keys secret panel can be dismissed and does not persist across a project
 switch; the Functions code editor and invoke-body editor both apply real JS/TS and JSON syntax
 highlighting respectively.
+
+---
+
+# 29. Database Management Actions (Explorer)
+
+Phase 15. The Database Explorer (§28 point 3) is currently read-only: it shows schemas, tables,
+columns, keys, indexes, policies, and functions, but every structural change has to go through
+the free-text SQL Editor. This phase adds three targeted destructive/read actions directly into
+the Explorer's own table/function rows — view a function's real source, delete a single column,
+delete a whole table — without turning the Explorer into a general DDL tool (create/rename/alter
+stays the SQL Editor's job). Three clarifying questions were asked and resolved: table deletion
+requires typing the table's name to confirm (not a plain Yes/No — this is the most destructive
+action in the console); a table or column that has a dependent view *always* blocks deletion
+(never silently `CASCADE`s a view out of existence — same reasoning extended to a table
+referenced by another table's foreign key, since that's the same "something else depends on
+this" category); the function-reference scan (point 4 below) only searches the target table's
+own schema, consistent with the schema-per-project isolation model — it never reads or exposes
+another project's function source.
+
+```text
+1. Function source viewer (read-only): a function's name in the Explorer's per-schema Functions
+   block becomes clickable, opening a panel with a read-only CodeMirror 6 instance
+   (EditorState.readOnly.of(true)) running the sql(PostgreSQL) mode already vendored for the SQL
+   Editor (scripts/vendor-entry.js already exports `sql`/`PostgreSQL` — no new vendor package).
+   Source comes from a new endpoint returning `pg_get_functiondef(oid)` (the complete
+   `CREATE OR REPLACE FUNCTION ...` statement — language, signature, and body together, correctly
+   disambiguates overloaded function names since it's looked up by oid, not name). No edit/save/
+   add controls anywhere in this panel — the SQL Editor already owns function authoring
+   (scope.md §26 point 8); this is strictly a viewer.
+
+2. Delete column: a delete icon (§28 point 2's icon set) on each row of a table's columns list
+   opens a confirmation modal showing what the column-drop will affect — whether it's part of the
+   primary key, which indexes reference it (auto-dropped with the column, informational), and
+   whether any view in the same schema depends on it (blocks deletion outright, per the resolved
+   question above — the modal lists the blocking view(s) and disables the delete button until the
+   admin removes/edits them via SQL Editor). A plain confirm (no typed name required — reserved
+   for whole-table deletion, the more destructive action) executes
+   `ALTER TABLE "schema"."table" DROP COLUMN "column";` inside a single transaction via
+   `AdminQueryService.withConnection()`.
+
+3. Delete table: a delete icon in each table's header opens a confirmation modal built from a new
+   preview endpoint that reports: an estimated row count (`pg_class.reltuples`, not a full
+   `COUNT(*)` — avoids a slow sequential scan on a large table just to populate a warning dialog),
+   the number of indexes/policies/triggers that will go with it (informational — Postgres drops a
+   table's own indexes, policies, and triggers automatically as part of `DROP TABLE`, they are not
+   separate objects that need their own delete step), any dependent views, and any other table's
+   foreign key referencing this one. Dependent views or referencing foreign keys always block
+   deletion (same rule as point 2) — the modal lists exactly what's blocking and where. If nothing
+   blocks it, the delete button stays disabled until the admin types the table's exact name into a
+   confirmation field. On confirm, the backend re-validates the same blockers server-side (the
+   preview is not trusted as the sole gate — state can change between preview and confirm) and
+   runs a single `DROP TABLE "schema"."table";` (no `CASCADE`) inside one transaction. This is a
+   deliberate deviation from a literal "delete the data, then delete the indexes/policies"
+   two-step process: Postgres already makes a bare `DROP TABLE` atomic and fail-fast (it refuses
+   to run at all if a blocking dependent exists, with no partial effect), and it already removes
+   the table's own indexes/policies/triggers/data together as one operation — a hand-rolled
+   two-phase delete would just be re-implementing a guarantee Postgres already provides, with more
+   surface for a partial-failure bug.
+
+4. Function-reference warning (best-effort, non-blocking): part of the same delete-table preview,
+   a simple text scan of every function's source in the *target table's own schema* — one
+   `pg_proc` lookup, `prosrc`/`pg_get_functiondef` text checked with a word-boundary regex for the
+   table's bare and schema-qualified name. Any match is listed in the warning modal ("N function(s)
+   in this schema mention this table — verify before deleting: fn_a, fn_b") but never blocks
+   deletion, since text matching can't distinguish a genuine reference from a coincidental name
+   collision (a column, variable, or string literal) — this is explicitly a heads-up, not a
+   dependency graph. Scoped to one schema only, never cross-schema, so a project's function source
+   is never read or surfaced outside its own project boundary.
+
+5. Backend: a new `db-management` module (controller + service, sibling to the existing
+   `db-explorer` module, same `AdminSessionGuard`) rather than extending `db-explorer.service.ts`
+   directly — keeps the read-only introspection path (hit on every Explorer page load) separate
+   from the new destructive/transactional code path, and gives this phase's PRs the same
+   one-concern-per-PR shape as every prior phase. Reuses `AdminQueryService.withConnection()` (the
+   same primitive the SQL Editor already uses) for transaction-scoped DDL, and
+   `AuthAuditService.record()` (the existing `admin.*`-prefixed convention, e.g.
+   `admin.table_deleted`/`admin.column_deleted`, metadata carrying schema/table/column/row-count/
+   deleting-admin's email) fired after a successful commit — the same audit trail every other
+   admin destructive action already writes into.
+
+6. No RBAC change: this console currently has one admin session type, no roles/permissions
+   (`AdminSessionGuard` only checks the session cookie, `AdminIdentity` has no role field) — every
+   other admin action (revoke a key, delete a function, delete a user) already carries the same
+   "any authenticated admin can do this" trust level, so table/column deletion doesn't introduce a
+   new class of risk relative to what the console already allows. Introducing admin roles is
+   explicitly out of scope for this phase (a real gap, worth a future phase, not silently
+   bundled in here).
+```
+
+**Acceptance**: a real table with rows, at least one index, one RLS policy, and one function in
+the same schema that textually mentions the table name — the delete-table modal shows the correct
+row estimate, index/policy count, and lists that function as a non-blocking reference warning;
+attempting to delete a table that a view depends on, or that another table's foreign key
+references, is blocked with the specific blocking object named, both before (preview) and if
+forced after editing state in between (server-side re-check); deleting an unblocked table only
+proceeds after typing its exact name, and afterward the table plus its indexes/policies/triggers
+are all gone with a single `admin.table_deleted` audit row recorded; deleting a single column
+behaves the same way for its narrower blocker set (dependent views only); the function source
+viewer shows the real `pg_get_functiondef` output with SQL syntax highlighting and has no
+edit/save affordance anywhere in it.
 
 ---
 

@@ -16,14 +16,14 @@
       </div>
       <div class="page-header-actions">
         <label class="field">Project <select id="project-select"></select></label>
-        <button id="create-key-btn" type="button" class="btn btn-primary" data-icon="add">Create key</button>
+        <button id="generate-env-btn" type="button" class="btn btn-outline" data-icon="download">Generate .env</button>
         <span id="keys-status" class="run-status"></span>
       </div>
     </div>
 
     <div id="secret-banner" class="secret-banner" hidden></div>
 
-    <form id="create-key-form" class="inline-form" hidden>
+    <form id="create-key-form" class="inline-form">
       <label class="field">Name <input id="new-key-name" type="text" required placeholder="e.g. web-app-publishable" /></label>
       <label class="field">Kind
         <select id="new-key-kind">

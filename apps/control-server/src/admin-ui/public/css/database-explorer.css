@@ -93,9 +93,39 @@
   font-weight: 600;
 }
 
+/* Compact icon action buttons (delete column/table) — sized to match the existing .copy-btn
+   footprint on this page rather than the larger global .btn-icon, since they sit inline among
+   badges in dense rows (Phase 15, scope.md §29). */
+.icon-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.icon-action-btn:hover {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.delete-table-btn {
+  margin-left: auto;
+}
+
 .table-details {
-  padding: 0 0.9rem 1rem 1.9rem;
+  padding: 0 0.9rem 1rem 1.6rem;
   font-size: 0.85rem;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .table-details h4 {
@@ -104,6 +134,16 @@
   color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+
+.table-details h5 {
+  margin: 0.6rem 0 0.25rem;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.table-details h5:first-child {
+  margin-top: 0;
 }
 
 .table-details table {
@@ -116,6 +156,7 @@
   text-align: left;
   padding: 0.3rem 0.6rem;
   border-bottom: 1px solid #eee;
+  overflow-wrap: anywhere;
 }
 
 .table-details ul {
@@ -123,29 +164,70 @@
   padding-left: 1.2rem;
 }
 
-/* Columns render full-width first (the thing read most often); everything else — keys,
-   indexes, policies — flows into a responsive multi-column card row beneath it, instead of a
-   continued single-column vertical stack (Phase 14, scope.md §28 point 3). */
+.table-details li {
+  overflow-wrap: anywhere;
+  margin-bottom: 0.2rem;
+}
+
+.table-details code {
+  overflow-wrap: anywhere;
+}
+
+/* Columns render full-width first (the thing read most often), capped to a horizontal scroller
+   so a wide table (many columns, long default expressions) never forces the whole page wider —
+   Phase 14 follow-up: "better overflow management". */
 .table-detail-columns {
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.6rem;
 }
 
-.table-detail-meta {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: var(--space-3);
-  align-items: start;
+.table-scroll {
+  overflow-x: auto;
 }
 
-.table-detail-meta-card {
+.show-more-btn {
+  margin-top: 0.5rem;
+}
+
+/* Keys/indexes/policies as single-open sub-accordion sections instead of a side-by-side card
+   row (Phase 14 follow-up: the card grid read as "all in a horizontal line"). */
+.sub-accordion {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  padding: 0.6rem 0.75rem;
-  background: var(--color-surface);
+  overflow: hidden;
 }
 
-.table-detail-meta-card h4 {
-  margin: 0 0 0.4rem;
+.sub-accordion-item + .sub-accordion-item {
+  border-top: 1px solid var(--color-border);
+}
+
+.sub-accordion-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  border: none;
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sub-accordion-header .icon.chevron {
+  transition: transform 0.12s ease;
+  color: var(--color-text-faint);
+  flex-shrink: 0;
+}
+
+.sub-accordion-header[aria-expanded='true'] .icon.chevron {
+  transform: rotate(180deg);
+}
+
+.sub-accordion-body {
+  padding: 0.6rem 0.8rem;
+  background: var(--color-surface);
 }
 
 .functions-block {
@@ -163,6 +245,50 @@
 }
 
 .function-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.3rem 0.4rem;
+  border: none;
+  background: transparent;
   font-family: var(--font-mono);
-  padding: 0.15rem 0;
+  font-size: 0.85rem;
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.function-item:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-accent);
+}
+
+/* Delete-table/column and function-source modal content (Phase 15, scope.md §29). */
+.modal-body .banner {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.modal-body ul {
+  margin: 0 0 0.6rem;
+  padding-left: 1.2rem;
+  font-size: 0.85rem;
+}
+
+.modal-body .field input {
+  width: 100%;
+}
+
+.function-source-cm {
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.function-source-cm .cm-editor {
+  height: 100%;
 }

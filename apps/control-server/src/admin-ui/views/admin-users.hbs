@@ -17,7 +17,6 @@
       </div>
       <div class="page-header-actions">
         <label class="field">Project <select id="project-select"></select></label>
-        <button id="create-user-btn" type="button" class="btn btn-primary" data-icon="add">Create user</button>
         <span id="users-status" class="run-status"></span>
       </div>
     </div>
@@ -29,7 +28,7 @@
 
     <div id="secret-banner" class="secret-banner" hidden></div>
 
-    <form id="create-user-form" class="inline-form" hidden>
+    <form id="create-user-form" class="inline-form">
       <label class="field">Email <input id="new-user-email" type="email" required /></label>
       <label class="field">Password (optional — leave blank to auto-generate) <input id="new-user-password" type="text" /></label>
       <button type="submit" class="btn btn-primary" data-icon="save">Create</button>

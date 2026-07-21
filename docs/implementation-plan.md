@@ -156,14 +156,19 @@ original items 1 and 2 into one PR since #1 had no remaining content of its own.
 
 ## Phase 5 — Developer experience
 
-1. **`client-sdk` scaffold** — `createClient()`, fetch-based HTTP layer, `client.auth` (signIn/signUp/signOut, session persistence, auto refresh).
-2. **Query builder** — `client.from(table)` with `select/insert/update/delete/upsert` + filter operators from §15.
-3. **RPC support** — `client.rpc(functionName)`.
-4. **SDK build/packaging** — `tsup`/`tsc` build, unit tests against a mocked fetch layer.
-5. **Copyable snippets** — extend the API explorer (Phase 2 #2) with generated JS-SDK examples alongside cURL.
-6. **Env file generator** — admin UI action producing a `.env` with `BAAS_URL`/`BAAS_PUBLISHABLE_KEY`/`BAAS_SERVICE_KEY`.
-7. **Docs** — install/deploy guide in `docs/`.
-   - **Acceptance**: a new HTML page can auth + CRUD against `tasks` with zero backend code.
+Scope narrowed by the user to 5 of the original 7 items — item 5 below (copyable JS-SDK snippets
+in the API explorer) stays deferred; everything else ships, plus the Phase 6b "Upgrade runbook"
+item folded in at the user's request since it's a docs deliverable with no other dependencies.
+`client-sdk`'s core (original items 1-3) was already scaffolded ahead of this plan
+(`packages/client-sdk/src/*.ts`, ~470 lines, written pre-plan) — this phase closes its two spec
+gaps, then adds packaging, the env-file generator, and docs.
+
+1. **`client-sdk` core — close spec gaps** — `src/client.ts` (`createClient`/`BaasClient`/`.from()`/`.rpc()`), `src/http.ts` (fetch layer, session persistence via `localStorage`, auto-refresh-and-retry-once on 401, `Accept-Profile`/`Content-Profile` schema header), `src/auth.ts` (signUp/signIn/signOut/restoreSession), `src/query-builder.ts` (select/insert/update/delete + eq/neq/gt/gte/lt/lte/like/ilike/is/in/order/limit/single/maybeSingle), and `src/storage.ts` (upload/download/remove, ahead of schedule) are already written. Two operators from scope.md §15's list are still missing and need adding: `upsert()` (`Prefer: resolution=merge-duplicates`) and `range()` (`Range` header, start/end pair as an alternative to `limit()`).
+2. **SDK build/packaging** — add a `tsup` build producing `dist/` (ESM + `.d.ts`; package stays `"private": true`, workspace-internal, not npm-published), wire `build`/`test` scripts into `packages/client-sdk/package.json` so the root `npm run build --workspaces --if-present` / `npm run test --workspaces --if-present` pick it up. Unit tests via `jest`/`ts-jest` (matches `apps/control-server`'s existing setup) against a mocked global `fetch` — cover session persistence across a `HttpClient` instance, the 401-refresh-and-retry-once path, and query-builder URL/body construction per method.
+3. **Env file generator** — new admin UI action (API Keys page) that mints a **fresh** secret/service_role key server-side via the existing `ApiKeysService.create()` path (named e.g. `env-export-<timestamp>`, audit-logged as an ordinary `admin.api_key_created` — no new audit event type needed), combines it with the project's already-revealable publishable key (existing `reveal()` path) and a `BAAS_URL` field defaulting to `window.location.origin` (the admin UI is itself served through the same public Caddy entry point, so this needs no new backend plumbing of `PUBLIC_DOMAIN`) into a client-assembled `.env` file offered as a download. The plaintext secret key is never persisted or re-shown after the download, consistent with the existing one-time-reveal design (`api-keys.service.ts`) — existing secret keys are untouched; this always creates a new one rather than trying to surface an old one's plaintext.
+4. **Docs — install/deploy guide** — new `docs/install.md`: prerequisites, `docker compose up --env-file .env`, `PUBLIC_DOMAIN` configuration for a real deployment (already documented in `docker-compose.yml`/`Caddyfile` comments — consolidate here rather than duplicate), first-project + first-API-key walkthrough, and a client-sdk quick start mirroring scope.md §15's example.
+5. **Upgrade runbook** (originally Phase 6b item 6, bundled into this pass) — new `docs/upgrade.md`: `git pull` + `docker compose up --build` procedure, confirmation of `node-pg-migrate`'s migration-on-boot behavior, a secrets-are-env/mounted-files-only reminder (nothing secret ever lives in the repo), and a rollback note.
+   - **Acceptance**: a new HTML page can auth + CRUD against `tasks` with zero backend code using only `@personal-baas/client-sdk` (original Phase 5 acceptance bar, unchanged); `npm run build` and `npm run test` succeed for the `client-sdk` workspace from the repo root; the admin "Generate .env" action downloads a file whose `BAAS_URL`/`BAAS_PUBLISHABLE_KEY`/`BAAS_SERVICE_KEY` work end-to-end (signup/login/CRUD) against a disposable test table; `docs/install.md` and `docs/upgrade.md` are each followable start-to-finish on a clean checkout.
 
 The sample app originally planned here (`examples/html-todo-app`, using the SDK) was built ahead of schedule as Phase 7a's `examples/todo-app` instead — directly against REST/Auth/Storage rather than the (still-unbuilt) SDK, since it also needed to demonstrate Storage.
 
@@ -432,7 +437,7 @@ user's direction — not dropped.
 3. **Rate limiting & body limits** — NestJS throttler on `/auth`/`/admin`, PostgREST `max-rows`, request body size caps.
 4. **Brute-force protection** — login attempt throttling/lockout per email + IP.
 5. **Audit export** — CSV/JSON export of `auth.audit_events` and admin SQL history.
-6. **Upgrade runbook** — docs covering upgrade procedure and secrets handling (env/mounted files only).
+6. ~~**Upgrade runbook**~~ — moved into Phase 5 item 5 (bundled with that phase's other docs deliverables at the user's request); not duplicated here.
 7. **Realtime module robustness fixes** — found via a multi-angle code review of Phase 8 immediately after
    it shipped (8 finder angles + 1-vote verify, all four below CONFIRMED against the actual `pg`/`ws`
    library internals, not just the application code); fixed as hardening work rather than deferred,
@@ -652,6 +657,39 @@ pages: each item below still lands as its own independently reviewable PR.
      not persist across a project switch; the Functions code and invoke-body editors both show
      real JS/TS and JSON syntax highlighting.
 
+## Phase 15 — Database management actions
+
+Adds three destructive/read actions directly into the Database Explorer's table and function rows
+(scope.md §29) — function source viewing, column delete, table delete. No general DDL builder;
+create/rename/alter stays the SQL Editor's job. No RBAC change (console has one admin trust level
+already, see §29 point 6).
+
+1. **`db-management` backend module** — new `apps/control-server/src/modules/db-management/`
+   (controller + service), sibling to `db-explorer`, same `AdminSessionGuard`. Reuses
+   `AdminQueryService.withConnection()` for transaction-scoped DDL and `AuthAuditService.record()`
+   for `admin.table_deleted`/`admin.column_deleted` audit events, matching the existing
+   `admin.*`-prefixed convention (e.g. `admin-users.service.ts`'s `admin.user_created`).
+2. **Function source endpoint + viewer** — `GET /admin/v1/database/:schema/functions/:oid/source`
+   returns `pg_get_functiondef(oid)`. Explorer's function rows become clickable, opening a
+   read-only CodeMirror 6 panel (`EditorState.readOnly.of(true)`, existing vendored
+   `sql(PostgreSQL)` mode — no new vendor package). No edit/save controls.
+3. **Delete-column** — `GET .../tables/:table/columns/:column/delete-preview` (primary-key flag,
+   referencing indexes, dependent views) + `DELETE .../tables/:table/columns/:column`
+   (`ALTER TABLE ... DROP COLUMN`, single transaction, blocked server-side if a dependent view
+   exists). UI: delete icon per column row, confirm modal, no typed-name requirement.
+4. **Delete-table** — `GET .../tables/:table/delete-preview` (row estimate via `pg_class.reltuples`,
+   index/policy/trigger counts, dependent views, referencing foreign keys, same-schema function
+   text-reference scan per scope.md §29 point 4) + `DELETE .../tables/:table` (`DROP TABLE`, no
+   `CASCADE`, single transaction, blockers re-validated server-side before running). UI: delete
+   icon per table header, confirm modal requires typing the exact table name before the delete
+   button enables; blockers (dependent view / referencing FK) disable delete entirely with the
+   specific blocking object named; function references shown as a non-blocking warning list.
+   - **Acceptance**: see scope.md §29 acceptance — blockers correctly gate deletion both at
+     preview and at execute time, a successful table delete removes indexes/policies/triggers
+     atomically with the table and writes one audit row, column delete enforces the narrower
+     (view-only) blocker set, the function-source viewer renders real `pg_get_functiondef` output
+     with SQL highlighting and no edit affordance.
+
 ---
 
 ## Cross-cutting conventions
@@ -667,7 +705,7 @@ pages: each item below still lands as its own independently reviewable PR.
 - Phase 2: create `api.tasks` via SQL editor → immediately curl `/rest/v1/tasks` with no restart.
 - Phase 3: full signup → login → refresh → revoke → refresh-fails flow via curl/script.
 - Phase 4: two-user RLS isolation test on `api.tasks`.
-- Phase 5: SDK/env-generator/docs items only, run in isolation once built. (deferred)
+- Phase 5: `client-sdk` unit tests (mocked fetch) via `npm run test --workspaces`; env-file generator and install/upgrade docs verified manually against the live dev stack once built.
 - Phase 6: curl over HTTPS + inspect security headers/CORS; consume a password-reset token exactly once; scrape `/metrics`.
 - Phase 7: curl-based upload/download/signed-URL flow against the live MinIO container; confirm real data (including the new `storage` schema/volume) survives a rebuild.
 - Phase 7a: copy `examples/todo-app/` to a scratch directory, point `config.js` at the running stack, exercise register→login→CRUD→upload→download→delete manually in a browser.
@@ -679,3 +717,4 @@ pages: each item below still lands as its own independently reviewable PR.
 - Phase 12: two real users invoking the same function via their own JWTs see only their own data through `ctx.rest`; cross-project invocation 404s; killing the `function-runner` container mid-invocation returns 503 without affecting control-server's own health.
 - Phase 13: a scheduled function's writes and `scheduler.job_runs` both advance unattended; disabling a job stops it.
 - Phase 14: manual browser walkthrough of every admin page (no headless/Playwright testing — same convention as every prior admin-UI phase); confirm the DB Explorer `?schema=` deep link, Projects page cross-links, dismissible API Keys secret panel, and Functions CodeMirror editors all behave as designed.
+- Phase 15: against a real table with rows/index/policy/a same-schema function referencing it — confirm the delete-table preview's counts and warnings are accurate, blockers (dependent view, referencing FK) actually prevent deletion server-side (not just client-side), a successful delete removes everything atomically with one audit row, and the function-source viewer shows real `pg_get_functiondef` output with no edit affordance.

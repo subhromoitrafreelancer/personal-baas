@@ -1,6 +1,5 @@
 const tbody = document.getElementById('projects-tbody');
 const statusEl = document.getElementById('projects-status');
-const createBtn = document.getElementById('create-project-btn');
 const createForm = document.getElementById('create-project-form');
 const cancelCreateBtn = document.getElementById('cancel-create-btn');
 const newSlug = document.getElementById('new-project-slug');
@@ -65,11 +64,8 @@ async function loadProjects() {
   statusEl.textContent = `${projects.length} project(s)`;
 }
 
-createBtn.addEventListener('click', () => {
-  createForm.hidden = false;
-});
 cancelCreateBtn.addEventListener('click', () => {
-  createForm.hidden = true;
+  createForm.reset();
 });
 
 createForm.addEventListener('submit', async (e) => {
@@ -92,7 +88,6 @@ createForm.addEventListener('submit', async (e) => {
 
   const project = await res.json();
   showRestartBanner(project.restartCommand);
-  createForm.hidden = true;
   newSlug.value = '';
   newName.value = '';
   loadProjects();

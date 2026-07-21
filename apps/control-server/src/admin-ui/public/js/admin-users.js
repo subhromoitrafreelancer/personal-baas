@@ -2,7 +2,6 @@ const tbody = document.getElementById('users-tbody');
 const statusEl = document.getElementById('users-status');
 const searchInput = document.getElementById('search-input');
 const searchBtn = document.getElementById('search-btn');
-const createUserBtn = document.getElementById('create-user-btn');
 const createUserForm = document.getElementById('create-user-form');
 const cancelCreateBtn = document.getElementById('cancel-create-btn');
 const newUserEmail = document.getElementById('new-user-email');
@@ -147,11 +146,8 @@ nextPageBtn.addEventListener('click', () => {
   loadUsers();
 });
 
-createUserBtn.addEventListener('click', () => {
-  createUserForm.hidden = false;
-});
 cancelCreateBtn.addEventListener('click', () => {
-  createUserForm.hidden = true;
+  createUserForm.reset();
 });
 
 createUserForm.addEventListener('submit', async (e) => {
@@ -175,7 +171,6 @@ createUserForm.addEventListener('submit', async (e) => {
   if (body.temporaryPassword) {
     showSecret(`Created ${body.user.email} — temporary password: ${body.temporaryPassword}`);
   }
-  createUserForm.hidden = true;
   newUserEmail.value = '';
   newUserPassword.value = '';
   offset = 0;

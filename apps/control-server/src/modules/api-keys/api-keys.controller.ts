@@ -10,6 +10,10 @@ const createKeyBodySchema = z.object({
   projectId: z.string().uuid().optional(),
 });
 
+const generateEnvBodySchema = z.object({
+  projectId: z.string().uuid().optional(),
+});
+
 @Controller('admin/v1/api-keys')
 @UseGuards(AdminSessionGuard)
 export class ApiKeysController {
@@ -37,5 +41,14 @@ export class ApiKeysController {
   @Post(':id/reveal')
   async reveal(@Param('id') id: string, @Req() req: RequestWithAdmin) {
     return this.apiKeys.reveal(id, req.admin!.email);
+  }
+
+  @Post('generate-env')
+  async generateEnv(@Body() body: unknown, @Req() req: RequestWithAdmin) {
+    const parsed = generateEnvBodySchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.issues.map((issue) => issue.message).join('; '));
+    }
+    return this.apiKeys.generateEnvBundle(req.admin!.email, parsed.data.projectId);
   }
 }
