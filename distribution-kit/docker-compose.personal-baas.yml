@@ -1,6 +1,8 @@
 # personal-baas platform overlay (distribution kit)
 #
-# Image-based: every service uses pre-built images, no `build:` contexts. Works two ways:
+# Image-based: every service uses pre-built images, no `build:` contexts. Fully self-contained —
+# the Caddyfile and PostgREST config are embedded below as Compose `configs`, so there are no
+# external files to lose or paths to resolve. Works two ways:
 #
 #   1. Standalone:
 #        docker compose -f docker-compose.personal-baas.yml --env-file .env up -d
@@ -13,6 +15,108 @@
 #
 # The three personal-baas images (control-server, function-runner, postgres) must exist
 # locally with the tags in BAAS_*_IMAGE below — see README.md "Getting the images".
+
+configs:
+  # Public routing table, mounted into Caddy at /etc/caddy/Caddyfile. To customize (e.g. add
+  # your own site block), edit this block rather than mounting a separate file.
+  caddy_file:
+    content: |
+      # Single public entry point. Routes, shared by both the plain-HTTP (:8000, dev
+      # convenience) and HTTPS (:443, Let's Encrypt) entry points below:
+      #   /             -> control-server (public landing page)
+      #   /rest/v1/*    -> PostgREST (prefix stripped; PostgREST itself has no /rest/v1 prefix)
+      #   /auth/*       -> control-server (application auth API)
+      #   /storage/v1/* -> control-server (object storage API)
+      #   /sites/*      -> control-server (static site hosting, public)
+      #   /functions/*  -> control-server (Functions invocation, public)
+      #   /realtime/*   -> control-server (WebSocket gateway, upgrade handled transparently)
+      #   /admin/*      -> control-server (admin API + admin UI pages)
+      #   /health*      -> control-server (liveness/readiness, also used by container healthchecks)
+      {
+      	admin off
+      }
+
+      (routes) {
+      	encode gzip
+
+      	# Exact root only ("handle /" matches "/" exactly, not every path) — everything else
+      	# falls through to the more specific handlers below, or the catch-all 404 at the bottom.
+      	handle / {
+      		reverse_proxy control-server:3000
+      	}
+
+      	handle /rest/v1/* {
+      		uri strip_prefix /rest/v1
+      		reverse_proxy postgrest:3001
+      	}
+
+      	handle /auth/* {
+      		reverse_proxy control-server:3000
+      	}
+
+      	handle /storage/* {
+      		reverse_proxy control-server:3000
+      	}
+
+      	# Public static site hosting — path-based, same-origin with the routes above, which is
+      	# what lets a deployed site call /rest/v1/*, /auth/v1/*, /storage/v1/* with no CORS
+      	# configuration at all.
+      	handle /sites/* {
+      		reverse_proxy control-server:3000
+      	}
+
+      	# Functions — always routes to control-server, never directly to the function-runner
+      	# sibling process, which has no public route of its own at all (internal docker-network
+      	# only, same shape as minio/postgrest).
+      	handle /functions/* {
+      		reverse_proxy control-server:3000
+      	}
+
+      	# No uri strip_prefix here (unlike /rest/v1) — the WebSocket gateway's own path is
+      	# literally /realtime/v1, so the request must reach control-server unmodified.
+      	# reverse_proxy forwards the Connection: Upgrade/Upgrade: websocket handshake
+      	# automatically, no extra directive.
+      	handle /realtime/* {
+      		reverse_proxy control-server:3000
+      	}
+
+      	@admin path /admin /admin/*
+      	handle @admin {
+      		reverse_proxy control-server:3000
+      	}
+
+      	handle /health* {
+      		reverse_proxy control-server:3000
+      	}
+
+      	handle {
+      		respond "personal-baas: unknown route" 404
+      	}
+      }
+
+      :8000 {
+      	import routes
+      }
+
+      # HTTPS entry point. PUBLIC_DOMAIN defaults to "localhost", which Caddy recognizes as not
+      # a publicly-resolvable domain and automatically serves using its internally-trusted CA —
+      # HTTPS works out of the box with no config and no internet dependency (browsers will show
+      # a one-time trust prompt/warning for the self-signed cert). Set PUBLIC_DOMAIN to a real,
+      # DNS-resolvable domain (with ports 80+443 reachable from the internet) to get a real,
+      # auto-renewing Let's Encrypt certificate instead — same site block, no other changes
+      # needed. To bring your own cert/key instead of either mode, replace this block's address
+      # line with a `tls <cert> <key>` directive pointing at files mounted into the container
+      # (see README's TLS section).
+      {$$PUBLIC_DOMAIN:localhost}:443 {
+      	import routes
+      }
+  # Seed for the postgrest service's writable config volume. A one-shot init container copies
+  # this into the shared postgrest_config volume once, the first time it's empty — after that,
+  # control-server owns the live copy and rewrites its db-schemas line as projects are created,
+  # never this template. Everything else stays as PGRST_* environment variables.
+  postgrest_template:
+    content: |
+      db-schemas = "api"
 
 services:
   postgres:
@@ -36,13 +140,16 @@ services:
     networks:
       - appnet
 
-  # One-shot: seeds the shared postgrest_config volume from the kit's template, but only the
+  # One-shot: seeds the shared postgrest_config volume from the embedded template, but only the
   # first time (never overwrites an existing file) — control-server owns the live copy after
   # that, rewriting its db-schemas line as projects are created.
   postgrest-init:
     image: busybox:1.36
+    configs:
+      - source: postgrest_template
+        target: /template/postgrest.conf
+        mode: 0444
     volumes:
-      - ./config/postgrest.conf.template:/template/postgrest.conf:ro
       - postgrest_config:/out
     entrypoint: >
       /bin/sh -c "
@@ -128,9 +235,10 @@ services:
       # control-server is the only thing that ever talks to function-runner.
       FUNCTION_RUNNER_URL: http://function-runner:3002
     # 3000 is published for local convenience (direct control-server access). Everything public
-    # goes through Caddy; remove this block if you want control-server host-reachable only.
+    # goes through Caddy; change CONTROL_SERVER_HOST_PORT to avoid a collision, or remove this
+    # block if you want control-server host-unreachable.
     ports:
-      - '3000:3000'
+      - '${CONTROL_SERVER_HOST_PORT:-3000}:3000'
     volumes:
       - postgrest_config:/etc/postgrest
     depends_on:
@@ -224,13 +332,16 @@ services:
 
   caddy:
     image: caddy:2-alpine
+    configs:
+      - source: caddy_file
+        target: /etc/caddy/Caddyfile
+        mode: 0444
     environment:
-      # Defaults to "localhost" (self-signed via Caddy's internal CA — see config/Caddyfile
-      # comment). Set to a real domain (with ports 80/443 reachable from the internet) for
-      # automatic, auto-renewing Let's Encrypt HTTPS instead.
+      # Defaults to "localhost" (self-signed via Caddy's internal CA — see the embedded
+      # Caddyfile comment). Set to a real domain (with ports 80/443 reachable from the
+      # internet) for automatic, auto-renewing Let's Encrypt HTTPS instead.
       PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:-localhost}
     volumes:
-      - ./config/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
     ports:
       - '8000:8000'
@@ -257,9 +368,14 @@ volumes:
   minio_data:
   postgrest_config:
 
-# Fixed-name network so your own app services can join the platform from a separate compose
-# project. In overlay mode your app just adds `networks: [appnet]`; in standalone mode a
-# separate project joins it with `external: true` and `name: ${BAAS_NETWORK_NAME:-baas-net}`.
+# Project-scoped network so your own app services can join the platform. The default name
+# includes the Compose project name ({project}-baas-net), so a failed or leftover stack on the
+# same host can't hijack this one's DNS names (minio/postgrest/control-server are not unique
+# across projects on a shared network). Set BAAS_NETWORK_NAME to pin an exact name when you
+# need a stable cross-project name for your app to join.
+#
+# In overlay mode your app just adds `networks: [appnet]`; in standalone mode a separate project
+# joins it with `external: true` and `name: ${BAAS_NETWORK_NAME:-<your-project>-baas-net}`.
 networks:
   appnet:
-    name: ${BAAS_NETWORK_NAME:-baas-net}
+    name: ${BAAS_NETWORK_NAME:-${COMPOSE_PROJECT_NAME}-baas-net}

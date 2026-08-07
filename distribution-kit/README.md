@@ -8,13 +8,15 @@ This kit is just:
 
 ```
 docker-compose.personal-baas.yml   the whole platform as pre-built images
-config/Caddyfile                   public routing table (mounted into Caddy)
-config/postgrest.conf.template     seed for the mutable PostgREST config volume
+                                  (Caddyfile + PostgREST template embedded inside it)
 .env.example                       every setting the platform reads
 scripts/generate-jwt-keys.mjs      one-time JWT keypair generator
 scripts/build-local-images.sh      builds/tags images from a local monorepo checkout
 upgrade.md                         how to bump the platform later
 ```
+
+Everything the platform needs to run is embedded in the compose file itself — there are no other
+files to copy or paths to resolve, so the kit works no matter which directory you run it from.
 
 The three personal-baas images must already exist locally — see [Getting the images](#getting-the-images).
 
@@ -106,7 +108,9 @@ services:
 ### Option 2 — separate compose projects
 
 Run the platform standalone (as in [Quick start](#quick-start)), then in a *different* compose
-project join the same external network:
+project join the same external network. The network is named `{your-platform-project}-baas-net`
+by default (the compose project name the platform runs under). If you want a stable name
+independent of that, set `BAAS_NETWORK_NAME` in the platform's `.env` and reference it here:
 
 ```yaml
 services:
@@ -120,11 +124,12 @@ services:
 networks:
   baas-net:
     external: true
+    name: personal-baas-baas-net   # or your BAAS_NETWORK_NAME value
 ```
 
-> The network's actual name is `${BAAS_NETWORK_NAME:-baas-net}` from `.env`. With Compose, a
-> network created by another project only exists once that project is `up` — bring the platform
-> up first.
+> The network only exists once the platform project is `up` — bring the platform up first.
+> The default project-scoped name (`{project}-baas-net`) deliberately keeps one stack from
+> interfering with another on the same host.
 
 ### Talking to the API
 
@@ -154,7 +159,8 @@ Create your first table in the admin console at `/admin/database`, then mint API
 | `BAAS_CONTROL_SERVER_IMAGE` | control-server image tag (default `personal-baas-control-server:0.1.0`) |
 | `BAAS_FUNCTION_RUNNER_IMAGE` | function-runner image tag (default `personal-baas-function-runner:0.1.0`) |
 | `BAAS_POSTGRES_IMAGE` | postgres bootstrap image tag (default `personal-baas-postgres:0.1.0`) |
-| `BAAS_NETWORK_NAME` | shared Docker network your app joins (default `baas-net`) |
+| `BAAS_NETWORK_NAME` | Docker network your app joins (default `{compose-project}-baas-net`) |
+| `CONTROL_SERVER_HOST_PORT` | host port for direct control-server access (default `3000`) |
 | `POSTGRES_USER/PASSWORD/DB` | Postgres superuser bootstrap (container init only) |
 | `BAAS_ADMIN_PASSWORD` | `baas_admin` role password (control-server DB user) |
 | `AUTHENTICATOR_PASSWORD` | `authenticator` role password (PostgREST DB user) |
@@ -177,8 +183,8 @@ shouldn't be touched.
 
 - `8000` — Caddy plain HTTP (everything public goes here)
 - `80`/`443` — Caddy HTTPS (self-signed or Let's Encrypt)
-- `3000` — control-server directly (convenience; remove the `ports:` block in the overlay if you
-  want it host-unreachable)
+- `3000` — control-server directly (convenience; set `CONTROL_SERVER_HOST_PORT` if 3000 is taken,
+  or remove the `ports:` block in the overlay if you want it host-unreachable)
 
 Postgres, MinIO, PostgREST, and function-runner publish **no** host ports — they're only
 reachable inside the Docker network. To back up the database, see `upgrade.md`.
@@ -190,8 +196,9 @@ reachable inside the Docker network. To back up the database, see `upgrade.md`.
 - **Real DNS-resolvable domain** — set `PUBLIC_DOMAIN` to it with ports 80/443 reachable, and
   Caddy automatically obtains/renews a real Let's Encrypt cert. No other config changes.
 - **Bare IP or your own cert** — Let's Encrypt can't issue for a bare IP; mount your own
-  cert/key into the `caddy` service and change the `:443` site block's address line in
-  `config/Caddyfile` to `tls /path/to/cert.pem /path/to/key.pem`.
+  cert/key into the `caddy` service and change the `:443` site block's address line in the
+  `caddy_file` config embedded at the top of `docker-compose.personal-baas.yml` to
+  `tls /path/to/cert.pem /path/to/key.pem`.
 
 ## Admin console after first boot
 
