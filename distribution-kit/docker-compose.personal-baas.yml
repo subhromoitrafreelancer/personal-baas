@@ -1,0 +1,265 @@
+# personal-baas platform overlay (distribution kit)
+#
+# Image-based: every service uses pre-built images, no `build:` contexts. Works two ways:
+#
+#   1. Standalone:
+#        docker compose -f docker-compose.personal-baas.yml --env-file .env up -d
+#
+#   2. Overlay on your own app compose (recommended for a local project) so your services
+#      join the same Docker network and reach the platform through Caddy:
+#        docker compose -f docker-compose.yml -f docker-compose.personal-baas.yml \
+#          --env-file .env up -d
+#      Your app services just add `networks: [appnet]` — see README.md.
+#
+# The three personal-baas images (control-server, function-runner, postgres) must exist
+# locally with the tags in BAAS_*_IMAGE below — see README.md "Getting the images".
+
+services:
+  postgres:
+    image: ${BAAS_POSTGRES_IMAGE:-personal-baas-postgres:0.1.0}
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      BAAS_ADMIN_PASSWORD: ${BAAS_ADMIN_PASSWORD}
+      AUTHENTICATOR_PASSWORD: ${AUTHENTICATOR_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # No host port published: everything app-facing goes through Caddy, and backing up is
+    # `docker compose exec postgres pg_dump` (see upgrade.md). Add `ports: ['5433:5432']`
+    # yourself if you want a host-side psql/pg_dump.
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - appnet
+
+  # One-shot: seeds the shared postgrest_config volume from the kit's template, but only the
+  # first time (never overwrites an existing file) — control-server owns the live copy after
+  # that, rewriting its db-schemas line as projects are created.
+  postgrest-init:
+    image: busybox:1.36
+    volumes:
+      - ./config/postgrest.conf.template:/template/postgrest.conf:ro
+      - postgrest_config:/out
+    entrypoint: >
+      /bin/sh -c "
+      test -f /out/postgrest.conf || cp /template/postgrest.conf /out/postgrest.conf
+      "
+    networks:
+      - appnet
+
+  postgrest:
+    image: postgrest/postgrest:v12.2.3
+    # db-schemas lives in the mounted config file below instead of PGRST_DB_SCHEMAS — it's the
+    # one setting that needs to change without a rebuild as projects are created; env vars can't
+    # be changed for an already-running container. Everything else stays an env var.
+    command: ['/bin/postgrest', '/etc/postgrest/postgrest.conf']
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${AUTHENTICATOR_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_SERVER_PORT: 3001
+      # Verifies application-user JWTs signed by control-server. Needs the literal JWK (quoted
+      # so its braces/colons aren't parsed as YAML), not a PEM string — PostgREST's asymmetric
+      # jwt-secret only accepts JWK for non-HMAC keys.
+      PGRST_JWT_SECRET: '${AUTH_JWT_PUBLIC_KEY_JWK}'
+      PGRST_JWT_AUD: authenticated
+      # Enforces API key revocation — runs before every request; a no-op for ordinary user
+      # JWTs, which carry no `kid` claim.
+      PGRST_DB_PRE_REQUEST: platform.check_api_key_revocation
+    volumes:
+      - postgrest_config:/etc/postgrest
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgrest-init:
+        condition: service_completed_successfully
+    # No Docker HEALTHCHECK: this image ships only the static postgrest binary, no shell or
+    # HTTP client to run one with. control-server's /health/ready checks reachability instead,
+    # and Caddy's healthcheck below exercises the real proxy path to it.
+    networks:
+      - appnet
+
+  # One-shot: runs node-pg-migrate against the fresh database before control-server itself
+  # starts, so a clean `docker compose up` doesn't need a manual migration step. Same image as
+  # control-server, just a different command.
+  control-server-migrate:
+    image: ${BAAS_CONTROL_SERVER_IMAGE:-personal-baas-control-server:0.1.0}
+    environment:
+      DATABASE_URL: postgres://baas_admin:${BAAS_ADMIN_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    working_dir: /repo/apps/control-server
+    entrypoint: ['npm', 'run', 'migrate:up']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - appnet
+
+  control-server:
+    image: ${BAAS_CONTROL_SERVER_IMAGE:-personal-baas-control-server:0.1.0}
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3000
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: postgres://baas_admin:${BAAS_ADMIN_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET}
+      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
+      AUTH_JWT_PRIVATE_KEY_BASE64: ${AUTH_JWT_PRIVATE_KEY_BASE64}
+      AUTH_JWT_PUBLIC_KEY_BASE64: ${AUTH_JWT_PUBLIC_KEY_BASE64}
+      AUTH_ACCESS_TOKEN_TTL_SECONDS: ${AUTH_ACCESS_TOKEN_TTL_SECONDS:-900}
+      AUTH_REFRESH_TOKEN_TTL_DAYS: ${AUTH_REFRESH_TOKEN_TTL_DAYS:-30}
+      POSTGREST_URL: http://postgrest:3001
+      # Shared with the postgrest service (see the postgrest_config volume below) — control-server
+      # is the only writer, rewriting the db-schemas line as projects are created; a human still
+      # has to `docker compose restart postgrest` to pick it up.
+      POSTGREST_CONFIG_PATH: /etc/postgrest/postgrest.conf
+      # MinIO — control-server is the only thing that ever holds these credentials; browsers/
+      # clients only ever talk to /storage/v1/* on control-server.
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: 'false'
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET:-baas-storage}
+      # Functions — internal docker-network address only, never routed through Caddy.
+      # control-server is the only thing that ever talks to function-runner.
+      FUNCTION_RUNNER_URL: http://function-runner:3002
+    # 3000 is published for local convenience (direct control-server access). Everything public
+    # goes through Caddy; remove this block if you want control-server host-reachable only.
+    ports:
+      - '3000:3000'
+    volumes:
+      - postgrest_config:/etc/postgrest
+    depends_on:
+      postgres:
+        condition: service_healthy
+      control-server-migrate:
+        condition: service_completed_successfully
+      minio-createbucket:
+        condition: service_completed_successfully
+      postgrest-init:
+        condition: service_completed_successfully
+      function-runner:
+        condition: service_healthy
+    healthcheck:
+      # Use 127.0.0.1, not localhost: on Alpine, wget resolves localhost to ::1 first, but the
+      # server only binds IPv4 (0.0.0.0), so "localhost" spuriously fails with "connection refused".
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3000/health']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - appnet
+
+  # Function execution sibling process — a separate OS process from control-server specifically
+  # so a rogue or crashing function can't take control-server down with it. Holds no database
+  # credential and never talks to Postgres directly. No host port published: only control-server
+  # (over the docker network) ever talks to this.
+  function-runner:
+    image: ${BAAS_FUNCTION_RUNNER_IMAGE:-personal-baas-function-runner:0.1.0}
+    # No other service in this compose file sets a restart policy, but function-runner is the
+    # one service whose entire job is absorbing crashes from arbitrary function code — without
+    # this, a crashed runner process stays dead until someone notices and runs `docker compose
+    # up` again, silently 503-ing every invocation in the meantime.
+    restart: unless-stopped
+    environment:
+      PORT: 3002
+      # Reaches PostgREST directly rather than through Caddy — one fewer network hop, and this
+      # service never needs anything Caddy provides (TLS termination, the public routing table).
+      POSTGREST_URL: http://postgrest:3001
+    depends_on:
+      postgrest:
+        condition: service_started
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3002/health']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - appnet
+
+  # Single real MinIO bucket for the whole deployment — logical developer-facing "buckets" are
+  # key prefixes tracked in storage.buckets, not real MinIO buckets. No host port published:
+  # only control-server (over the docker network) ever talks to this.
+  minio:
+    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      # Recommended-by-upstream healthcheck trick: pre-configures an "local" mc alias pointing
+      # at this same container so `mc ready local` below needs no separate `mc alias set` step.
+      MC_HOST_local: http://${MINIO_ROOT_USER}:${MINIO_ROOT_PASSWORD}@localhost:9000
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - appnet
+
+  # One-shot bootstrap: creates the single real bucket, then exits. control-server's own
+  # startup waits on this completing.
+  minio-createbucket:
+    image: minio/mc:RELEASE.2024-11-05T11-29-45Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD} &&
+      mc mb --ignore-existing local/$${MINIO_BUCKET:-baas-storage}
+      "
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET:-baas-storage}
+    networks:
+      - appnet
+
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      # Defaults to "localhost" (self-signed via Caddy's internal CA — see config/Caddyfile
+      # comment). Set to a real domain (with ports 80/443 reachable from the internet) for
+      # automatic, auto-renewing Let's Encrypt HTTPS instead.
+      PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:-localhost}
+    volumes:
+      - ./config/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    ports:
+      - '8000:8000'
+      - '80:80'
+      - '443:443'
+    depends_on:
+      control-server:
+        condition: service_healthy
+      postgrest:
+        condition: service_started
+    healthcheck:
+      # Exercises the real proxy path through to PostgREST, which has no healthcheck of its own
+      # (see comment above) — this is the only end-to-end check of that hop.
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8000/rest/v1/']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - appnet
+
+volumes:
+  pgdata:
+  caddy_data:
+  minio_data:
+  postgrest_config:
+
+# Fixed-name network so your own app services can join the platform from a separate compose
+# project. In overlay mode your app just adds `networks: [appnet]`; in standalone mode a
+# separate project joins it with `external: true` and `name: ${BAAS_NETWORK_NAME:-baas-net}`.
+networks:
+  appnet:
+    name: ${BAAS_NETWORK_NAME:-baas-net}
