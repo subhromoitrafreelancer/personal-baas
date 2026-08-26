@@ -71,6 +71,7 @@ function renderRow(key) {
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         statusEl.textContent = body.message ?? 'Failed to load key';
+        showToast(body.message ?? 'Failed to load key', 'error');
         return;
       }
       const { token } = await res.json();
@@ -89,7 +90,14 @@ function renderRow(key) {
         return;
       }
       const res = await apiFetch(`/admin/v1/api-keys/${key.id}/revoke`, { method: 'POST' });
-      if (res?.ok) loadKeys();
+      if (!res) return;
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        showToast(body.message ?? 'Failed to revoke key', 'error');
+        return;
+      }
+      showToast(`Key "${key.name}" revoked`, 'success');
+      loadKeys();
     });
   }
 
@@ -132,6 +140,7 @@ createKeyForm.addEventListener('submit', async (e) => {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     statusEl.textContent = body.message ?? 'Failed to create key';
+    showToast(body.message ?? 'Failed to create key', 'error');
     return;
   }
 
@@ -168,6 +177,7 @@ generateEnvBtn.addEventListener('click', async () => {
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       statusEl.textContent = body.message ?? 'Failed to generate .env';
+      showToast(body.message ?? 'Failed to generate .env', 'error');
       return;
     }
 
@@ -188,6 +198,7 @@ generateEnvBtn.addEventListener('click', async () => {
     a.remove();
     URL.revokeObjectURL(url);
     statusEl.textContent = 'Downloaded .env — the secret key inside it will not be shown again.';
+    showToast('.env downloaded', 'success');
     loadKeys();
   } finally {
     generateEnvBtn.disabled = false;

@@ -11,6 +11,19 @@ const createUserBodySchema = z.object({
   projectId: z.string().uuid().optional(),
 });
 
+const bulkCreateUsersBodySchema = z.object({
+  projectId: z.string().uuid().optional(),
+  users: z
+    .array(
+      z.object({
+        email: z.string().email(),
+        password: z.string().min(8, 'Password must be at least 8 characters').optional(),
+      }),
+    )
+    .min(1, 'At least one user is required')
+    .max(500, 'At most 500 users per batch'),
+});
+
 const setStatusBodySchema = z.object({
   status: z.enum(['active', 'disabled']),
 });
@@ -46,6 +59,15 @@ export class AdminUsersController {
       req.admin!.email,
       parsed.data.projectId,
     );
+  }
+
+  @Post('bulk')
+  async createBulk(@Body() body: unknown, @Req() req: RequestWithAdmin) {
+    const parsed = bulkCreateUsersBodySchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.issues.map((issue) => issue.message).join('; '));
+    }
+    return this.adminUsers.createBulk(parsed.data.users, req.admin!.email, parsed.data.projectId);
   }
 
   @Patch(':id/status')

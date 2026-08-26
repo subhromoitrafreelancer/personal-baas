@@ -125,11 +125,12 @@ async function openDeleteColumnModal(schema, table, column) {
     if (!delRes) return;
     if (!delRes.ok) {
       const errBody = await delRes.json().catch(() => ({}));
-      alert(errBody.message || 'Failed to delete column');
+      showToast(errBody.message || 'Failed to delete column', 'error');
       confirmBtn.disabled = false;
       confirmBtn.textContent = 'Delete column';
       return;
     }
+    showToast(`Column "${column}" deleted`, 'success');
     closeModal();
     loadObjects();
   });
@@ -205,11 +206,12 @@ async function openDeleteTableModal(schema, table) {
     if (!delRes) return;
     if (!delRes.ok) {
       const errBody = await delRes.json().catch(() => ({}));
-      alert(errBody.message || 'Failed to delete table');
+      showToast(errBody.message || 'Failed to delete table', 'error');
       confirmBtn.disabled = false;
       confirmBtn.textContent = 'Delete table';
       return;
     }
+    showToast(`Table "${table}" deleted`, 'success');
     closeModal();
     loadObjects();
   });

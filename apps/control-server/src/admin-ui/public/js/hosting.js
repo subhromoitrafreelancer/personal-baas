@@ -64,9 +64,10 @@ deployForm.addEventListener('submit', async (e) => {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     hostingStatus.textContent = '';
-    alert(body.message ?? 'Deploy failed');
+    showToast(body.message ?? 'Deploy failed', 'error');
     return;
   }
+  showToast('Deployed successfully', 'success');
   deployFile.value = '';
   loadStats();
 });

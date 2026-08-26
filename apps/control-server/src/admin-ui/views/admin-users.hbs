@@ -33,6 +33,18 @@
       <label class="field">Password (optional — leave blank to auto-generate) <input id="new-user-password" type="text" /></label>
       <button type="submit" class="btn btn-primary" data-icon="save">Create</button>
       <button type="button" id="cancel-create-btn" class="btn btn-outline" data-icon="close">Cancel</button>
+      <button type="button" id="show-bulk-create-btn" class="btn btn-outline" data-icon="add">Bulk create…</button>
+    </form>
+
+    <form id="bulk-create-user-form" class="inline-form bulk-create-form" hidden>
+      <label class="field bulk-create-field">
+        One user per line — <code>email</code> or <code>email,password</code> (blank password auto-generates)
+        <textarea id="bulk-user-input" rows="6" placeholder="alice@example.com&#10;bob@example.com,s3cret123"></textarea>
+      </label>
+      <div class="bulk-create-actions">
+        <button type="submit" class="btn btn-primary" data-icon="save">Create all</button>
+        <button type="button" id="cancel-bulk-create-btn" class="btn btn-outline" data-icon="close">Cancel</button>
+      </div>
     </form>
 
     <div class="table-wrap">
@@ -62,6 +74,7 @@
   {{> footer}}
 
   <script src="/admin/static/js/icons.js"></script>
+  <script src="/admin/static/js/toast.js"></script>
   <script src="/admin/static/js/topbar.js"></script>
   <script src="/admin/static/js/clipboard.js"></script>
   <script src="/admin/static/js/project-selector.js"></script>

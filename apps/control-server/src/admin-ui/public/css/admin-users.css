@@ -1,3 +1,37 @@
 .admin-users-toolbar input[type='search'] {
   min-width: 220px;
 }
+
+.bulk-create-form {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.bulk-create-field {
+  flex: 1 1 auto;
+}
+
+.bulk-create-field textarea {
+  width: 100%;
+  font-family: var(--font-mono);
+  resize: vertical;
+}
+
+.bulk-create-actions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.bulk-create-results {
+  font-size: 0.8rem;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.bulk-create-results li.result-error {
+  color: var(--color-danger);
+}
+
+.bulk-create-results li.result-skipped {
+  color: var(--color-text-muted);
+}

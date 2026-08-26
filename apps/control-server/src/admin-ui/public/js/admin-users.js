@@ -7,6 +7,10 @@ const cancelCreateBtn = document.getElementById('cancel-create-btn');
 const newUserEmail = document.getElementById('new-user-email');
 const newUserPassword = document.getElementById('new-user-password');
 const secretBanner = document.getElementById('secret-banner');
+const showBulkCreateBtn = document.getElementById('show-bulk-create-btn');
+const bulkCreateUserForm = document.getElementById('bulk-create-user-form');
+const cancelBulkCreateBtn = document.getElementById('cancel-bulk-create-btn');
+const bulkUserInput = document.getElementById('bulk-user-input');
 const prevPageBtn = document.getElementById('prev-page-btn');
 const nextPageBtn = document.getElementById('next-page-btn');
 const pageInfo = document.getElementById('page-info');
@@ -29,11 +33,14 @@ function hideSecret() {
   secretBanner.innerHTML = '';
 }
 
+// `message` is either a single line (existing single-user create/reset-token/temp-password
+// callers) or an array of lines (bulk create, one per successfully-created user).
 function showSecret(message) {
+  const lines = Array.isArray(message) ? message : [message];
   secretBanner.hidden = false;
   secretBanner.innerHTML = `
     <div class="secret-banner-header">
-      <span>${escapeHtml(message)}</span>
+      ${lines.length === 1 ? `<span>${escapeHtml(lines[0])}</span>` : `<ul class="secret-banner-list">${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>`}
       <button type="button" class="btn btn-icon secret-banner-close" aria-label="Dismiss" title="Dismiss">${window.Icons.markup('close')}</button>
     </div>
   `;
@@ -84,12 +91,24 @@ function renderRow(user) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     });
-    if (res?.ok) loadUsers();
+    if (!res) return;
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      showToast(body.message ?? 'Failed to update status', 'error');
+      return;
+    }
+    showToast(`${user.email} ${status === 'disabled' ? 'disabled' : 'enabled'}`, 'success');
+    loadUsers();
   });
 
   tr.querySelector('[data-action="reset-token"]').addEventListener('click', async () => {
     const res = await apiFetch(`/admin/v1/users/${user.id}/reset-token`, { method: 'POST' });
-    if (!res?.ok) return;
+    if (!res) return;
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      showToast(body.message ?? 'Failed to generate reset token', 'error');
+      return;
+    }
     const body = await res.json();
     showSecret(
       `Reset token for ${user.email} (expires ${new Date(body.expiresAt).toLocaleString()}): ${body.token}`,
@@ -98,7 +117,12 @@ function renderRow(user) {
 
   tr.querySelector('[data-action="temp-password"]').addEventListener('click', async () => {
     const res = await apiFetch(`/admin/v1/users/${user.id}/temporary-password`, { method: 'POST' });
-    if (!res?.ok) return;
+    if (!res) return;
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      showToast(body.message ?? 'Failed to set temporary password', 'error');
+      return;
+    }
     const body = await res.json();
     showSecret(`Temporary password for ${user.email}: ${body.temporaryPassword}`);
   });
@@ -170,15 +194,79 @@ createUserForm.addEventListener('submit', async (e) => {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     statusEl.textContent = body.message ?? 'Failed to create user';
+    showToast(body.message ?? 'Failed to create user', 'error');
     return;
   }
 
   const body = await res.json();
+  showToast(`User "${body.user.email}" created`, 'success');
   if (body.temporaryPassword) {
     showSecret(`Created ${body.user.email} — temporary password: ${body.temporaryPassword}`);
   }
   newUserEmail.value = '';
   newUserPassword.value = '';
+  offset = 0;
+  loadUsers();
+});
+
+showBulkCreateBtn.addEventListener('click', () => {
+  createUserForm.hidden = true;
+  bulkCreateUserForm.hidden = false;
+  bulkUserInput.focus();
+});
+
+cancelBulkCreateBtn.addEventListener('click', () => {
+  bulkCreateUserForm.reset();
+  bulkCreateUserForm.hidden = true;
+  createUserForm.hidden = false;
+});
+
+bulkCreateUserForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const entries = bulkUserInput.value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const commaIndex = line.indexOf(',');
+      if (commaIndex === -1) return { email: line.trim() };
+      return {
+        email: line.slice(0, commaIndex).trim(),
+        password: line.slice(commaIndex + 1).trim() || undefined,
+      };
+    });
+  if (entries.length === 0) return;
+
+  const res = await apiFetch('/admin/v1/users/bulk', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ users: entries, projectId: currentProjectId }),
+  });
+  if (!res) return;
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    showToast(body.message ?? 'Bulk create failed', 'error');
+    return;
+  }
+
+  const { results, summary } = await res.json();
+  showToast(
+    `${summary.created} created, ${summary.skipped} skipped, ${summary.failed} failed`,
+    summary.failed > 0 ? 'error' : 'success',
+  );
+
+  const secretLines = results
+    .filter((r) => r.status === 'created' && r.temporaryPassword)
+    .map((r) => `${r.email} — temporary password: ${r.temporaryPassword}`);
+  const problemLines = results
+    .filter((r) => r.status !== 'created')
+    .map((r) => `${r.email} — ${r.status}${r.message ? `: ${r.message}` : ''}`);
+  const lines = [...secretLines, ...problemLines];
+  if (lines.length > 0) showSecret(lines);
+
+  bulkCreateUserForm.reset();
+  bulkCreateUserForm.hidden = true;
+  createUserForm.hidden = false;
   offset = 0;
   loadUsers();
 });

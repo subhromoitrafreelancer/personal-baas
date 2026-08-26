@@ -78,7 +78,14 @@ function renderObjectRow(bucketName, object) {
   tr.querySelector('[data-action="delete"]').addEventListener('click', async () => {
     if (!confirm(`Delete "${object.path}"?`)) return;
     const res = await apiFetch(objectUrl(bucketName, object.path), { method: 'DELETE' });
-    if (res?.ok) loadObjects(bucketName);
+    if (!res) return;
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      showToast(body.message ?? 'Failed to delete object', 'error');
+      return;
+    }
+    showToast(`Deleted "${object.path}"`, 'success');
+    loadObjects(bucketName);
   });
   return tr;
 }
@@ -129,9 +136,10 @@ createBucketForm.addEventListener('submit', async (e) => {
   if (!res) return;
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    alert(body.message ?? 'Failed to create bucket');
+    showToast(body.message ?? 'Failed to create bucket', 'error');
     return;
   }
+  showToast(`Bucket "${name}" created`, 'success');
   newBucketName.value = '';
   newBucketPublic.checked = false;
   newBucketSizeLimit.value = '';
@@ -152,9 +160,10 @@ uploadForm.addEventListener('submit', async (e) => {
   if (!res) return;
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    alert(body.message ?? 'Failed to upload object');
+    showToast(body.message ?? 'Failed to upload object', 'error');
     return;
   }
+  showToast(`Uploaded "${path}"`, 'success');
   uploadFile.value = '';
   uploadPath.value = '';
   loadObjects(selectedBucket);

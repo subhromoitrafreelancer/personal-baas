@@ -161,10 +161,11 @@ createFunctionForm.addEventListener('submit', async (e) => {
   if (!res) return;
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    alert(body.message ?? 'Failed to create function');
+    showToast(body.message ?? 'Failed to create function', 'error');
     return;
   }
   const created = await res.json();
+  showToast(`Function "${created.name}" created`, 'success');
   newFunctionName.value = '';
   newFunctionTimeout.value = '';
   await loadFunctions();
@@ -186,11 +187,12 @@ saveFunctionBtn.addEventListener('click', async () => {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     detailStatus.textContent = '';
-    alert(body.message ?? 'Failed to save function');
+    showToast(body.message ?? 'Failed to save function', 'error');
     return;
   }
   detailStatus.textContent = 'Saved';
   setTimeout(() => (detailStatus.textContent = ''), 1500);
+  showToast('Function saved', 'success');
   loadFunctions();
 });
 
@@ -199,7 +201,13 @@ deleteFunctionBtn.addEventListener('click', async () => {
   const fn = functions.find((f) => f.id === selectedFunctionId);
   if (!confirm(`Delete function "${fn ? fn.name : selectedFunctionId}"?`)) return;
   const res = await apiFetch(`/admin/v1/functions/${selectedFunctionId}`, { method: 'DELETE' });
-  if (!res || !res.ok) return;
+  if (!res) return;
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    showToast(body.message ?? 'Failed to delete function', 'error');
+    return;
+  }
+  showToast(`Function "${fn ? fn.name : ''}" deleted`, 'success');
   selectedFunctionId = null;
   functionDetail.hidden = true;
   noFunctionSelected.hidden = false;

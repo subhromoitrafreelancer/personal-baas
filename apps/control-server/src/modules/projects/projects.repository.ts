@@ -138,6 +138,26 @@ export class ProjectsRepository {
         `GRANT USAGE ON SCHEMA "${names.schemaName}", platform, auth TO "${names.anonRole}", "${names.authenticatedRole}", "${names.serviceRoleRole}"`,
       );
 
+      // service_role_<slug> is created BYPASSRLS above, but BYPASSRLS only skips row-security
+      // *policy* evaluation — Postgres still enforces the base table-privilege check regardless,
+      // so without an explicit grant it can see nothing at all (confirmed live: every existing
+      // project's service_role had zero table grants, making the OpenAPI spec and REST API both
+      // silently empty of tables for it — db-explorer.service.ts's getOpenapiSpec authenticates
+      // as exactly this role). baas_admin is the only role that ever creates tables in a project
+      // schema (control-server's DATABASE_URL, including the SQL console), so setting its default
+      // privileges here means every future CREATE TABLE/SEQUENCE in this schema automatically
+      // grants full access to the project's own service_role, matching what BYPASSRLS already
+      // implies it should have. anon/authenticated are deliberately NOT included — their access
+      // stays explicit-only via the RLS snippet library (scope.md §9).
+      await client.query(`
+        ALTER DEFAULT PRIVILEGES FOR ROLE baas_admin IN SCHEMA "${names.schemaName}"
+          GRANT ALL ON TABLES TO "${names.serviceRoleRole}"
+      `);
+      await client.query(`
+        ALTER DEFAULT PRIVILEGES FOR ROLE baas_admin IN SCHEMA "${names.schemaName}"
+          GRANT ALL ON SEQUENCES TO "${names.serviceRoleRole}"
+      `);
+
       const { rows } = await client.query<ProjectRow>(
         `INSERT INTO platform.projects
            (slug, name, schema_name, anon_role, authenticated_role, service_role_role)

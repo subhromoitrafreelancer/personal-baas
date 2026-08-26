@@ -83,10 +83,12 @@ createForm.addEventListener('submit', async (e) => {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     statusEl.textContent = body.message ?? 'Failed to create project';
+    showToast(body.message ?? 'Failed to create project', 'error');
     return;
   }
 
   const project = await res.json();
+  showToast(`Project "${project.name}" created`, 'success');
   showRestartBanner(project.restartCommand);
   newSlug.value = '';
   newName.value = '';
