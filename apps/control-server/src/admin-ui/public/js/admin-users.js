@@ -56,6 +56,12 @@ function renderRow(user) {
   tr.innerHTML = `
     <td>
       <span class="copyable-cell">
+        ${escapeHtml(user.id)}
+        <button type="button" class="copy-btn" data-copy-value="${escapeHtml(user.id)}" aria-label="Copy" title="Copy">${window.Icons.markup('copy')}</button>
+      </span>
+    </td>
+    <td>
+      <span class="copyable-cell">
         ${escapeHtml(user.email)}
         <button type="button" class="copy-btn" data-copy-value="${escapeHtml(user.email)}" aria-label="Copy" title="Copy">${window.Icons.markup('copy')}</button>
       </span>

@@ -1,7 +1,7 @@
 {
   "name": "@personal-baas/control-server",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "NestJS control service: admin API, admin UI, application auth, PostgREST configuration",
   "scripts": {
     "build:vendor": "node scripts/build-vendor.mjs",

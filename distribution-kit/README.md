@@ -27,16 +27,18 @@ The three personal-baas images must already exist locally — see [Getting the i
 
 ## Getting the images
 
-The compose overlay references three images by tag (`personal-baas-*:0.1.0` by default). They
-are **not** on Docker Hub; you must build or load them yourself. Everything else (PostgREST,
-MinIO, Caddy, busybox) is pulled from Docker Hub automatically.
+The compose overlay references three images by tag — `personal-baas-control-server:0.3.0`,
+`personal-baas-function-runner:0.1.0`, `personal-baas-postgres:0.1.0` by default (each image
+versions independently; control-server currently releases ahead of the other two). They are
+**not** on Docker Hub; you must build or load them yourself. Everything else (PostgREST, MinIO,
+Caddy, busybox) is pulled from Docker Hub automatically.
 
 ### Option A — build from a local monorepo checkout (recommended)
 
 If you have the source repo locally (even if you won't distribute it), build and tag the images:
 
 ```bash
-./scripts/build-local-images.sh /path/to/personal-baas-monorepo 0.1.0
+./scripts/build-local-images.sh /path/to/personal-baas-monorepo
 ```
 
 This runs `docker build` with the repo root as context (the Dockerfiles need the npm-workspace
@@ -52,8 +54,8 @@ docker load -i personal-baas-function-runner.tar
 docker load -i personal-baas-postgres.tar
 ```
 
-The loaded images must carry the tags in `BAAS_*_IMAGE` (defaults to `personal-baas-*:0.1.0`).
-If your tarballs use different tags, either `docker tag` them or change `BAAS_*_IMAGE` in `.env`.
+The loaded images must carry the tags in `BAAS_*_IMAGE` (see defaults above). If your tarballs
+use different tags, either `docker tag` them or change `BAAS_*_IMAGE` in `.env`.
 
 ## Quick start
 
@@ -156,7 +158,7 @@ Create your first table in the admin console at `/admin/database`, then mint API
 
 | Variable | Meaning |
 | --- | --- |
-| `BAAS_CONTROL_SERVER_IMAGE` | control-server image tag (default `personal-baas-control-server:0.1.0`) |
+| `BAAS_CONTROL_SERVER_IMAGE` | control-server image tag (default `personal-baas-control-server:0.3.0`) |
 | `BAAS_FUNCTION_RUNNER_IMAGE` | function-runner image tag (default `personal-baas-function-runner:0.1.0`) |
 | `BAAS_POSTGRES_IMAGE` | postgres bootstrap image tag (default `personal-baas-postgres:0.1.0`) |
 | `BAAS_NETWORK_NAME` | Docker network your app joins (default `{compose-project}-baas-net`) |

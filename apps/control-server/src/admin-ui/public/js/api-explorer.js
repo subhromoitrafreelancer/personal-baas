@@ -5,6 +5,7 @@ const toggleOpenapiBtn = document.getElementById('toggle-openapi-btn');
 const downloadOpenapiBtn = document.getElementById('download-openapi-btn');
 const openapiPanel = document.getElementById('openapi-panel');
 const openapiJsonEl = document.getElementById('openapi-json');
+const openRawOpenapiLink = document.getElementById('open-raw-openapi-link');
 const projectSelect = document.getElementById('project-select');
 
 let openapiSpec = null;
@@ -209,6 +210,7 @@ initProjectSelector(
     currentSchemaName = schemaName;
     openapiSpec = null;
     openapiJsonEl.textContent = '';
+    openRawOpenapiLink.href = `/admin/v1/database/openapi?schema=${encodeURIComponent(schemaName)}`;
     if (allSchemas.length > 0) {
       renderApiObjects();
     } else {
@@ -221,12 +223,10 @@ initProjectSelector(
 async function loadOpenapiSpec() {
   openapiJsonEl.textContent = 'Loading…';
   try {
-    // PostgREST's own root endpoint (proxied at /rest/v1/) doubles as its OpenAPI document —
-    // no control-server endpoint needed, this is a same-origin request through Caddy. The
-    // Accept-Profile header picks which project's schema the spec describes (Phase 9).
-    const response = await fetch('/rest/v1/', {
-      headers: { 'Accept-Profile': currentSchemaName },
-    });
+    // control-server proxies to PostgREST's root (its own OpenAPI document) and sets
+    // Accept-Profile server-side, since a plain link/tab can't set custom headers — this
+    // keeps "Open raw in new tab" scoped to the right project's schema too (Phase 9).
+    const response = await fetch(`/admin/v1/database/openapi?schema=${encodeURIComponent(currentSchemaName)}`);
     openapiSpec = await response.json();
     openapiJsonEl.textContent = JSON.stringify(openapiSpec, null, 2);
   } catch (err) {

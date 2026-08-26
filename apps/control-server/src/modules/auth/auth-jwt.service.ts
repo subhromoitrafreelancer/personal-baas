@@ -69,6 +69,23 @@ export class AuthJwtService implements OnModuleInit {
       .sign(this.privateKey);
   }
 
+  // Mints a short-lived token for control-server's own admin-only proxy calls to PostgREST
+  // (the OpenAPI spec viewer) — without one, PostgREST resolves an unauthenticated request to
+  // the global anon role, so any table granted only to a project-scoped role (anon_<slug>/
+  // authenticated_<slug>/service_role_<slug> — the normal case past the default project, see
+  // rls-snippets.js) silently disappears from the spec while functions still show up (implicit
+  // PUBLIC EXECUTE). Never handed to a browser/API caller, so it carries no `kid` (nothing to
+  // revoke) and expires almost immediately.
+  async signInternalRoleToken(role: string, projectId: string): Promise<string> {
+    return new SignJWT({ role, project_id: projectId })
+      .setProtectedHeader({ alg: ALG })
+      .setIssuer(ISSUER)
+      .setAudience(AUDIENCE)
+      .setIssuedAt()
+      .setExpirationTime('60s')
+      .sign(this.privateKey);
+  }
+
   // Verifies a publishable/secret API-key token (see signApiKeyToken) — used by
   // ApiKeyBearerGuard to resolve which project a pre-login request (signup/login/refresh)
   // targets (scope.md §23 point 5). Revocation is checked separately against

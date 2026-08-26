@@ -1,5 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { BadGatewayException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { EnvConfig } from '../../config/env.schema';
 import { AdminQueryService } from '../admin-db/admin-query.service';
+import { AuthJwtService } from '../auth/auth-jwt.service';
 import { ProjectsService } from '../projects/projects.service';
 import {
   COLUMNS_QUERY,
@@ -85,7 +88,45 @@ export class DbExplorerService {
   constructor(
     private readonly adminQuery: AdminQueryService,
     private readonly projects: ProjectsService,
+    private readonly config: ConfigService<EnvConfig, true>,
+    private readonly authJwt: AuthJwtService,
   ) {}
+
+  /**
+   * PostgREST serves its OpenAPI document off its own root, scoped by the Accept-Profile
+   * header (Phase 9 multi-schema projects) — a plain link/tab can't set that header, so the
+   * "open raw" link in the admin UI proxies through here instead, with control-server setting
+   * the header server-side for whichever project's schema was requested.
+   *
+   * Also authenticates the proxied request as that project's own service_role — an
+   * unauthenticated request resolves to the global anon role, which can't see tables granted
+   * only to a project-scoped role (anon_<slug>/authenticated_<slug>/service_role_<slug>, the
+   * normal case for every project past the default one — rls-snippets.js grants to those, not
+   * the global names). Without this, the spec silently drops to "functions only", since
+   * functions stay visible via Postgres's implicit PUBLIC EXECUTE regardless of role.
+   */
+  async getOpenapiSpec(schemaName: string): Promise<unknown> {
+    const projectRows = await this.projects.list();
+    const project = projectRows.find((row) => row.schema_name === schemaName);
+    if (!project) {
+      throw new NotFoundException(`Unknown project schema '${schemaName}'`);
+    }
+
+    const token = await this.authJwt.signInternalRoleToken(project.service_role_role, project.id);
+    const postgrestUrl = this.config.get('POSTGREST_URL', { infer: true });
+    let response: Response;
+    try {
+      response = await fetch(postgrestUrl, {
+        headers: { 'Accept-Profile': schemaName, Authorization: `Bearer ${token}` },
+      });
+    } catch {
+      throw new BadGatewayException('PostgREST is unreachable');
+    }
+    if (!response.ok) {
+      throw new BadGatewayException(`PostgREST returned ${response.status}`);
+    }
+    return response.json();
+  }
 
   async getDatabaseObjects(): Promise<DatabaseObjectsResponse> {
     const [schemas, tables, columns, constraints, foreignKeys, indexes, policies, functions, projectRows] =
