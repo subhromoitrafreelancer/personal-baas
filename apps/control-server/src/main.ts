@@ -27,13 +27,14 @@ async function bootstrap() {
   // overhead, and it attaches to this same HTTP server/port rather than opening a new one.
   app.useWebSocketAdapter(new WsAdapter(app));
 
-  // /auth/v1/* and /storage/v1/* are meant to be called from arbitrary developer frontends
-  // (scope.md §15 JS SDK / §21 Storage) — both authenticate via an Authorization: Bearer header,
-  // never cookies, so reflecting the caller's origin without credentials is safe. /admin/*
-  // (session-cookie-based) deliberately gets no CORS here, since it's only ever called
-  // same-origin from the server-rendered admin console.
+  // /auth/v1/*, /storage/v1/* and /functions/v1/* are meant to be called from arbitrary
+  // developer frontends (scope.md §15 JS SDK / §21 Storage / §26 Functions) — all three
+  // authenticate via an Authorization: Bearer header, never cookies, so reflecting the caller's
+  // origin without credentials is safe. /admin/* (session-cookie-based) deliberately gets no CORS
+  // here, since it's only ever called same-origin from the server-rendered admin console.
   app.use('/auth', cors({ origin: true }));
   app.use('/storage', cors({ origin: true }));
+  app.use('/functions', cors({ origin: true }));
   // No CORS is configured for /admin (above) — it's cookie-authenticated and same-origin-only.
   // sameOriginGuard rejects unsafe methods that don't carry a same-origin signal, as an
   // application-level CSRF control that doesn't depend solely on sameSite cookie behavior.
