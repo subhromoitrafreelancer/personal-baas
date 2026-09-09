@@ -17,7 +17,7 @@
       </div>
       <div class="page-header-actions">
         <label class="field">Project <select id="project-select"></select></label>
-        <span id="vault-status" class="run-status"></span>
+        <span id="vault-status" class="run-status" role="status"></span>
       </div>
     </div>
 
@@ -49,12 +49,15 @@
     </div>
   </main>
 
+  {{> confirm_modal}}
+
   {{> footer}}
 
   <script src="/admin/static/js/icons.js"></script>
   <script src="/admin/static/js/toast.js"></script>
   <script src="/admin/static/js/topbar.js"></script>
   <script src="/admin/static/js/project-selector.js"></script>
+  <script src="/admin/static/js/confirm-modal.js"></script>
   <script src="/admin/static/js/vault.js"></script>
 </body>
 </html>

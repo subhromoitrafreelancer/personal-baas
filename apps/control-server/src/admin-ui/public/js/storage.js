@@ -43,16 +43,26 @@ function renderBucketRow(bucket) {
   const li = document.createElement('li');
   li.className = 'bucket-list-item';
   if (bucket.name === selectedBucket) li.classList.add('selected');
+  li.setAttribute('role', 'button');
+  li.setAttribute('tabindex', '0');
   li.innerHTML = `
     <span class="bucket-name">${escapeHtml(bucket.name)}</span>
-    ${bucket.public ? '<span class="badge status-active">public</span>' : '<span class="badge">private</span>'}
+    ${bucket.public ? '<span class="badge status-active">public</span>' : '<span class="badge status-info">private</span>'}
   `;
   li.addEventListener('click', () => selectBucket(bucket.name));
+  li.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      selectBucket(bucket.name);
+    }
+  });
   return li;
 }
 
 async function loadBuckets() {
-  const res = await apiFetch(`/admin/v1/storage/buckets?projectId=${encodeURIComponent(currentProjectId)}`);
+  const res = await apiFetch(
+    `/admin/v1/storage/buckets?projectId=${encodeURIComponent(currentProjectId)}`,
+  );
   if (!res) return;
   if (!res.ok) return;
   const { buckets } = await res.json();
@@ -75,17 +85,22 @@ function renderObjectRow(bucketName, object) {
       <button type="button" class="btn btn-danger btn-sm" data-action="delete">${window.Icons.markup('delete')} Delete</button>
     </td>
   `;
-  tr.querySelector('[data-action="delete"]').addEventListener('click', async () => {
-    if (!confirm(`Delete "${object.path}"?`)) return;
-    const res = await apiFetch(objectUrl(bucketName, object.path), { method: 'DELETE' });
-    if (!res) return;
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      showToast(body.message ?? 'Failed to delete object', 'error');
-      return;
-    }
-    showToast(`Deleted "${object.path}"`, 'success');
-    loadObjects(bucketName);
+  tr.querySelector('[data-action="delete"]').addEventListener('click', () => {
+    ConfirmModal.confirmDelete(`Delete "${object.path}"?`, {
+      bodyHtml: `<p>${Number(object.size).toLocaleString()} bytes, uploaded ${new Date(object.createdAt).toLocaleString()}. This cannot be undone.</p>`,
+      confirmLabel: 'Delete object',
+      onConfirm: async () => {
+        const res = await apiFetch(objectUrl(bucketName, object.path), { method: 'DELETE' });
+        if (!res) return { ok: false };
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          return { ok: false, message: body.message ?? 'Failed to delete object' };
+        }
+        showToast(`Deleted "${object.path}"`, 'success');
+        loadObjects(bucketName);
+        return { ok: true };
+      },
+    });
   });
   return tr;
 }
@@ -131,7 +146,12 @@ createBucketForm.addEventListener('submit', async (e) => {
   const res = await apiFetch('/admin/v1/storage/buckets', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, public: newBucketPublic.checked, sizeLimitBytes, projectId: currentProjectId }),
+    body: JSON.stringify({
+      name,
+      public: newBucketPublic.checked,
+      sizeLimitBytes,
+      projectId: currentProjectId,
+    }),
   });
   if (!res) return;
   if (!res.ok) {

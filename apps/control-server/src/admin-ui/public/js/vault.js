@@ -42,28 +42,55 @@ function renderRow(secret) {
   });
 
   tr.querySelector('[data-action="delete"]').addEventListener('click', async () => {
-    if (
-      !confirm(
-        `Delete secret "${secret.name}"? Any function reading it via ctx.secrets.get('${secret.name}') will get null afterward.`,
-      )
-    ) {
-      return;
-    }
-    const res = await apiFetch(
-      `/admin/v1/vault/${secret.id}?projectId=${encodeURIComponent(currentProjectId)}`,
-      { method: 'DELETE' },
-    );
-    if (!res) return;
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      showToast(body.message ?? 'Failed to delete secret', 'error');
-      return;
-    }
-    showToast(`Secret "${secret.name}" deleted`, 'success');
-    loadSecrets();
+    const referencing = await referencingFunctions(secret.name);
+
+    ConfirmModal.confirmDelete(`Delete secret "${secret.name}"?`, {
+      bodyHtml: `<p>Any function calling <code>ctx.secrets.get('${escapeHtml(secret.name)}')</code> will get <code>null</code> afterward. This cannot be undone — there is no version history to recover the old value from.</p>`,
+      warnings: [
+        {
+          label: `${referencing.length} function(s) in this project's source mention this name — verify before deleting, this is a text match, not a guarantee:`,
+          items: referencing,
+          formatter: (fn) => fn.name,
+        },
+      ],
+      confirmLabel: 'Delete secret',
+      onConfirm: async () => {
+        const res = await apiFetch(
+          `/admin/v1/vault/${secret.id}?projectId=${encodeURIComponent(currentProjectId)}`,
+          { method: 'DELETE' },
+        );
+        if (!res) return { ok: false };
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          return { ok: false, message: body.message ?? 'Failed to delete secret' };
+        }
+        showToast(`Secret "${secret.name}" deleted`, 'success');
+        loadSecrets();
+        return { ok: true };
+      },
+    });
   });
 
   return tr;
+}
+
+// Best-effort, non-blocking heads-up (mirrors the Database Explorer's function-reference scan
+// for table delete, scope.md §29 point 4) — a simple text match against ctx.secrets.get('NAME')
+// calls in this project's own function source, scoped to this project only (never reads or
+// exposes another project's function code). Never blocks deletion: text matching can't tell a
+// genuine reference from a coincidental string collision.
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+async function referencingFunctions(secretName) {
+  const res = await apiFetch(
+    `/admin/v1/functions?projectId=${encodeURIComponent(currentProjectId)}`,
+  );
+  if (!res || !res.ok) return [];
+  const { functions } = await res.json();
+  const pattern = new RegExp(`ctx\\.secrets\\.get\\(\\s*['"]${escapeRegExp(secretName)}['"]`);
+  return functions.filter((fn) => pattern.test(fn.code));
 }
 
 async function loadSecrets() {

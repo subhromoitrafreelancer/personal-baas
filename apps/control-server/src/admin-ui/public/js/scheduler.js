@@ -70,8 +70,16 @@ function renderJobRow(job) {
   const li = document.createElement('li');
   li.className = 'function-list-item';
   if (job.id === selectedJobId) li.classList.add('selected');
-  li.innerHTML = `<span class="function-name">${escapeHtml(job.name)}</span><span class="badge">${job.enabled ? 'enabled' : 'disabled'}</span>`;
+  li.setAttribute('role', 'button');
+  li.setAttribute('tabindex', '0');
+  li.innerHTML = `<span class="function-name">${escapeHtml(job.name)}</span><span class="badge ${job.enabled ? 'status-active' : 'status-disabled'}">${job.enabled ? 'enabled' : 'disabled'}</span>`;
   li.addEventListener('click', () => selectJob(job.id));
+  li.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      selectJob(job.id);
+    }
+  });
   return li;
 }
 
@@ -96,7 +104,7 @@ async function loadRuns(id) {
   for (const run of runs) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><span class="badge">${escapeHtml(run.status ?? 'running')}</span></td>
+      <td><span class="badge status-${escapeHtml(run.status ?? 'running')}">${escapeHtml(run.status ?? 'running')}</span></td>
       <td>${new Date(run.startedAt).toLocaleString()}</td>
       <td>${run.finishedAt ? new Date(run.finishedAt).toLocaleString() : '—'}</td>
       <td>${run.error ? escapeHtml(run.error) : '—'}</td>
@@ -203,23 +211,30 @@ runNowBtn.addEventListener('click', async () => {
   }, 1000);
 });
 
-deleteJobBtn.addEventListener('click', async () => {
+deleteJobBtn.addEventListener('click', () => {
   if (!selectedJobId) return;
   const job = jobs.find((j) => j.id === selectedJobId);
-  if (!confirm(`Delete scheduled job "${job ? job.name : selectedJobId}"?`)) return;
-  const res = await apiFetch(`/admin/v1/scheduler/jobs/${selectedJobId}`, { method: 'DELETE' });
-  if (!res) return;
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    showToast(body.message ?? 'Failed to delete job', 'error');
-    return;
-  }
-  showToast(`Job "${job ? job.name : ''}" deleted`, 'success');
-  selectedJobId = null;
-  jobDetail.hidden = true;
-  noJobSelected.hidden = false;
-  detailTitle.textContent = 'Select a job';
-  loadJobs();
+  if (!job) return;
+
+  ConfirmModal.confirmDelete(`Delete scheduled job "${job.name}"?`, {
+    bodyHtml: `<p>Targets <code>${ConfirmModal.escapeHtml(functionName(job.functionId))}</code> on <code>${ConfirmModal.escapeHtml(job.cronExpression)}</code>. This stops future runs immediately; past run history is also deleted. The target function itself is not affected.</p>`,
+    confirmLabel: 'Delete job',
+    onConfirm: async () => {
+      const res = await apiFetch(`/admin/v1/scheduler/jobs/${selectedJobId}`, { method: 'DELETE' });
+      if (!res) return { ok: false };
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        return { ok: false, message: body.message ?? 'Failed to delete job' };
+      }
+      showToast(`Job "${job.name}" deleted`, 'success');
+      selectedJobId = null;
+      jobDetail.hidden = true;
+      noJobSelected.hidden = false;
+      detailTitle.textContent = 'Select a job';
+      loadJobs();
+      return { ok: true };
+    },
+  });
 });
 
 initProjectSelector(projectSelect, async (projectId) => {

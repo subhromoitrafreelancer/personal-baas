@@ -4,8 +4,10 @@
 }
 
 .api-object-card {
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
   margin-bottom: var(--space-4);
   overflow: hidden;
 }
@@ -76,8 +78,10 @@
 }
 
 .openapi-panel {
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
 

@@ -40,7 +40,7 @@
       <section class="card object-panel">
         <div class="card-header">
           <h2 id="object-panel-title">Objects</h2>
-          <span id="objects-status" class="run-status"></span>
+          <span id="objects-status" class="run-status" role="status"></span>
         </div>
         <div class="card-body">
           <div id="no-bucket-selected" class="banner banner-warning">Select a bucket to browse its objects.</div>
@@ -71,12 +71,15 @@
     </div>
   </main>
 
+  {{> confirm_modal}}
+
   {{> footer}}
 
   <script src="/admin/static/js/icons.js"></script>
   <script src="/admin/static/js/toast.js"></script>
   <script src="/admin/static/js/topbar.js"></script>
   <script src="/admin/static/js/project-selector.js"></script>
+  <script src="/admin/static/js/confirm-modal.js"></script>
   <script src="/admin/static/js/storage.js"></script>
 </body>
 </html>

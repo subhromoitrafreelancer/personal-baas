@@ -85,19 +85,22 @@ function renderRow(key) {
 
   const revokeBtn = tr.querySelector('[data-action="revoke"]');
   if (revokeBtn) {
-    revokeBtn.addEventListener('click', async () => {
-      if (!confirm(`Revoke API key "${key.name}"? Any client using it will immediately lose access.`)) {
-        return;
-      }
-      const res = await apiFetch(`/admin/v1/api-keys/${key.id}/revoke`, { method: 'POST' });
-      if (!res) return;
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        showToast(body.message ?? 'Failed to revoke key', 'error');
-        return;
-      }
-      showToast(`Key "${key.name}" revoked`, 'success');
-      loadKeys();
+    revokeBtn.addEventListener('click', () => {
+      ConfirmModal.confirmDelete(`Revoke API key "${key.name}"?`, {
+        bodyHtml: `<p>Any client using this ${escapeHtml(key.kind)} key loses access immediately. This cannot be undone — a revoked key can never be reactivated, only replaced by creating a new one.</p>`,
+        confirmLabel: 'Revoke key',
+        onConfirm: async () => {
+          const res = await apiFetch(`/admin/v1/api-keys/${key.id}/revoke`, { method: 'POST' });
+          if (!res) return { ok: false };
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            return { ok: false, message: body.message ?? 'Failed to revoke key' };
+          }
+          showToast(`Key "${key.name}" revoked`, 'success');
+          loadKeys();
+          return { ok: true };
+        },
+      });
     });
   }
 
@@ -106,7 +109,9 @@ function renderRow(key) {
 
 async function loadKeys() {
   statusEl.textContent = 'Loading…';
-  const res = await apiFetch(`/admin/v1/api-keys?projectId=${encodeURIComponent(currentProjectId)}`);
+  const res = await apiFetch(
+    `/admin/v1/api-keys?projectId=${encodeURIComponent(currentProjectId)}`,
+  );
   if (!res) return;
   if (!res.ok) {
     statusEl.textContent = 'Failed to load API keys';

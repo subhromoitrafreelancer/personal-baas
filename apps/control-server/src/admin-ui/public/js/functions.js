@@ -92,13 +92,23 @@ function renderFunctionRow(fn) {
   const li = document.createElement('li');
   li.className = 'function-list-item';
   if (fn.id === selectedFunctionId) li.classList.add('selected');
+  li.setAttribute('role', 'button');
+  li.setAttribute('tabindex', '0');
   li.innerHTML = `<span class="function-name">${escapeHtml(fn.name)}</span>`;
   li.addEventListener('click', () => selectFunction(fn.id));
+  li.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      selectFunction(fn.id);
+    }
+  });
   return li;
 }
 
 async function loadFunctions() {
-  const res = await apiFetch(`/admin/v1/functions?projectId=${encodeURIComponent(currentProjectId)}`);
+  const res = await apiFetch(
+    `/admin/v1/functions?projectId=${encodeURIComponent(currentProjectId)}`,
+  );
   if (!res) return;
   if (!res.ok) return;
   const data = await res.json();
@@ -117,7 +127,7 @@ async function loadInvocations(id) {
   for (const inv of invocations) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><span class="badge">${escapeHtml(inv.status)}</span></td>
+      <td><span class="badge status-${escapeHtml(inv.status)}">${escapeHtml(inv.status)}</span></td>
       <td>${inv.durationMs} ms</td>
       <td>${inv.error ? escapeHtml(inv.error) : '—'}</td>
       <td>${new Date(inv.invokedAt).toLocaleString()}</td>
@@ -196,23 +206,52 @@ saveFunctionBtn.addEventListener('click', async () => {
   loadFunctions();
 });
 
+// Deleting a function cascades to any Scheduler job pointing at it (scheduler.scheduled_jobs.
+// function_id references functions.functions(id) ON DELETE CASCADE) — that's real blast radius,
+// not just an annoyance, so it's surfaced as a blocking-strength warning even though the delete
+// itself is still allowed to proceed (matching Database Explorer's "text match, not a guarantee"
+// framing for a heads-up that doesn't outright block).
+async function referencingJobs(functionId) {
+  const res = await apiFetch(
+    `/admin/v1/scheduler/jobs?projectId=${encodeURIComponent(currentProjectId)}`,
+  );
+  if (!res || !res.ok) return [];
+  const { jobs: allJobs } = await res.json();
+  return allJobs.filter((job) => job.functionId === functionId);
+}
+
 deleteFunctionBtn.addEventListener('click', async () => {
   if (!selectedFunctionId) return;
   const fn = functions.find((f) => f.id === selectedFunctionId);
-  if (!confirm(`Delete function "${fn ? fn.name : selectedFunctionId}"?`)) return;
-  const res = await apiFetch(`/admin/v1/functions/${selectedFunctionId}`, { method: 'DELETE' });
-  if (!res) return;
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    showToast(body.message ?? 'Failed to delete function', 'error');
-    return;
-  }
-  showToast(`Function "${fn ? fn.name : ''}" deleted`, 'success');
-  selectedFunctionId = null;
-  functionDetail.hidden = true;
-  noFunctionSelected.hidden = false;
-  detailTitle.textContent = 'Select a function';
-  loadFunctions();
+  if (!fn) return;
+  const jobs = await referencingJobs(fn.id);
+
+  ConfirmModal.confirmDelete(`Delete function "${fn.name}"?`, {
+    bodyHtml: `<p>This deletes the function's code and its entire invocation history.</p>`,
+    warnings: [
+      {
+        label: `${jobs.length} scheduled job(s) target this function and will be deleted along with it:`,
+        items: jobs,
+        formatter: (job) => `${job.name} (${job.cronExpression})`,
+      },
+    ],
+    confirmLabel: 'Delete function',
+    onConfirm: async () => {
+      const res = await apiFetch(`/admin/v1/functions/${selectedFunctionId}`, { method: 'DELETE' });
+      if (!res) return { ok: false };
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        return { ok: false, message: body.message ?? 'Failed to delete function' };
+      }
+      showToast(`Function "${fn.name}" deleted`, 'success');
+      selectedFunctionId = null;
+      functionDetail.hidden = true;
+      noFunctionSelected.hidden = false;
+      detailTitle.textContent = 'Select a function';
+      loadFunctions();
+      return { ok: true };
+    },
+  });
 });
 
 invokeBtn.addEventListener('click', async () => {

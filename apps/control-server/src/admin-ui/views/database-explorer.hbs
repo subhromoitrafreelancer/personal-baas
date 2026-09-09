@@ -21,22 +21,13 @@
       </div>
     </div>
     <div class="db-explorer-toolbar toolbar">
-      <span id="objects-status" class="run-status"></span>
+      <span id="objects-status" class="run-status" role="status"></span>
     </div>
     <nav id="schema-nav" class="schema-nav" aria-label="Jump to schema"></nav>
     <div id="schemas-container"></div>
   </main>
 
-  <div id="modal-overlay" class="modal-overlay" hidden>
-    <div id="modal" class="modal">
-      <div class="modal-header">
-        <h2 id="modal-title"></h2>
-        <button type="button" id="modal-close-btn" class="btn-icon modal-close" data-icon="close" aria-label="Close" title="Close"></button>
-      </div>
-      <div id="modal-body" class="modal-body"></div>
-      <div id="modal-footer" class="modal-footer"></div>
-    </div>
-  </div>
+  {{> confirm_modal}}
 
   {{> footer}}
 

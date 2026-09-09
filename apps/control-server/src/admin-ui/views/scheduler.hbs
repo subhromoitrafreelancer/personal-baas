@@ -41,7 +41,7 @@
       <section class="card detail-panel">
         <div class="card-header">
           <h2 id="detail-title">Select a job</h2>
-          <span id="detail-status" class="run-status"></span>
+          <span id="detail-status" class="run-status" role="status"></span>
         </div>
         <div class="card-body">
           <div id="no-job-selected" class="banner banner-warning">Select a job to view or edit it.</div>
@@ -79,12 +79,15 @@
     </div>
   </main>
 
+  {{> confirm_modal}}
+
   {{> footer}}
 
   <script src="/admin/static/js/icons.js"></script>
   <script src="/admin/static/js/toast.js"></script>
   <script src="/admin/static/js/topbar.js"></script>
   <script src="/admin/static/js/project-selector.js"></script>
+  <script src="/admin/static/js/confirm-modal.js"></script>
   <script src="/admin/static/js/scheduler.js"></script>
 </body>
 </html>

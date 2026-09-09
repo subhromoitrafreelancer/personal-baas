@@ -40,8 +40,10 @@
 }
 
 .schema-block {
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
   scroll-margin-top: 6.5rem;
 }

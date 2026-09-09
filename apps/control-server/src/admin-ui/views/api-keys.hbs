@@ -17,7 +17,7 @@
       <div class="page-header-actions">
         <label class="field">Project <select id="project-select"></select></label>
         <button id="generate-env-btn" type="button" class="btn btn-outline" data-icon="download">Generate .env</button>
-        <span id="keys-status" class="run-status"></span>
+        <span id="keys-status" class="run-status" role="status"></span>
       </div>
     </div>
 
@@ -52,6 +52,8 @@
     </div>
   </main>
 
+  {{> confirm_modal}}
+
   {{> footer}}
 
   <script src="/admin/static/js/icons.js"></script>
@@ -59,6 +61,7 @@
   <script src="/admin/static/js/topbar.js"></script>
   <script src="/admin/static/js/clipboard.js"></script>
   <script src="/admin/static/js/project-selector.js"></script>
+  <script src="/admin/static/js/confirm-modal.js"></script>
   <script src="/admin/static/js/api-keys.js"></script>
 </body>
 </html>
