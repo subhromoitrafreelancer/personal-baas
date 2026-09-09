@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Secrets Vault — Personal BaaS Admin</title>
+  <link rel="stylesheet" href="/admin/static/css/admin.css" />
+  <link rel="stylesheet" href="/admin/static/css/vault.css" />
+</head>
+<body>
+  {{> topbar}}
+
+  <main class="page vault-page">
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Secrets Vault</h1>
+        <p class="page-description">Encrypted, project-scoped credentials Functions can read via <code>ctx.secrets.get(name)</code>.</p>
+      </div>
+      <div class="page-header-actions">
+        <label class="field">Project <select id="project-select"></select></label>
+        <span id="vault-status" class="run-status"></span>
+      </div>
+    </div>
+
+    <form id="upsert-secret-form" class="inline-form">
+      <label class="field">
+        Name
+        <input id="secret-name" type="text" required placeholder="e.g. STRIPE_API_KEY" pattern="[A-Z][A-Z0-9_]*" title="UPPER_SNAKE_CASE, e.g. STRIPE_API_KEY" />
+      </label>
+      <label class="field">
+        Value
+        <input id="secret-value" type="password" required autocomplete="off" placeholder="paste the secret value" />
+      </label>
+      <button type="submit" class="btn btn-primary" data-icon="save">Save</button>
+      <button type="button" id="cancel-upsert-btn" class="btn btn-outline" data-icon="close">Cancel</button>
+    </form>
+    <p class="hint">Names use <code>UPPER_SNAKE_CASE</code> — the same convention as an environment variable, e.g. <code>STRIPE_API_KEY</code>. Submitting an existing name rotates it in place; the old value cannot be recovered afterward. Values are never shown again after this form is submitted.</p>
+
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Last updated</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="secrets-tbody"></tbody>
+      </table>
+    </div>
+  </main>
+
+  {{> footer}}
+
+  <script src="/admin/static/js/icons.js"></script>
+  <script src="/admin/static/js/toast.js"></script>
+  <script src="/admin/static/js/topbar.js"></script>
+  <script src="/admin/static/js/project-selector.js"></script>
+  <script src="/admin/static/js/vault.js"></script>
+</body>
+</html>

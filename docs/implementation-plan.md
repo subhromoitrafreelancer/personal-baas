@@ -589,23 +589,88 @@ compose service instead of per-invocation containers.
 
 ## Phase 13 — Scheduler
 
-Depends on Phase 12 — a scheduled job's unit of work is a function invocation.
+Depends on Phase 12 — a scheduled job's unit of work is a function invocation. No dedicated
+health/metrics surface for this phase (scope.md §27 point 9) — the scheduler is one in-process
+control-server component, already covered by control-server's own `/health`, and
+`scheduler.job_runs` gives per-job success/failure visibility without a new health endpoint;
+skipped deliberately, not an oversight, per explicit user direction.
 
-1. **`scheduler` schema** — `scheduler.scheduled_jobs` (`id`, `project_id`, `name`,
-   `function_id` references `functions.functions`, `cron_expression`, `enabled`, `next_run_at`,
-   `last_run_at`, `last_status`, `created_at`, `updated_at`), unique `(project_id, name)`;
-   `scheduler.job_runs` (`id`, `job_id`, `started_at`, `finished_at`, `status`, `error`).
-2. **In-process scheduler service** — new `@Global()` module (`OnModuleInit`/`OnModuleDestroy`,
-   same lifecycle convention as Realtime's listener), `cron-parser` computes `next_run_at`, a
-   single timer loop wakes for the nearest due job, invokes it via Phase 12's execution path
-   with `ctx.auth = { sub: null, role: 'service_role' }`, writes a `scheduler.job_runs` row,
-   skips a tick if the previous run for that job hasn't finished.
-3. **Admin CRUD + run-now** — `/admin/v1/scheduler/:project/jobs` API + `/admin/scheduler/:project`
-   page: list/create/edit jobs, enable/disable toggle, a "run now" action bypassing the schedule.
-4. **Run history UI** — table reading `scheduler.job_runs` per job.
+Uses `cron-parser` v5 (MIT), whose current API is the **named export**
+`CronExpressionParser` — `import { CronExpressionParser } from 'cron-parser'`, then
+`CronExpressionParser.parse(expr, { currentDate, tz }).next()` returning a `CronDate`
+(`.toDate()`). Older `import parser from 'cron-parser'; parser.parseExpression(...)` examples
+are a stale pre-v5 API shape and must not be used.
+
+1. **`scheduler` schema** — add to `packages/database-bootstrap/sql/002_schemas.sql`
+   (`create schema if not exists scheduler authorization baas_admin;`, added to the trailing
+   `revoke all ... from public` list), same bootstrap-vs-migration split every other
+   never-exposed-through-PostgREST schema already uses (`storage`/`hosting`/`functions`) — the
+   schema itself needs `baas_admin` ownership from a superuser-run script; only the tables inside
+   it are node-pg-migrate's job. Migration: `scheduler.scheduled_jobs` (`id`, `project_id`
+   references `platform.projects(id)` on delete cascade, `name`, `function_id` references
+   `functions.functions(id)` on delete cascade, `cron_expression text`, `enabled boolean not
+   null default true`, `next_run_at timestamptz`, `last_run_at timestamptz`, `last_status text`,
+   `created_at`, `updated_at`), unique `(project_id, name)`, index on `(enabled, next_run_at)`
+   for the scheduler's own startup query; `scheduler.job_runs` (`id`, `job_id` references
+   `scheduler.scheduled_jobs(id)` on delete cascade, `started_at`, `finished_at`, `status`,
+   `error`), index on `job_id` — same shape as `functions.invocations`.
+2. **`SchedulerRepository` + `SchedulerService` CRUD** — `apps/control-server/src/modules/
+   scheduler/`, mirroring `FunctionsRepository`/`FunctionsService`'s split exactly: repository
+   does raw `pg` queries scoped by `project_id`; service validates the cron expression via
+   `CronExpressionParser.parse()` at create/update time (a syntactically invalid expression is
+   rejected with a 400 before ever being stored, not discovered later when the timer tries to
+   compute a next run) and computes/stores `next_run_at` on every create/update/enable.
+3. **In-process timer loop** — new `SchedulerTimerService`, `@Global()` module with
+   `OnModuleInit`/`OnModuleDestroy`, same lifecycle convention as `RealtimeListenerService`
+   (Phase 8 #4): on init, load every enabled job across all projects, compute the minimum
+   `next_run_at`, and hold exactly one active `setTimeout` for that soonest time — not a
+   per-second poll. On fire: query every enabled job whose `next_run_at <= now()` (handles
+   more than one job coinciding), and for each:
+   - skip if a `scheduler.job_runs` row for that job has `started_at` set and `finished_at`
+     still null (previous run still in flight — scope.md §27 point 5, skip not queue);
+   - otherwise insert a `scheduler.job_runs` row (`started_at = now()`), invoke the target
+     function via `FunctionsService.invoke()` (Phase 12's exact execution path) with
+     `auth: { sub: null, role: 'service_role' }` (not a real `AppAccessTokenClaims` — this is a
+     synthetic identity, so `FunctionsService.invoke`'s `auth` param type may need widening or a
+     small adapter, confirm during implementation), `callerAuthorization: null` (no JWT to
+     forward — `ctx.rest` calls from a scheduled function reach PostgREST with no
+     `Authorization` header, same as the admin console's own test-invoke path already does);
+   - on completion, update the `job_runs` row (`finished_at`, `status`, `error`) and the job's
+     own `last_run_at`/`last_status`, then recompute and store that job's next `next_run_at`
+     from `CronExpressionParser.parse(cron_expression, { currentDate: now }).next()`.
+   After processing all due jobs, recompute the new global minimum `next_run_at` across all
+   enabled jobs and reset the single timer. **Missed-run policy**: if control-server was down
+   when a `next_run_at` passed, the loaded job's `next_run_at` is simply in the past at startup —
+   treated as "due now" and run once immediately on boot, not backfilled for every missed
+   occurrence (scope.md §27 point 6's "skip, no catch-up" — a job down for 3 missed 1-minute
+   ticks runs once on restart, not three times).
+   - **`rescheduleSoonest()`** — called by `SchedulerService` after every create/update/delete/
+     enable-toggle, so the timer never waits out a now-stale schedule (e.g. a job created with a
+     `next_run_at` sooner than whatever the timer is currently waiting on).
+   - **Single-instance caveat** — documented inline (scope.md §27 point 7): correct only for a
+     single control-server replica; multiple replicas would each independently fire every job.
+     Not addressed in this phase.
+4. **Admin CRUD + run-now API** — `/admin/v1/scheduler/jobs` (project-scoped via the established
+   `?projectId=` query-param + `resolveProjectId()` convention — see `FunctionsAdminController`/
+   `HostingAdminController` — not the `:project` path-segment scope.md's prose sketch shows;
+   that older phrasing predates the convention every phase since Phase 10 actually settled on).
+   `zod` body schema for create/update (name, `functionId` uuid, `cronExpression`, `enabled`)
+   mirroring `createFunctionBodySchema`'s shape/style. `POST /admin/v1/scheduler/jobs/:id/run-now`
+   invokes immediately via the same `FunctionsService.invoke()` path used by the timer, bypassing
+   `next_run_at` entirely, and still writes a `job_runs` row (so manual runs show up in history
+   too).
+5. **Admin UI** — `/admin/scheduler` page (project selector, per-existing-page convention): job
+   list (name, function, cron expression, next/last run, enabled toggle), create/edit form
+   (function picker sourced from the same project's `functions.list()`, cron-expression input
+   with inline validation feedback reusing #2's parse-on-submit check), "run now" button per row,
+   and a run-history table reading `scheduler.job_runs` per job (mirrors the Functions page's
+   existing invocation-history panel).
    - **Acceptance**: a function that inserts a timestamp row via `ctx.rest`, scheduled every
      minute, produces matching `scheduler.job_runs` and function-owned rows unattended over
-     several minutes with no invoking JWT; disabling the job stops further runs.
+     several minutes with no invoking JWT; disabling the job stops further runs; restarting
+     control-server while a job's `next_run_at` is in the past runs it exactly once on boot, not
+     once per missed tick; two jobs due at the same moment both run without one blocking the
+     timer from firing the other.
 
 ## Phase 14 — Admin UI redesign
 
@@ -690,6 +755,128 @@ already, see §29 point 6).
      (view-only) blocker set, the function-source viewer renders real `pg_get_functiondef` output
      with SQL highlighting and no edit affordance.
 
+## Phase 16 — Secrets Vault
+
+Project-scoped encrypted secret storage, readable at runtime only by Functions via a new
+`ctx.secrets.get(name)` capability (scope.md §30) — no dependency on Phase 13; either can ship
+first. Naming decided directly: env-var-style `UPPER_SNAKE_CASE`, called out in the admin UI's
+create/rotate form (not just enforced as a validation error). No rotation history (overwrite in
+place) and no per-project secret-count cap, both explicit v1 non-goals per user direction.
+
+Uses `libsodium-wrappers` v0.8.4 (ISC license; ships its own `.d.ts`, so the separate
+`@types/libsodium-wrappers` stub package is unneeded and deprecated — confirmed against the
+installed package's own `package.json` `types` field) — a WASM
+build, so every crypto call must happen after `await sodium.ready` resolves; crypto function
+names (`crypto_secretbox_easy` etc.) are attached to the module dynamically post-`ready` and
+cannot be statically named-imported. `crypto_secretbox_easy`/`crypto_secretbox_open_easy`
+(XSalsa20-Poly1305) is the current, non-deprecated API for "encrypt/decrypt a value with one
+shared key" — not the separate AEAD/secretstream API, which targets streaming use cases this
+feature doesn't have.
+
+1. **`vault` schema bootstrap** — add to `packages/database-bootstrap/sql/002_schemas.sql`
+   (`create schema if not exists vault authorization baas_admin;`, added to the trailing
+   `revoke all ... from public` list), same split as Phase 13 #1 and every other
+   never-PostgREST-exposed schema. Migration: `vault.secrets` (`id`, `project_id` references
+   `platform.projects(id)` on delete cascade, `name text`, `nonce bytea`, `ciphertext bytea`,
+   `created_at`, `updated_at`), unique `(project_id, name)`. `nonce`/`ciphertext` as `bytea`, not
+   `text`/base64 — Postgres stores/round-trips binary natively, no encoding overhead on every
+   read/write.
+2. **Master key + generation script** — `VAULT_MASTER_KEY_BASE64` added to
+   `apps/control-server/src/config/env.schema.ts` (32 raw bytes, base64 — `crypto_secretbox_KEYBYTES`
+   after `sodium.ready`, validated by decoding and checking byte length, not just non-empty),
+   documented inline the same way `AUTH_JWT_PRIVATE_KEY_BASE64` is (what it signs/protects, how
+   to generate it, consequence of losing it). New `apps/control-server/scripts/
+   generate-vault-key.mjs`, mirroring `generate-jwt-keypair.mjs`'s structure: imports
+   `libsodium-wrappers`, awaits `sodium.ready`, calls `sodium.crypto_secretbox_keygen()`, prints
+   `VAULT_MASTER_KEY_BASE64=<base64>` to paste into `.env`. Add a
+   `generate:vault-key` script to `package.json` alongside the existing `generate:jwt-keys`.
+3. **`VaultCryptoService`** — new `apps/control-server/src/modules/vault/vault-crypto.service.ts`:
+   `onModuleInit` awaits `sodium.ready` once and decodes `VAULT_MASTER_KEY_BASE64` into the raw
+   key buffer; `encrypt(plaintext: string): { nonce: Buffer; ciphertext: Buffer }` generates a
+   fresh `sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES)` per call (nonces are public,
+   safe to store alongside the ciphertext, never reused) and calls
+   `sodium.crypto_secretbox_easy(plaintext, nonce, key)`; `decrypt(nonce, ciphertext): string`
+   calls `sodium.crypto_secretbox_open_easy(ciphertext, nonce, key)`, throwing on MAC-verification
+   failure (tampered/corrupt row, or a `VAULT_MASTER_KEY_BASE64` mismatch after a botched
+   rotation) rather than silently returning garbage.
+4. **`VaultRepository` + `VaultService`** — CRUD scoped by `project_id`, mirroring
+   `FunctionsRepository`/`FunctionsService`'s split. `create`/`rotate` both resolve to one
+   repository method (`upsert(projectId, name, nonce, ciphertext)` — an `INSERT ... ON CONFLICT
+   (project_id, name) DO UPDATE SET nonce = $3, ciphertext = $4, updated_at = now()`, giving
+   "no rotation history" — point 1 — for free at the SQL level rather than as an
+   application-level rule that could be bypassed). `list(projectId)` returns only `{ name,
+   updatedAt }` per row — the repository method never even selects `nonce`/`ciphertext` for a
+   list call, so there's no code path that could accidentally leak ciphertext into a list
+   response. `resolveForFunction(projectId, name): Promise<string | null>` is the one method
+   that actually decrypts, used exclusively by the internal endpoint in #6 — never called from
+   any admin-facing controller.
+5. **Admin API + naming validation** — `apps/control-server/src/modules/vault/
+   vault-admin.controller.ts`, `@Controller('admin/v1/vault')`, `AdminSessionGuard`, same
+   `?projectId=` + `resolveProjectId()` convention as `FunctionsAdminController`. `zod` schema:
+   `name: z.string().regex(/^[A-Z][A-Z0-9_]*$/, 'Use UPPER_SNAKE_CASE, e.g. STRIPE_API_KEY')`,
+   `value: z.string().min(1)`. `POST` (create-or-rotate) and `DELETE :id` only — deliberately no
+   `GET :id`/reveal endpoint of any kind, unlike `ApiKeysController`'s `reveal()`; point 4 of
+   scope.md §30 explains why one isn't needed (the admin already has the value they typed).
+   `POST`'s response body is the `{ name, updatedAt }` metadata shape only, never echoing `value`
+   back even though it was just in the request.
+6. **Function runtime access — invocation-scoped token + internal endpoint** —
+   - `VaultInvocationTokensService` (new, in-memory `Map<string, { projectId: string; expiresAt:
+     number }>`): `issue(projectId, ttlMs): string` (`crypto.randomUUID()`), `resolve(token):
+     string | null` (returns `projectId` if present and unexpired), `revoke(token): void`. A
+     periodic sweep (`setInterval`, e.g. every 60s) clears expired entries as a backstop for
+     crash/timeout paths that skip the explicit `revoke()` call.
+   - `FunctionsService.invoke()` (Phase 12) gains a token mint/revoke around its existing
+     runner call: `const token = this.vaultTokens.issue(params.project.id, params.fn.timeout_ms +
+     RUNNER_CALL_GRACE_MS)` before the `fetch(runnerUrl + '/run', ...)` call, included as
+     `ctx.secretsToken` in the request body, and `this.vaultTokens.revoke(token)` in the existing
+     `finally` block alongside `clearTimeout(abortTimer)` — so the token's lifetime exactly
+     brackets one invocation regardless of which branch (`success`/`timeout`/`unavailable`) it
+     takes.
+   - `apps/function-runner/src/types.ts`: `InvocationCtxWire` gains `secretsToken: string`;
+     `InvocationCtx` (the public shape handler code sees) gains `secrets: { get(name: string):
+     Promise<string | null> }` — `secretsToken` itself is never copied into the public shape,
+     same internal-only treatment `schemaName`/`callerAuthorization` already get for `ctx.rest`.
+   - `apps/function-runner/src/worker-entry.ts`: new `buildSecretsClient(controlServerUrl,
+     secretsToken)` alongside `buildRestClient`, returning `{ get: async (name) => { const res =
+     await fetch(\`${controlServerUrl}/internal/vault/resolve\`, { method: 'POST', headers: {
+     'Content-Type': 'application/json', 'X-Invocation-Token': secretsToken }, body:
+     JSON.stringify({ name }) }); if (res.status === 404) return null; if (!res.ok) throw new
+     Error('secrets lookup failed'); return (await res.json()).value; } }`, wired into
+     `invocationCtx.secrets` next to the existing `rest:` field.
+   - New `VaultInternalController` on control-server, `@Controller('internal/vault')`, **not**
+     `AdminSessionGuard`/`AccessTokenGuard` — its own guard reading `X-Invocation-Token`,
+     resolving it via `VaultInvocationTokensService.resolve()` (401 if missing/expired/unknown),
+     then `VaultService.resolveForFunction(projectId, name)` (404 if no such secret in that
+     project) → `{ value }`. This is the actual cross-project isolation boundary for this
+     feature, the same role `functions.functions WHERE project_id = $1 AND name = $2` plays for
+     function invocation itself (scope.md §26 point 7a) — a forged or reused token from a
+     different invocation can only ever resolve to the `project_id` control-server itself bound
+     to it at mint time.
+7. **Deployment wiring** — `apps/function-runner`: new `CONTROL_SERVER_URL` env var
+   (`http://control-server:3000`) added next to the existing `POSTGREST_URL` in
+   `infrastructure/docker/docker-compose.yml`'s `function-runner` service. `/internal/vault/
+   resolve` is **not** added to `infrastructure/proxy/Caddyfile`'s routing table — same
+   deliberate omission `metrics.controller.ts` already documents for `/metrics` ("not routed
+   through Caddy"), reachable only via the internal docker network.
+8. **Audit** — `vault.secret_created` / `vault.secret_rotated` / `vault.secret_deleted` via the
+   existing `AuthAuditService.record()` call, matching the `<feature>.<action>`-prefixed event
+   naming each prior phase introduced for its own events (`admin.*`, `realtime.*` if any exist,
+   `functions.*`). Deliberately no per-read audit event — high-volume, per-invocation, unlike
+   every other event this platform logs today.
+9. **Admin UI** — `/admin/vault` page, project selector matching every project-scoped page since
+   Phase 9: list (name, last-updated) with a delete icon per row, a create/rotate form with the
+   `UPPER_SNAKE_CASE` naming convention shown as placeholder/help text right on the input (not
+   just surfaced as a post-submit validation error), no reveal affordance anywhere on the page.
+   - **Acceptance**: a function calling `ctx.secrets.get('STRIPE_API_KEY')` gets the correct
+     decrypted value for its own project; the identical call from a different project's function
+     — including one that defines a same-named secret — gets that other project's own value,
+     never a cross-project leak; the vault admin page's `list`/create/rotate network responses
+     never contain a secret's plaintext or ciphertext at any point after initial submission;
+     submitting a lowercase or space-containing name is rejected both client- and server-side
+     with the naming convention shown as the correction hint; rotating a secret immediately
+     invalidates the old value with no way to recover it (no version-history table exists to
+     recover it from).
+
 ---
 
 ## Cross-cutting conventions
@@ -715,6 +902,7 @@ already, see §29 point 6).
 - Phase 10: two projects with same-named private buckets, two real users; confirm 404 (not 403) cross-project, plus a regression check that `examples/todo-app`'s storage flow is unaffected by the backfill.
 - Phase 11: deploy a zip via the admin console, load it in a browser at `/sites/<slug>/`, confirm same-origin API calls succeed with no CORS config and SPA fallback behaves correctly.
 - Phase 12: two real users invoking the same function via their own JWTs see only their own data through `ctx.rest`; cross-project invocation 404s; killing the `function-runner` container mid-invocation returns 503 without affecting control-server's own health.
-- Phase 13: a scheduled function's writes and `scheduler.job_runs` both advance unattended; disabling a job stops it.
+- Phase 13: a scheduled function's writes and `scheduler.job_runs` both advance unattended; disabling a job stops it; restarting control-server with an overdue `next_run_at` runs the job exactly once, not once per missed tick.
 - Phase 14: manual browser walkthrough of every admin page (no headless/Playwright testing — same convention as every prior admin-UI phase); confirm the DB Explorer `?schema=` deep link, Projects page cross-links, dismissible API Keys secret panel, and Functions CodeMirror editors all behave as designed.
 - Phase 15: against a real table with rows/index/policy/a same-schema function referencing it — confirm the delete-table preview's counts and warnings are accurate, blockers (dependent view, referencing FK) actually prevent deletion server-side (not just client-side), a successful delete removes everything atomically with one audit row, and the function-source viewer shows real `pg_get_functiondef` output with no edit affordance.
+- Phase 16: two projects each with a same-named secret, two functions (one per project) calling `ctx.secrets.get(name)` — confirm each gets only its own project's decrypted value; inspect every vault admin-API response to confirm plaintext/ciphertext never appears after initial create/rotate submission; kill `function-runner` mid-invocation and confirm the minted invocation token is unusable afterward (resolves 401 against `/internal/vault/resolve`, and the periodic sweep clears it once its TTL passes).

@@ -69,20 +69,24 @@ export class AuthJwtService implements OnModuleInit {
       .sign(this.privateKey);
   }
 
-  // Mints a short-lived token for control-server's own admin-only proxy calls to PostgREST
-  // (the OpenAPI spec viewer) — without one, PostgREST resolves an unauthenticated request to
-  // the global anon role, so any table granted only to a project-scoped role (anon_<slug>/
-  // authenticated_<slug>/service_role_<slug> — the normal case past the default project, see
-  // rls-snippets.js) silently disappears from the spec while functions still show up (implicit
-  // PUBLIC EXECUTE). Never handed to a browser/API caller, so it carries no `kid` (nothing to
-  // revoke) and expires almost immediately.
-  async signInternalRoleToken(role: string, projectId: string): Promise<string> {
+  // Mints a short-lived token for control-server's own internal-purpose calls to PostgREST —
+  // originally the admin-only OpenAPI spec viewer proxy, now also the Scheduler's (Phase 13,
+  // scope.md §27 point 3) synthetic service_role identity for a scheduled function's ctx.rest
+  // calls. Without one, PostgREST resolves an unauthenticated request to the global anon role,
+  // so any table granted only to a project-scoped role (anon_<slug>/authenticated_<slug>/
+  // service_role_<slug> — the normal case past the default project, see rls-snippets.js)
+  // silently disappears from the spec while functions still show up (implicit PUBLIC EXECUTE).
+  // Never handed to a browser/API caller, so it carries no `kid` (nothing to revoke). Default
+  // TTL (60s) suits the original sub-second admin-proxy use; the Scheduler passes a TTL derived
+  // from the target function's own timeout_ms instead, so a long-running scheduled function's
+  // late ctx.rest call can't outlive the token that authorizes it.
+  async signInternalRoleToken(role: string, projectId: string, ttlSeconds = 60): Promise<string> {
     return new SignJWT({ role, project_id: projectId })
       .setProtectedHeader({ alg: ALG })
       .setIssuer(ISSUER)
       .setAudience(AUDIENCE)
       .setIssuedAt()
-      .setExpirationTime('60s')
+      .setExpirationTime(`${ttlSeconds}s`)
       .sign(this.privateKey);
   }
 

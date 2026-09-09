@@ -16,13 +16,38 @@ function buildRestClient(schemaName: string, callerAuthorization: string | null)
     // Same Accept-Profile (reads) / Content-Profile (writes) convention PostgREST needs once
     // more than one project's schema is exposed (scope.md §23) -- mirrors
     // packages/client-sdk/src/http.ts's profileHeaderName exactly.
-    const profileHeader = method === 'GET' || method === 'HEAD' ? 'Accept-Profile' : 'Content-Profile';
+    const profileHeader =
+      method === 'GET' || method === 'HEAD' ? 'Accept-Profile' : 'Content-Profile';
     const headers = new Headers(init.headers);
     headers.set(profileHeader, schemaName);
     if (callerAuthorization) {
       headers.set('Authorization', callerAuthorization);
     }
     return fetch(`${base}${path}`, { ...init, headers });
+  };
+}
+
+// Backs ctx.secrets.get(name) (scope.md §30 point 5) -- an outbound call to control-server
+// itself, authorized by the invocation-scoped token minted for this one /run call. Unlike
+// ctx.rest, there is no public endpoint for this: control-server's /internal/vault/resolve is
+// deliberately never routed through Caddy, reachable only over the internal docker network.
+function buildSecretsClient(controlServerUrl: string, secretsToken: string) {
+  return {
+    get: async (name: string): Promise<string | null> => {
+      const res = await fetch(`${controlServerUrl}/internal/vault/resolve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Invocation-Token': secretsToken },
+        body: JSON.stringify({ name }),
+      });
+      if (res.status === 404) {
+        return null;
+      }
+      if (!res.ok) {
+        throw new Error(`Secrets lookup for "${name}" failed (${res.status})`);
+      }
+      const { value } = (await res.json()) as { value: string };
+      return value;
+    },
   };
 }
 
@@ -34,7 +59,9 @@ async function run(): Promise<void> {
     // invocation contract without the runner needing any real ESM/TS parsing of its own.
     const transpiled = esbuild.transformSync(code, { loader: 'ts', format: 'cjs' });
 
-    const mod: { exports: { default?: (ctx: InvocationCtx) => Promise<FunctionResult> } } = { exports: {} };
+    const mod: { exports: { default?: (ctx: InvocationCtx) => Promise<FunctionResult> } } = {
+      exports: {},
+    };
     // Deliberate use of the Function constructor: this *is* the function-execution primitive,
     // not incidental dynamic code.
     const wrapped = new Function('module', 'exports', 'require', transpiled.code);
@@ -52,13 +79,17 @@ async function run(): Promise<void> {
       project: { id: ctx.project.id, slug: ctx.project.slug },
       auth: ctx.auth,
       rest: buildRestClient(ctx.project.schemaName, ctx.callerAuthorization),
+      secrets: buildSecretsClient(process.env.CONTROL_SERVER_URL ?? '', ctx.secretsToken),
     };
 
     const result = await handler(invocationCtx);
     const message: WorkerMessage = { ok: true, result: result ?? {} };
     parentPort?.postMessage(message);
   } catch (err) {
-    const message: WorkerMessage = { ok: false, error: err instanceof Error ? err.message : String(err) };
+    const message: WorkerMessage = {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
     parentPort?.postMessage(message);
   }
 }

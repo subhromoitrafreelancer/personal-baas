@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Scheduler — Personal BaaS Admin</title>
+  <link rel="stylesheet" href="/admin/static/css/admin.css" />
+  <link rel="stylesheet" href="/admin/static/css/functions.css" />
+</head>
+<body>
+  {{> topbar}}
+
+  <main class="page functions-page">
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Scheduler</h1>
+        <p class="page-description">Cron-scheduled invocation of Functions, run with service_role trust.</p>
+      </div>
+      <div class="page-header-actions">
+        <label class="field">Project <select id="project-select"></select></label>
+      </div>
+    </div>
+
+    <div class="functions-layout">
+      <section class="card function-panel">
+        <div class="card-header">
+          <h2>Scheduled jobs</h2>
+        </div>
+        <div class="card-body">
+          <form id="create-job-form" class="inline-form">
+            <label class="field">Name <input id="new-job-name" type="text" required placeholder="e.g. nightly-cleanup" /></label>
+            <label class="field">Function <select id="new-job-function" required></select></label>
+            <label class="field">Cron <input id="new-job-cron" type="text" required placeholder="e.g. */5 * * * *" /></label>
+            <button type="submit" class="btn btn-primary" data-icon="save">Create</button>
+            <button type="button" id="cancel-create-job-btn" class="btn btn-outline" data-icon="close">Cancel</button>
+          </form>
+          <p class="hint">Standard 5-field cron syntax (minute hour day-of-month month day-of-weekday), evaluated in UTC.</p>
+          <ul id="job-list" class="function-list"></ul>
+        </div>
+      </section>
+
+      <section class="card detail-panel">
+        <div class="card-header">
+          <h2 id="detail-title">Select a job</h2>
+          <span id="detail-status" class="run-status"></span>
+        </div>
+        <div class="card-body">
+          <div id="no-job-selected" class="banner banner-warning">Select a job to view or edit it.</div>
+
+          <div id="job-detail" hidden>
+            <label class="field">Function <select id="job-function"></select></label>
+            <label class="field">Cron expression <input id="job-cron" type="text" /></label>
+            <label class="field checkbox-field"><input id="job-enabled" type="checkbox" /> Enabled</label>
+
+            <div class="detail-actions">
+              <button id="save-job-btn" type="button" class="btn btn-primary btn-sm" data-icon="save">Save</button>
+              <button id="run-now-btn" type="button" class="btn btn-outline btn-sm" data-icon="run">Run now</button>
+              <button id="delete-job-btn" type="button" class="btn btn-danger btn-sm" data-icon="delete">Delete</button>
+            </div>
+
+            <p class="hint" id="job-schedule-info"></p>
+
+            <h3>Run history</h3>
+            <div class="table-wrap">
+              <table id="runs-table" class="table">
+                <thead>
+                  <tr>
+                    <th>Status</th>
+                    <th>Started</th>
+                    <th>Finished</th>
+                    <th>Error</th>
+                  </tr>
+                </thead>
+                <tbody id="runs-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  {{> footer}}
+
+  <script src="/admin/static/js/icons.js"></script>
+  <script src="/admin/static/js/toast.js"></script>
+  <script src="/admin/static/js/topbar.js"></script>
+  <script src="/admin/static/js/project-selector.js"></script>
+  <script src="/admin/static/js/scheduler.js"></script>
+</body>
+</html>

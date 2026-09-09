@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EnvConfig } from '../../config/env.schema';
+import { VaultInvocationTokensService } from '../vault/vault-invocation-tokens.service';
 import { FunctionInvocationsRepository } from './function-invocations.repository';
 import { FunctionsRepository } from './functions.repository';
 import { FunctionRow } from './functions.types';
@@ -19,7 +20,10 @@ export type InvokeResult =
 export interface InvokeParams {
   fn: FunctionRow;
   project: { id: string; slug: string; schemaName: string };
-  auth: { sub: string; role: string; email: string } | null;
+  // sub/email are null for the Scheduler's synthetic service_role identity (scope.md §27
+  // point 3, Phase 13) — a scheduled run has no invoking user. role is still always a real,
+  // resolved role name (never the string 'service_role' literally for a non-default project).
+  auth: { sub: string | null; role: string; email: string | null } | null;
   body: unknown;
   headers: Record<string, string>;
   query: Record<string, string>;
@@ -45,6 +49,7 @@ export class FunctionsService {
   constructor(
     private readonly functions: FunctionsRepository,
     private readonly invocations: FunctionInvocationsRepository,
+    private readonly vaultTokens: VaultInvocationTokensService,
     config: ConfigService<EnvConfig, true>,
   ) {
     this.runnerUrl = config.get('FUNCTION_RUNNER_URL', { infer: true });
@@ -107,7 +112,17 @@ export class FunctionsService {
   async invoke(params: InvokeParams): Promise<InvokeResult> {
     const start = Date.now();
     const controller = new AbortController();
-    const abortTimer = setTimeout(() => controller.abort(), params.fn.timeout_ms + RUNNER_CALL_GRACE_MS);
+    const abortTimer = setTimeout(
+      () => controller.abort(),
+      params.fn.timeout_ms + RUNNER_CALL_GRACE_MS,
+    );
+    // Brackets exactly one invocation, mirroring the abort timer above (scope.md §30 point 5) —
+    // authorizes the ctx.secrets.get() callback a function-runner worker may make back into
+    // control-server's /internal/vault/resolve for this call only.
+    const secretsToken = this.vaultTokens.issue(
+      params.project.id,
+      params.fn.timeout_ms + RUNNER_CALL_GRACE_MS,
+    );
 
     let result: InvokeResult;
     try {
@@ -125,6 +140,7 @@ export class FunctionsService {
             project: params.project,
             auth: params.auth,
             callerAuthorization: params.callerAuthorization,
+            secretsToken,
           },
         }),
         signal: controller.signal,
@@ -137,7 +153,12 @@ export class FunctionsService {
       };
 
       if (res.status === 200) {
-        result = { kind: 'success', status: payload.status ?? 200, body: payload.body, headers: payload.headers };
+        result = {
+          kind: 'success',
+          status: payload.status ?? 200,
+          body: payload.body,
+          headers: payload.headers,
+        };
       } else if (res.status === 504) {
         result = { kind: 'timeout' };
       } else {
@@ -150,13 +171,19 @@ export class FunctionsService {
       result = { kind: 'unavailable' };
     } finally {
       clearTimeout(abortTimer);
+      this.vaultTokens.revoke(secretsToken);
     }
 
     await this.invocations.record({
       functionId: params.fn.id,
       status: result.kind,
       durationMs: Date.now() - start,
-      error: result.kind === 'function-error' ? result.message : result.kind === 'unavailable' ? 'function-runner unavailable' : null,
+      error:
+        result.kind === 'function-error'
+          ? result.message
+          : result.kind === 'unavailable'
+            ? 'function-runner unavailable'
+            : null,
     });
 
     return result;

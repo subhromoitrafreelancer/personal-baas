@@ -811,7 +811,7 @@ This boundary is important. Otherwise, the project quickly becomes a Supabase cl
 
 Storage and Realtime subscriptions, originally excluded here and listed under §18 Later Roadmap, have since been promoted to real phases (§17 Phase 7 and Phase 8) — see §21 and §22 for their models. Multi-project support, originally listed under §18 Later Roadmap as "Expansion 1," has likewise been promoted to a real phase (§17 Phase 9) — see §23 for its model. GraphQL remains excluded.
 
-Edge/serverless functions, also originally excluded, are promoted to a real phase (§17 Phase 12) now that Phase 9's multi-project model exists to scope functions to — see §26. Static hosting and a job scheduler were not part of the original exclusion list at all; they're new, later additions covered by §25 and §27. Separately, storage's per-project isolation is being retrofitted in §17 Phase 10 to close a gap Phase 7 shipped before Phase 9's project model existed — see §24.
+Edge/serverless functions, also originally excluded, are promoted to a real phase (§17 Phase 12) now that Phase 9's multi-project model exists to scope functions to — see §26. Static hosting and a job scheduler were not part of the original exclusion list at all; they're new, later additions covered by §25 and §27. Separately, storage's per-project isolation is being retrofitted in §17 Phase 10 to close a gap Phase 7 shipped before Phase 9's project model existed — see §24. A secrets vault (Phase 16) was likewise never part of the original exclusion list — it's a new, later addition covered by §30, added once Functions (§26) existed for it to serve as a runtime credential store for.
 
 ---
 
@@ -1728,6 +1728,14 @@ a scheduled job's unit of work *is* a function invocation, not a separate execut
    expression, next/last run, enabled toggle), create/edit form, a "run now"
    button bypassing the schedule for manual testing, and a run-history view
    reading scheduler.job_runs.
+
+9. Explicit non-goal: no dedicated health/metrics surface for the scheduler
+   (no `/health/scheduler`, no scheduler block added to `/health/ready`). The
+   scheduler is one in-process component of control-server, not a separate
+   service — its liveness is already covered by control-server's own health
+   endpoint, and `scheduler.job_runs` (point 4) already gives an admin a
+   per-job success/failure signal without a new health surface. Revisit only
+   if real operational usage shows a concrete gap this doesn't cover.
 ```
 
 **Acceptance**: a function that writes a timestamp row via ctx.rest, scheduled at a short
@@ -1943,6 +1951,131 @@ are all gone with a single `admin.table_deleted` audit row recorded; deleting a 
 behaves the same way for its narrower blocker set (dependent views only); the function source
 viewer shows the real `pg_get_functiondef` output with SQL syntax highlighting and has no
 edit/save affordance anywhere in it.
+
+---
+
+# 30. Secrets Vault Model
+
+Phase 16. Project-scoped, encrypted-at-rest key/value secret storage, readable at runtime only by
+Functions (§26) via a new `ctx.secrets` capability — the credential-management counterpart to
+`ctx.rest`. Never part of the original exclusion list (§16); added once Functions existed as the
+thing that actually needed it (a function that calls a third-party API today has nowhere to put
+that API key except hardcoded in `functions.functions.code`, visible to any admin console user
+who opens the function editor). No dependency on Phase 13/Scheduler — either can ship first.
+
+```text
+1. Storage: a new `vault` schema, created in packages/database-bootstrap/sql/002_schemas.sql
+   (superuser-run bootstrap, same convention as storage/hosting/functions — "never exposed
+   through PostgREST, owned by baas_admin"), containing one table via node-pg-migrate:
+   vault.secrets (id, project_id references platform.projects(id) on delete cascade, name text,
+   nonce bytea, ciphertext bytea, created_at, updated_at), unique(project_id, name) — the same
+   per-project-scoped-entity shape functions.functions already uses. No version-history table:
+   a rotate is an UPDATE in place (new nonce + ciphertext, updated_at bumped), the old value is
+   gone. No per-project row-count cap in v1, same "trust the platform operator" posture already
+   extended to functions.functions and hosting.site_files.
+
+2. Naming convention: secret names are validated as env-var-style identifiers,
+   ^[A-Z][A-Z0-9_]*$ (uppercase, digits, underscore, must start with a letter) — enforced by the
+   same zod-schema-at-the-controller pattern already used for function names
+   (functions-admin.controller.ts's createFunctionBodySchema), not just a UI convention. Chosen
+   because a secret conceptually replaces a hardcoded env-style credential inside function code
+   (STRIPE_API_KEY, SENDGRID_KEY), so ctx.secrets.get('STRIPE_API_KEY') should read the same way
+   process.env.STRIPE_API_KEY would in an ordinary Node app. The admin console's create/rotate
+   form shows this pattern as inline placeholder/help text (e.g. "STRIPE_API_KEY"), not just a
+   validation error after the fact.
+
+3. Crypto: libsodium-wrappers (ISC license), crypto_secretbox_easy/crypto_secretbox_open_easy —
+   XSalsa20-Poly1305 authenticated symmetric encryption, the same primitive class already trusted
+   for this platform's other cryptographic work (Ed25519 JWT signing, Argon2id password hashing)
+   rather than a hand-rolled AES-GCM wrapper over Node's raw crypto module. One master key for the
+   whole deployment, VAULT_MASTER_KEY_BASE64 (32 raw bytes, base64-encoded — crypto_secretbox_KEYBYTES),
+   supplied via env or mounted file per the existing "secrets through environment or mounted
+   files" convention (§6), generated by a new one-off script (scripts/generate-vault-key.mjs,
+   mirroring generate-jwt-keypair.mjs) — not run automatically, key generation is a deliberate
+   manual action same as the JWT keypair. Each encrypt call generates a fresh random nonce
+   (crypto_secretbox_NONCEBYTES, via randombytes_buf) and stores it alongside the ciphertext —
+   nonces are public data, safe to store in the same row, never reused across encryptions of the
+   same or different values. If VAULT_MASTER_KEY_BASE64 is ever lost, every stored secret becomes
+   permanently undecryptable with no recovery path, the same class of risk §8 already accepts for
+   AUTH_JWT_PRIVATE_KEY_BASE64 but with a worse failure mode (a lost JWT key just forces
+   re-login; a lost vault key destroys data) — worth calling out explicitly in the eventual
+   Phase 6b backup/restore docs, not deferred silently.
+
+4. Admin API and write-only semantics: unlike API keys (§14), where the platform generates the
+   secret value and must reveal it once, a vault secret's value is supplied by the admin
+   themselves (they already have it — a third-party API key, a webhook secret) — so there is
+   nothing to "reveal" at creation time at all. Create/rotate accept {name, value} and the
+   response never echoes value back, not even once; list returns only {name, updatedAt}
+   (never nonce/ciphertext, and there is no decrypt-for-display endpoint anywhere in the admin
+   surface). This is a stricter write-only guarantee than API keys already have, not a weaker
+   one — there is no code path in this feature that can ever return a stored secret's plaintext
+   to the admin console, only to a function's own ctx.secrets.get() call at invocation time.
+
+5. Function runtime access — ctx.secrets.get(name): mirrors ctx.rest's shape (§26 point 3) but
+   the mechanics are necessarily different, since ctx.rest is a closure pre-bound to POSTGREST_URL
+   with no new network path required, while a secret's plaintext only ever exists inside
+   control-server's own process (decrypted on demand) and must reach a function-runner worker
+   that holds no database credential and cannot decrypt anything itself. So this is a new reverse
+   channel: the worker calls back into control-server, once per ctx.secrets.get() call, over the
+   internal docker network — the same direction ctx.rest already calls out to PostgREST, just to
+   control-server instead. Authorization for this callback cannot rely on network topology alone
+   the way function-runner's own inbound /run endpoint does (function-runner has no host port
+   published; control-server's HTTP port, by contrast, is already published to the host in
+   docker-compose.yml for local dev access, so "only reachable over the internal network" does not
+   hold for it) — it needs a real credential. control-server mints a short-lived, single-invocation
+   opaque token (crypto.randomUUID(), an in-memory Map<token, {projectId, expiresAt}> with a TTL
+   slightly beyond the function's own timeout_ms) at the same moment it calls function-runner's
+   /run (FunctionsService.invoke()), includes it only in the internal wire representation of ctx
+   (never in the public ctx object function code itself can inspect — same "internal-only,
+   stripped before reaching the handler" treatment §26 point 5's InvocationCtxWire already gives
+   schemaName/callerAuthorization), and deletes it the moment that invocation finishes, errors, or
+   times out. A new POST /internal/vault/resolve endpoint on control-server (a new
+   VaultInternalController, not AdminSessionGuard/AccessTokenGuard-protected — it has its own
+   token check) accepts {name} plus an X-Invocation-Token header, resolves the token to its
+   projectId, looks up + decrypts vault.secrets WHERE project_id = $1 AND name = $2, and returns
+   {value} or 404. No per-function grant table restricts which secrets a given function may read
+   within its own project — same "any caller already trusted with this project can use anything
+   project-scoped" posture §26 point 1 already takes for function invocation itself; the boundary
+   that matters, and the one this token actually enforces, is cross-*project* isolation, not
+   cross-function isolation within one project. A scheduled invocation (§27) goes through this
+   exact same path with no special-casing, since scheduler fires functions via
+   FunctionsService.invoke() like any other caller.
+
+6. Deployment wiring: /internal/vault/resolve is deliberately never added to
+   infrastructure/proxy/Caddyfile's public routing table — same precedent as /metrics
+   (metrics.controller.ts: "Deliberately not routed through Caddy"), reachable only from
+   function-runner over the internal docker network calling control-server's internal compose
+   hostname directly. function-runner gains a new CONTROL_SERVER_URL env var
+   (http://control-server:3000, alongside its existing POSTGREST_URL) in docker-compose.yml.
+
+7. Audit: vault.secret_created / vault.secret_rotated / vault.secret_deleted via the existing
+   AuthAuditService.record() convention (admin.*-prefixed events elsewhere; these use a vault.*
+   prefix, matching how realtime/functions/hosting each introduced their own event-type prefix
+   rather than overloading admin.*). Deliberately no vault.secret_read event per function
+   invocation — that's a potentially high-volume, per-call event unlike every other audit event
+   this platform records today (all low-frequency admin actions); if per-read auditing is ever
+   needed, it should be a deliberate later addition, not a default this phase ships silently.
+
+8. Explicit non-goals for v1: no rotation/version history (point 1 — overwrite in place only), no
+   admin-facing reveal-after-creation of any kind (point 4), no per-project secret-count cap
+   (point 1), no per-function secret access-control list within a project (point 5), no secret
+   sharing/reference across projects (every lookup is project_id-scoped, same isolation shape as
+   every other project-scoped table on this platform), no dedicated health/metrics endpoint for
+   the vault (mirrors §27 point 9's identical non-goal for the scheduler — this is one
+   control-server module, not a separate service).
+```
+
+**Acceptance**: a function calling `ctx.secrets.get('STRIPE_API_KEY')` receives the correct
+decrypted value for its own project; the same call from a function belonging to a different
+project — even one that happens to define a secret with the identical name — receives that
+*other* project's own value or `null`, never a cross-project leak, proving isolation comes from
+the per-invocation token's bound `project_id`, not from the secret name alone; the admin console's
+vault page never displays a secret's value anywhere after its initial create/rotate submission
+(inspecting network responses for `list`/`get` confirms no `ciphertext`/`value` field is ever
+returned); creating a secret with a lowercase or space-containing name is rejected client- and
+server-side with the `UPPER_SNAKE_CASE` convention shown as the correction hint; killing
+`function-runner` mid-invocation leaves no orphaned invocation token reachable after its TTL
+elapses.
 
 ---
 

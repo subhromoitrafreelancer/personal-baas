@@ -68,6 +68,12 @@ export const envSchema = z.object({
   // docker-network address. Never routed through Caddy; only control-server talks to it,
   // same "internal service, no host port" shape as MINIO_ENDPOINT/POSTGREST_URL.
   FUNCTION_RUNNER_URL: z.string().url().default('http://function-runner:3002'),
+  // Secrets Vault (Phase 16, scope.md §30) — the single master key encrypting every stored
+  // secret (libsodium crypto_secretbox, 32 raw bytes, base64-encoded so it survives a single
+  // .env line — generate with `npm run generate:vault-key --workspace apps/control-server`).
+  // If this is ever lost, every stored secret becomes permanently undecryptable: there is no
+  // recovery path, so treat it with the same care as AUTH_JWT_PRIVATE_KEY_BASE64.
+  VAULT_MASTER_KEY_BASE64: z.string().min(1, 'VAULT_MASTER_KEY_BASE64 is required'),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

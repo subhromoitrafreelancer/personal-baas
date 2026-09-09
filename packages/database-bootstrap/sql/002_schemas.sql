@@ -31,5 +31,14 @@ create schema if not exists hosting authorization baas_admin;
 -- convention — never exposed through PostgREST; function code and invocation history are only
 -- ever reached through the control service's own functions module.
 create schema if not exists functions authorization baas_admin;
+-- Secrets Vault (Phase 16, scope.md §30): vault.secrets. Same convention — never exposed
+-- through PostgREST; encrypted at rest (libsodium crypto_secretbox, see VaultCryptoService),
+-- decrypted only inside the control service's own process, in response to an admin write or an
+-- invocation-token-authorized Functions runtime lookup.
+create schema if not exists vault authorization baas_admin;
+-- Scheduler metadata (Phase 13, scope.md §27): scheduler.scheduled_jobs/scheduler.job_runs. Same
+-- convention — never exposed through PostgREST; jobs are fired by an in-process timer loop
+-- inside the control service, not a database-level mechanism (no pg_cron).
+create schema if not exists scheduler authorization baas_admin;
 
-revoke all on schema auth, platform, private, storage, hosting, functions from public;
+revoke all on schema auth, platform, private, storage, hosting, functions, vault, scheduler from public;

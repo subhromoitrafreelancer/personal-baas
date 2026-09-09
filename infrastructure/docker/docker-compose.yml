@@ -113,6 +113,10 @@ services:
       # Functions (Phase 12) — internal docker-network address only, never routed through Caddy.
       # control-server is the only thing that ever talks to function-runner.
       FUNCTION_RUNNER_URL: http://function-runner:3002
+      # Secrets Vault (Phase 16) — the single master key encrypting every stored secret. Losing
+      # this makes every stored secret permanently undecryptable; treat it with the same care as
+      # AUTH_JWT_PRIVATE_KEY_BASE64.
+      VAULT_MASTER_KEY_BASE64: ${VAULT_MASTER_KEY_BASE64}
     ports:
       - '3000:3000'
     volumes:
@@ -155,6 +159,9 @@ services:
       # Reaches PostgREST directly rather than through Caddy — one fewer network hop, and this
       # service never needs anything Caddy provides (TLS termination, the public routing table).
       POSTGREST_URL: http://postgrest:3001
+      # Secrets Vault (Phase 16) — backs a worker's ctx.secrets.get() callback into
+      # control-server's own /internal/vault/resolve, deliberately never routed through Caddy.
+      CONTROL_SERVER_URL: http://control-server:3000
     depends_on:
       postgrest:
         condition: service_started
