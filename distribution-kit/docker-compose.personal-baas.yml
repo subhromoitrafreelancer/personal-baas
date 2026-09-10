@@ -120,7 +120,7 @@ configs:
 
 services:
   postgres:
-    image: ${BAAS_POSTGRES_IMAGE:-personal-baas-postgres:0.1.0}
+    image: ${BAAS_POSTGRES_IMAGE:-personal-baas-postgres:0.2.0}
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -193,7 +193,7 @@ services:
   # starts, so a clean `docker compose up` doesn't need a manual migration step. Same image as
   # control-server, just a different command.
   control-server-migrate:
-    image: ${BAAS_CONTROL_SERVER_IMAGE:-personal-baas-control-server:0.3.0}
+    image: ${BAAS_CONTROL_SERVER_IMAGE:-personal-baas-control-server:0.6.2}
     environment:
       DATABASE_URL: postgres://baas_admin:${BAAS_ADMIN_PASSWORD}@postgres:5432/${POSTGRES_DB}
     working_dir: /repo/apps/control-server
@@ -205,7 +205,7 @@ services:
       - appnet
 
   control-server:
-    image: ${BAAS_CONTROL_SERVER_IMAGE:-personal-baas-control-server:0.3.0}
+    image: ${BAAS_CONTROL_SERVER_IMAGE:-personal-baas-control-server:0.6.2}
     environment:
       NODE_ENV: ${NODE_ENV:-development}
       PORT: 3000
@@ -234,6 +234,10 @@ services:
       # Functions — internal docker-network address only, never routed through Caddy.
       # control-server is the only thing that ever talks to function-runner.
       FUNCTION_RUNNER_URL: http://function-runner:3002
+      # Secrets Vault — the single master key encrypting every stored secret. Losing this makes
+      # every stored secret permanently undecryptable; treat it with the same care as
+      # AUTH_JWT_PRIVATE_KEY_BASE64. Generate with scripts/generate-vault-key.mjs.
+      VAULT_MASTER_KEY_BASE64: ${VAULT_MASTER_KEY_BASE64}
     # 3000 is published for local convenience (direct control-server access). Everything public
     # goes through Caddy; change CONTROL_SERVER_HOST_PORT to avoid a collision, or remove this
     # block if you want control-server host-unreachable.
@@ -267,7 +271,7 @@ services:
   # credential and never talks to Postgres directly. No host port published: only control-server
   # (over the docker network) ever talks to this.
   function-runner:
-    image: ${BAAS_FUNCTION_RUNNER_IMAGE:-personal-baas-function-runner:0.1.0}
+    image: ${BAAS_FUNCTION_RUNNER_IMAGE:-personal-baas-function-runner:0.2.0}
     # No other service in this compose file sets a restart policy, but function-runner is the
     # one service whose entire job is absorbing crashes from arbitrary function code — without
     # this, a crashed runner process stays dead until someone notices and runs `docker compose
@@ -278,6 +282,9 @@ services:
       # Reaches PostgREST directly rather than through Caddy — one fewer network hop, and this
       # service never needs anything Caddy provides (TLS termination, the public routing table).
       POSTGREST_URL: http://postgrest:3001
+      # Secrets Vault — backs a function's ctx.secrets.get() callback into control-server's own
+      # /internal/vault/resolve, deliberately never routed through Caddy.
+      CONTROL_SERVER_URL: http://control-server:3000
     depends_on:
       postgrest:
         condition: service_started

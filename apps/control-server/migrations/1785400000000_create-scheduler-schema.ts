@@ -2,10 +2,16 @@ import type { MigrationBuilder } from 'node-pg-migrate';
 
 export const shorthands = undefined;
 
-// Scheduler (Phase 13, scope.md §27). The `scheduler` schema itself is created by
-// packages/database-bootstrap/sql/002_schemas.sql (superuser-run bootstrap, same convention as
-// storage/hosting/functions/vault) — this migration only creates the tables within it.
+// Scheduler (Phase 13, scope.md §27). packages/database-bootstrap/sql/002_schemas.sql creates
+// the `scheduler` schema on a *fresh* install (docker-entrypoint-initdb.d only ever runs against
+// an empty data directory) — but an existing deployment upgrading in place never re-runs
+// bootstrap SQL at all, so this migration must be able to create the schema itself too, or the
+// upgrade fails with "schema scheduler does not exist" (same class of bug confirmed live
+// 2026-09-09 for the vault migration above). baas_admin already holds CREATE ON DATABASE
+// (granted in the same bootstrap script, relied on since Phase 9 for runtime api_<slug> schema
+// creation). `ifNotExists: true` makes this a no-op on a fresh install.
 export async function up(pgm: MigrationBuilder): Promise<void> {
+  pgm.createSchema('scheduler', { ifNotExists: true, authorization: 'baas_admin' });
   pgm.createTable(
     { schema: 'scheduler', name: 'scheduled_jobs' },
     {

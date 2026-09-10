@@ -27,8 +27,8 @@ The three personal-baas images must already exist locally — see [Getting the i
 
 ## Getting the images
 
-The compose overlay references three images by tag — `personal-baas-control-server:0.3.0`,
-`personal-baas-function-runner:0.1.0`, `personal-baas-postgres:0.1.0` by default (each image
+The compose overlay references three images by tag — `personal-baas-control-server:0.6.2`,
+`personal-baas-function-runner:0.2.0`, `personal-baas-postgres:0.2.0` by default (each image
 versions independently; control-server currently releases ahead of the other two). They are
 **not** on Docker Hub; you must build or load them yourself. Everything else (PostgREST, MinIO,
 Caddy, busybox) is pulled from Docker Hub automatically.
@@ -62,6 +62,7 @@ use different tags, either `docker tag` them or change `BAAS_*_IMAGE` in `.env`.
 ```bash
 cp .env.example .env
 node scripts/generate-jwt-keys.mjs   # paste the three AUTH_JWT_* lines into .env
+node scripts/generate-vault-key.mjs  # paste the VAULT_MASTER_KEY_BASE64 line into .env
 # fill in every other change_me_* secret in .env
 docker compose -f docker-compose.personal-baas.yml --env-file .env up -d
 ```
@@ -158,9 +159,9 @@ Create your first table in the admin console at `/admin/database`, then mint API
 
 | Variable | Meaning |
 | --- | --- |
-| `BAAS_CONTROL_SERVER_IMAGE` | control-server image tag (default `personal-baas-control-server:0.3.0`) |
-| `BAAS_FUNCTION_RUNNER_IMAGE` | function-runner image tag (default `personal-baas-function-runner:0.1.0`) |
-| `BAAS_POSTGRES_IMAGE` | postgres bootstrap image tag (default `personal-baas-postgres:0.1.0`) |
+| `BAAS_CONTROL_SERVER_IMAGE` | control-server image tag (default `personal-baas-control-server:0.6.2`) |
+| `BAAS_FUNCTION_RUNNER_IMAGE` | function-runner image tag (default `personal-baas-function-runner:0.2.0`) |
+| `BAAS_POSTGRES_IMAGE` | postgres bootstrap image tag (default `personal-baas-postgres:0.2.0`) |
 | `BAAS_NETWORK_NAME` | Docker network your app joins (default `{compose-project}-baas-net`) |
 | `CONTROL_SERVER_HOST_PORT` | host port for direct control-server access (default `3000`) |
 | `POSTGRES_USER/PASSWORD/DB` | Postgres superuser bootstrap (container init only) |
@@ -171,6 +172,7 @@ Create your first table in the admin console at `/admin/database`, then mint API
 | `AUTH_JWT_PRIVATE_KEY_BASE64` | Ed25519 private key (PEM, base64) signing app user tokens |
 | `AUTH_JWT_PUBLIC_KEY_BASE64` | matching public key (PEM, base64) |
 | `AUTH_JWT_PUBLIC_KEY_JWK` | same public key as a JWK — consumed by PostgREST's `PGRST_JWT_SECRET` |
+| `VAULT_MASTER_KEY_BASE64` | Secrets Vault master key — losing it makes stored secrets permanently undecryptable |
 | `AUTH_ACCESS_TOKEN_TTL_SECONDS` | app-user access token lifetime (default 900) |
 | `AUTH_REFRESH_TOKEN_TTL_DAYS` | app-user refresh token lifetime (default 30) |
 | `MINIO_ROOT_USER/PASSWORD` | MinIO credentials, held only by control-server |

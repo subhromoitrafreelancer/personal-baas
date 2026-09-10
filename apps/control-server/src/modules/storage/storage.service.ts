@@ -14,18 +14,23 @@ import { StorageBucketsRepository } from './storage-buckets.repository';
 import { StorageObjectsRepository } from './storage-objects.repository';
 import { StorageBucketRow, StorageObjectRow } from './storage.types';
 
-// Callers of the storage service come from two distinct trust levels: the platform admin
-// console (full access, no ownership concept — mirrors service_role) and application users
-// authenticated via their own JWT (owner-based access, scope.md §21 point 4). Keeping these
-// as a discriminated union rather than a generic "role" string makes it impossible to
-// accidentally grant admin-level access to an app-user request. Both variants carry a
-// projectId (Phase 10, scope.md §24) — for app-user requests this is the caller's own JWT
-// projectId claim; for admin requests it's resolved by the admin controller from an optional
-// ?projectId= query param, same convention as ApiKeysService. Bucket lookups are always scoped
+// Callers of the storage service come from three distinct trust levels: the platform admin
+// console (full access, no ownership concept — mirrors service_role), application users
+// authenticated via their own JWT (owner-based access, scope.md §21 point 4), and a
+// service_role-scoped API key presented directly to /storage/v1/object/* (StorageAccessGuard —
+// a trusted server-side integration that needs to bypass the owner check the same way
+// service_role already bypasses RLS on /rest/v1/*, without impersonating any specific user).
+// Keeping these as a discriminated union rather than a generic "role" string makes it
+// impossible to accidentally grant admin-level access to an app-user request. All three
+// variants carry a projectId (Phase 10, scope.md §24) — for app-user requests this is the
+// caller's own JWT projectId claim; for admin requests it's resolved by the admin controller
+// from an optional ?projectId= query param, same convention as ApiKeysService; for a
+// service-key request it's the API key's own projectId claim. Bucket lookups are always scoped
 // to this projectId, never to name alone — that's the actual cross-project isolation boundary.
 export type StorageRequester =
   | { kind: 'admin'; projectId: string }
-  | { kind: 'app-user'; sub: string; role: string; projectId: string };
+  | { kind: 'app-user'; sub: string; role: string; projectId: string }
+  | { kind: 'service-key'; role: string; projectId: string };
 
 function toPublicBucket(row: StorageBucketRow) {
   return {
@@ -53,15 +58,19 @@ function objectKey(bucket: StorageBucketRow, path: string): string {
   return `${bucket.id}/${path}`;
 }
 
-function canRead(requester: StorageRequester, bucket: StorageBucketRow, object: StorageObjectRow): boolean {
+function canRead(
+  requester: StorageRequester,
+  bucket: StorageBucketRow,
+  object: StorageObjectRow,
+): boolean {
   if (bucket.public) return true;
-  if (requester.kind === 'admin') return true;
+  if (requester.kind === 'admin' || requester.kind === 'service-key') return true;
   if (requester.role === 'service_role') return true;
   return object.owner !== null && object.owner === requester.sub;
 }
 
 function canWrite(requester: StorageRequester, object: StorageObjectRow | null): boolean {
-  if (requester.kind === 'admin') return true;
+  if (requester.kind === 'admin' || requester.kind === 'service-key') return true;
   if (requester.role === 'service_role') return true;
   if (!object) return false;
   return object.owner !== null && object.owner === requester.sub;
@@ -80,7 +89,12 @@ export class StorageService {
     this.minioBucket = config.get('MINIO_BUCKET', { infer: true });
   }
 
-  async createBucket(projectId: string, name: string, isPublic: boolean, sizeLimitBytes: number | null) {
+  async createBucket(
+    projectId: string,
+    name: string,
+    isPublic: boolean,
+    sizeLimitBytes: number | null,
+  ) {
     const existing = await this.buckets.findByName(projectId, name);
     if (existing) {
       throw new ForbiddenException(`Bucket "${name}" already exists`);
@@ -116,7 +130,10 @@ export class StorageService {
     }
 
     const bucket = await this.getBucketOrThrow(params.requester.projectId, params.bucketName);
-    if (bucket.size_limit_bytes !== null && params.buffer.length > Number(bucket.size_limit_bytes)) {
+    if (
+      bucket.size_limit_bytes !== null &&
+      params.buffer.length > Number(bucket.size_limit_bytes)
+    ) {
       throw new PayloadTooLargeException(
         `Object exceeds bucket "${bucket.name}"'s size limit of ${bucket.size_limit_bytes} bytes`,
       );
@@ -135,7 +152,9 @@ export class StorageService {
       params.contentType ? { 'Content-Type': params.contentType } : undefined,
     );
 
-    const owner = params.requester.kind === 'admin' ? null : params.requester.sub;
+    // A service-key upload isn't attributable to any specific real user — same "no owner"
+    // treatment admin uploads already get.
+    const owner = params.requester.kind === 'app-user' ? params.requester.sub : null;
     const row = await this.objects.upsert({
       bucketId: bucket.id,
       path: params.path,

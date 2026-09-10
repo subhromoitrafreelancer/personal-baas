@@ -23,6 +23,11 @@ recreate the containers.
    BAAS_FUNCTION_RUNNER_IMAGE=personal-baas-function-runner:0.2.0
    BAAS_POSTGRES_IMAGE=personal-baas-postgres:0.2.0
    ```
+   **Also diff `.env.example` against your `.env`.** A release can add a newly *required*
+   variable (e.g. `VAULT_MASTER_KEY_BASE64`, added when Secrets Vault shipped) — control-server
+   fails fast at boot with `Invalid environment configuration` if a required variable is
+   missing, so add any new ones (generate with the matching `scripts/generate-*.mjs` helper
+   where one exists) before recreating the stack in step 4.
 4. **Recreate the stack.** Migrations run automatically: the `control-server-migrate` one-shot
    container runs `npm run migrate:up` against the platform/auth schemas before `control-server`
    is allowed to start, so a plain `up -d` is the whole upgrade:
@@ -46,10 +51,13 @@ If you overlay this kit on your own compose file (`-f docker-compose.yml
 
 ## What migrations touch (and what they don't)
 
-Only the `platform` and `auth` schemas are managed by `node-pg-migrate` inside the
-control-server image. Your own `api`/`api_<slug>`/`private` schema objects (tables, views,
-functions, RLS policies created through the SQL editor) are never touched by an upgrade; they're
-exclusively developer-driven and have no tooling-managed shape to migrate.
+`node-pg-migrate` inside the control-server image manages the platform's own schemas
+(`platform`, `auth`, `storage`, `hosting`, `functions`, `vault`, `scheduler`) — creating each
+schema itself (`ifNotExists`) if a fresh-install bootstrap hasn't already, so an in-place
+upgrade of an existing deployment picks up a schema a newer release added without any manual
+step. Your own `api`/`api_<slug>`/`private` schema objects (tables, views, functions, RLS
+policies created through the SQL editor) are never touched by an upgrade; they're exclusively
+developer-driven and have no tooling-managed shape to migrate.
 
 ## Secrets
 
