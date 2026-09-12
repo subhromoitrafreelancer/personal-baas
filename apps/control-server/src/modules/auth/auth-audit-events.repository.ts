@@ -31,6 +31,26 @@ export class AuthAuditEventsRepository {
     );
   }
 
+  // Backs the login-lockout check (scope.md §31 point 4) — counts recent auth.login_failed
+  // events for one email, independent of the in-memory request-rate throttle, so a slow brute
+  // force spread out under that throttle's own window still gets caught. Filters event_type/
+  // created_at first (both indexed) before the metadata->>'email' comparison, so this stays cheap
+  // even without a dedicated jsonb index at this platform's expected event volume.
+  async countRecentByEmail(
+    email: string,
+    eventType: string,
+    windowMinutes: number,
+  ): Promise<number> {
+    const { rows } = await this.pool.query<{ count: string }>(
+      `SELECT count(*) FROM auth.audit_events
+       WHERE event_type = $1
+         AND created_at > now() - ($2 || ' minutes')::interval
+         AND metadata->>'email' = $3`,
+      [eventType, windowMinutes, email.toLowerCase()],
+    );
+    return Number(rows[0].count);
+  }
+
   async list(limit: number, offset: number): Promise<{ rows: AuthAuditEventRow[]; total: number }> {
     const { rows } = await this.pool.query<AuthAuditEventRow>(
       `SELECT ae.*, u.email AS user_email

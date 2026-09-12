@@ -1,6 +1,17 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { z } from 'zod';
+import { AUTH_THROTTLE } from '../rate-limit/auth-throttle';
 import { AccessTokenGuard } from './access-token.guard';
 import { ApiKeyBearerGuard } from './api-key-bearer.guard';
 import { LoginService } from './login.service';
@@ -46,6 +57,7 @@ export class AuthController {
 
   @Post('signup')
   @UseGuards(ApiKeyBearerGuard)
+  @Throttle(AUTH_THROTTLE)
   async signup(@Body() body: unknown, @Req() req: RequestWithApiKeyProject) {
     const parsed = signupBodySchema.safeParse(body);
     if (!parsed.success) {
@@ -63,6 +75,7 @@ export class AuthController {
 
   @Post('login')
   @UseGuards(ApiKeyBearerGuard)
+  @Throttle(AUTH_THROTTLE)
   async login(@Body() body: unknown, @Req() req: RequestWithApiKeyProject) {
     const parsed = loginBodySchema.safeParse(body);
     if (!parsed.success) {

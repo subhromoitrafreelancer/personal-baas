@@ -3,18 +3,14 @@ import { z } from 'zod';
 export const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
-  LOG_LEVEL: z
-    .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
-    .default('info'),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   // Connection string for the baas_admin role — the only role the control service uses to
   // talk to Postgres. Never used for application-table access (that goes through PostgREST).
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   // Signs the admin console's httpOnly session cookie. Deliberately separate from the
   // application-user JWT signing keys (Phase 3) — admin auth and app auth stay cryptographically
   // independent even though both use JWTs.
-  ADMIN_SESSION_SECRET: z
-    .string()
-    .min(32, 'ADMIN_SESSION_SECRET must be at least 32 characters'),
+  ADMIN_SESSION_SECRET: z.string().min(32, 'ADMIN_SESSION_SECRET must be at least 32 characters'),
   // Used once, on first boot, to create the initial platform administrator if
   // platform.platform_admins is empty. Safe to leave unset after that.
   INITIAL_ADMIN_EMAIL: z.string().email().optional(),
@@ -56,13 +52,21 @@ export const envSchema = z.object({
   // independent of each bucket's own admin-configurable size_limit_bytes (storage.buckets),
   // which is enforced separately in StorageService after the file is already buffered. This
   // bounds worst-case process memory regardless of bucket config.
-  STORAGE_MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(25 * 1024 * 1024),
+  STORAGE_MAX_UPLOAD_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(25 * 1024 * 1024),
   // Static hosting (Phase 11, scope.md §25) — caps on a single admin-console zip deploy.
   // HOSTING_MAX_DEPLOY_BYTES bounds total *uncompressed* size across every file in the zip
   // (checked while iterating entries, before anything is written to MinIO or Postgres) —
   // deliberately larger than STORAGE_MAX_UPLOAD_BYTES since a static site bundle (JS/CSS/images)
   // is typically much bigger than a single object upload.
-  HOSTING_MAX_DEPLOY_BYTES: z.coerce.number().int().positive().default(100 * 1024 * 1024),
+  HOSTING_MAX_DEPLOY_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(100 * 1024 * 1024),
   HOSTING_MAX_FILE_COUNT: z.coerce.number().int().positive().default(2000),
   // Functions (Phase 12, scope.md §26) — the function-runner sibling process's internal
   // docker-network address. Never routed through Caddy; only control-server talks to it,
@@ -74,6 +78,21 @@ export const envSchema = z.object({
   // If this is ever lost, every stored secret becomes permanently undecryptable: there is no
   // recovery path, so treat it with the same care as AUTH_JWT_PRIVATE_KEY_BASE64.
   VAULT_MASTER_KEY_BASE64: z.string().min(1, 'VAULT_MASTER_KEY_BASE64 is required'),
+  // Rate limiting (Phase 17, scope.md §31) — coarse global request-rate limit applied to every
+  // control-server route via a global @nestjs/throttler guard. In-memory store, correct only for
+  // a single-instance deployment (same caveat already accepted for Realtime §22/Scheduler §27).
+  RATE_LIMIT_GLOBAL_MAX: z.coerce.number().int().positive().default(300),
+  RATE_LIMIT_GLOBAL_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  // Stricter per-route override on /auth/v1/login and /auth/v1/signup, tracked by (ip, email)
+  // together rather than ip alone, so one attacker can't hide a distributed-email brute force
+  // behind a single IP's aggregate budget.
+  RATE_LIMIT_AUTH_MAX: z.coerce.number().int().positive().default(10),
+  RATE_LIMIT_AUTH_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  // Persistent login-lockout tracking, independent of and in addition to the request-rate
+  // throttle above — catches a slow, low-and-steady brute force spread out under the rate
+  // limit's own window. Backed by auth.audit_events (auth.login_failed rows), not in-memory.
+  LOGIN_LOCKOUT_THRESHOLD: z.coerce.number().int().positive().default(10),
+  LOGIN_LOCKOUT_WINDOW_MINUTES: z.coerce.number().int().positive().default(15),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

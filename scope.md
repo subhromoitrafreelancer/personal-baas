@@ -813,6 +813,8 @@ Storage and Realtime subscriptions, originally excluded here and listed under §
 
 Edge/serverless functions, also originally excluded, are promoted to a real phase (§17 Phase 12) now that Phase 9's multi-project model exists to scope functions to — see §26. Static hosting and a job scheduler were not part of the original exclusion list at all; they're new, later additions covered by §25 and §27. Separately, storage's per-project isolation is being retrofitted in §17 Phase 10 to close a gap Phase 7 shipped before Phase 9's project model existed — see §24. A secrets vault (Phase 16) was likewise never part of the original exclusion list — it's a new, later addition covered by §30, added once Functions (§26) existed for it to serve as a runtime credential store for.
 
+Five more items, driven by concrete downstream-project demand rather than speculative roadmap planning, have likewise since been promoted to real phases: **rate limiting / brute-force protection** (§18 Expansion 7 → §17 Phase 17, §31), **outbound email via Resend** (§18 Expansion 8 → §17 Phase 18, §32), **MFA** (§18 Expansion 6 → §17 Phase 19, §33), **PDF generation via a vendor-agnostic external API** (§18 Expansion 9 → §17 Phase 20, §34), and an **AI Gateway** (§18 Expansion 10 → §17 Phase 21, §35, the largest of the five). See §31–§35 for their full designs (schema, endpoints, acceptance criteria), in the style of §21–§30.
+
 ---
 
 # 17. Development Phases
@@ -1138,6 +1140,58 @@ See §26 Functions Model for the full design.
 
 Depends on Phase 12 — a scheduled job's unit of work is a function invocation, not a separate execution primitive. See §27 Scheduler Model for the full design.
 
+## Phase 17 — Rate limiting & brute-force protection
+
+### Features
+
+* `@nestjs/throttler` global guard across all control-server routes, in-memory store
+* Stricter per-route throttling on `/auth/v1/login`, `/auth/v1/signup`, and `/auth/v1/mfa/verify`
+* Persistent login-lockout tracking per email via `auth.audit_events`, independent of raw request-rate throttling
+
+Closes the still-open Phase 6b items. Promoted from §18 Expansion 7. See §31 Rate Limiting Model for the full design.
+
+## Phase 18 — Outbound email
+
+### Features
+
+* Platform-level Resend integration (`EmailModule`, plain fetch wrapper — no SDK dependency)
+* `email.sent_messages` audit table
+* Self-service `/auth/v1/password-reset/request` — the password-reset email deferred since §6
+* `ctx.email.send()` Functions capability, reusing the internal-callback mechanism built for Vault (§30)
+
+Promoted from §18 Expansion 8. See §32 Outbound Email Model for the full design.
+
+## Phase 19 — Multi-Factor Authentication
+
+### Features
+
+* TOTP (RFC 6238) enrollment + backup codes, encrypted at rest with the same libsodium primitive as the Secrets Vault (§30)
+* `/auth/v1/login` returns a pending-MFA state; `/auth/v1/mfa/verify` issues the real token pair
+* Admin-triggered MFA reset for lockout recovery
+
+Lives in the Auth module itself, not Functions. Promoted from §18 Expansion 6. See §33 MFA Model for the full design.
+
+## Phase 20 — PDF generation
+
+### Features
+
+* Vendor-agnostic `PdfProvider` interface; a config-driven `GenericHttpPdfProvider` covers three common hosted-API response shapes, plus a `MockPdfProvider` for v1 acceptance testing
+* `ctx.pdf.render()` / `ctx.pdf.renderToStorage()` Functions capabilities, via the same internal-callback mechanism as Vault/Email
+* `pdf.render_requests` audit table
+
+No concrete vendor is selected or wired by default — wiring one in later is pure env configuration. Promoted from §18 Expansion 9. See §34 PDF Generation Model for the full design.
+
+## Phase 21 — AI Gateway
+
+### Features
+
+* Provider-agnostic `AiProvider` interface with two real adapters (Anthropic, OpenAI) in v1
+* Per-project provider/model configuration (`ai.provider_configs`), API key stored in that project's own Secrets Vault
+* `POST /ai/v1/complete` REST surface and `ctx.ai.complete()` Functions capability
+* Stored, editable prompt templates; JSON-Schema structured-output validation; per-request token/cost metering (`ai.requests`)
+
+The largest of the five. Promoted from §18 Expansion 10. See §35 AI Gateway Model for the full design.
+
 ---
 
 # 18. Later Roadmap
@@ -1173,7 +1227,7 @@ After the initial product is stable, add features in this order:
 * Email verification
 * Magic links
 * Social providers
-* MFA
+* MFA — **prioritized out of this generic bucket, see Expansion 6**
 * Organizations and memberships
 * Custom JWT claims
 
@@ -1181,6 +1235,95 @@ After the initial product is stable, add features in this order:
 
 * Add a GraphQL layer using an existing PostgreSQL-aware engine
 * Do not implement GraphQL schema generation manually
+
+## Expansion 6: Multi-Factor Authentication (promoted — see §17 Phase 19 and §33)
+
+Driven by downstream project demand — several applications built on this platform require MFA
+and it is currently a hard "no" (§6, §16). Detailed design to follow separately, but the shape is
+already clear enough to commit to:
+
+* TOTP (RFC 6238) + backup/recovery codes as the v1 factor — no SMS, no WebAuthn/passkeys yet,
+  consistent with this platform's "start simple" posture elsewhere.
+* Lives in the **Auth module itself**, not Functions — MFA is part of the login handshake
+  (`/auth/v1/login` returns a pending-MFA state instead of tokens when enabled; a second
+  `/auth/v1/mfa/verify` call issues the real access/refresh pair), which a project-scoped,
+  post-authentication Function has no way to intercept.
+* New `auth.mfa_factors` / `auth.mfa_backup_codes` tables; secrets encrypted at rest reusing the
+  libsodium primitive already vendored for the Secrets Vault (§30), not a new crypto dependency.
+* Per-user optional enrollment in v1; an org/project-level "MFA required" policy toggle is a
+  natural fast-follow once enrollment itself works.
+* Admin console gains an admin-triggered "reset this user's MFA" action for lockout recovery —
+  same trust level as existing admin user-management actions (§5.1).
+
+Comparable effort to a full phase (Storage- or Functions-sized), not a small patch — mainly
+because it touches the login state machine and session issuance, not just a new table.
+
+## Expansion 7: Rate Limiting & Brute-Force Protection (promoted — see §17 Phase 17 and §31)
+
+Closes the still-open Phase 6b items (rate limiting, brute-force login protection — scope.md
+§17 Phase 6b). Lower effort than it looks:
+
+* `@nestjs/throttler` (official NestJS package) as a global guard, with a stricter per-route
+  override on `/auth/v1/login` and `/auth/v1/signup` specifically.
+* In-memory store is sufficient given this platform's already-established single-instance
+  deployment assumption (the same caveat already accepted for Realtime §22 and Scheduler §27) —
+  no Redis needed unless that assumption changes.
+* One of the lowest-effort items on this whole roadmap; mainly configuration, not new
+  architecture.
+
+## Expansion 8: Outbound Email (promoted — see §17 Phase 18 and §32)
+
+Email delivery infrastructure was explicitly excluded from v1 (§16) — downstream projects need
+it for password-reset (the originally-deferred flow from §6/Phase 6) and their own transactional
+notifications.
+
+* Backed by the **Resend** API — a new module wraps it, not a self-hosted MTA.
+* Platform-level credential (env-configured, same convention as `AUTH_JWT_PRIVATE_KEY_BASE64`/
+  `VAULT_MASTER_KEY_BASE64`), not a per-project Vault secret, since sending capability is a
+  shared platform service, not project-owned data.
+* Exposes a new `ctx.email.send()` capability to Functions (mirrors `ctx.rest`/`ctx.secrets`),
+  plus finally implements the platform's own long-deferred password-reset email.
+* Sending logged to a new `email.sent_messages` table, same audit-table convention as
+  `functions.invocations`/`scheduler.job_runs`.
+
+## Expansion 9: PDF Generation (promoted — see §17 Phase 20 and §34)
+
+Never part of the original scope at all — new demand from downstream projects needing
+client-facing PDF reports/documents.
+
+* Backed by an external HTML→PDF API (same "wrap a hosted API, don't self-host a renderer"
+  shape as Expansion 8's email choice) rather than running headless Chrome or a rendering
+  engine as a sibling service.
+* Exposes a `ctx.pdf.render(html)` capability to Functions, returning bytes that land in
+  Storage (§21) through the existing storage-write path rather than a new delivery mechanism.
+* Needs its own size/timeout caps, same `*_MAX_*_BYTES`-style env convention already used for
+  uploads (§21 point 6) and hosting deploys (§25 point 3).
+
+## Expansion 10: AI Gateway (promoted — see §17 Phase 21 and §35)
+
+The most substantial of the newly-queued items — genuinely new architectural surface, not a
+thin API wrapper like Expansions 8/9.
+
+* **Native control-server module, not a user-authored Function.** Functions can't hold
+  provider credentials safely without a per-call Vault round-trip anyway, can't `npm install`
+  a provider SDK or a schema-validation library (single-file, no-dependency execution per §26
+  point 2), and the cross-cutting concerns below are exactly the kind of thing this platform
+  already centralizes once rather than reimplementing per project (compare Storage, Vault).
+* Provider abstraction (start with one provider, architect for more), prompt/template
+  versioning (stored, not hardcoded in Function source), structured-output validation,
+  retries/timeouts, and per-request cost/token metering logged to a new `ai.requests` table —
+  same audit convention as every other subsystem here.
+* Two surfaces: a direct project-scoped `POST /ai/v1/*` REST endpoint (for simple frontend-only
+  copilot calls, `AccessTokenGuard`-protected like Storage/Functions) **and** a `ctx.ai`
+  capability inside Functions (for orchestration that needs both AI and `ctx.rest` project data
+  in the same call).
+* A feature-flag/policy layer per project (which AI capabilities are enabled) falls out
+  naturally from this module's own config table — useful for any downstream project with its
+  own regulatory constraints on AI-assisted decisions.
+
+Comparable in scope to Functions (§26) itself, likely larger once streaming responses and cost
+metering are designed in detail — budget accordingly. Full design deferred to a separate pass,
+same as the other Expansions above.
 
 ---
 
@@ -2076,6 +2219,461 @@ returned); creating a secret with a lowercase or space-containing name is reject
 server-side with the `UPPER_SNAKE_CASE` convention shown as the correction hint; killing
 `function-runner` mid-invocation leaves no orphaned invocation token reachable after its TTL
 elapses.
+
+---
+
+# 31. Rate Limiting Model
+
+Phase 17. Closes the still-open Phase 6b items (rate limiting, brute-force login protection).
+Lowest-effort of the five newly-promoted phases — mainly configuration on top of an
+off-the-shelf NestJS package, not new architecture.
+
+```text
+1. Library: @nestjs/throttler (official NestJS package), registered as a global
+   APP_GUARD in AppModule. In-memory storage — the default ThrottlerStorageService,
+   no Redis — consistent with this platform's already-established single-instance
+   deployment assumption, the same caveat already accepted for Realtime (§22) and
+   Scheduler (§27).
+
+2. Global default: every control-server HTTP route (auth/admin/rest-adjacent
+   control-server routes, storage, hosting, functions) gets a default throttle —
+   env-configurable RATE_LIMIT_GLOBAL_MAX / RATE_LIMIT_GLOBAL_WINDOW_MS, same
+   *_MAX_*-style convention as every other tunable on this platform (§21 point 6,
+   §25 point 3). Tracked per client IP by default (@nestjs/throttler's own
+   getTracker()).
+
+3. Stricter per-route override on the three routes where brute-forcing actually
+   matters: POST /auth/v1/login, POST /auth/v1/signup, and POST /auth/v1/mfa/verify
+   (§33, once Phase 19 ships — this route doesn't exist until then, added to the
+   same override list at that point). A custom getTracker() on these routes keys on
+   (ip_address, body.email) together, not IP alone — so one attacker can't hide a
+   distributed-email brute force behind a single IP's aggregate budget, and one
+   legitimate user's repeated mistakes from one IP don't exhaust the budget for
+   every other email attempted from a shared IP (an office NAT, a mobile carrier).
+   Env-configurable RATE_LIMIT_AUTH_MAX / RATE_LIMIT_AUTH_WINDOW_MS, tighter defaults
+   than the global limit.
+
+4. Persistent lockout tracking, separate from and in addition to raw request-rate
+   throttling: request-rate throttling alone doesn't catch a slow, low-and-steady
+   brute force spread out under the rate limit's window. A new auth.audit_events
+   event type, auth.login_failed (already-existing table, §7 — no new table), is
+   recorded on every failed login attempt (email, ip_address, attempted_at already
+   fit the existing audit_events shape). Before processing a login attempt, the
+   login handler counts auth.login_failed events for that email in the last
+   LOGIN_LOCKOUT_WINDOW_MINUTES; at or above LOGIN_LOCKOUT_THRESHOLD it returns 429
+   immediately without checking the password at all (avoids a timing side-channel
+   revealing whether the account exists via a slower bcrypt/argon2 comparison path).
+   A successful login does not need to explicitly clear the counter — the window is
+   time-based, not a running total — matching the request-rate throttle's own
+   windowed-not-cumulative semantics.
+
+5. Response shape: standard @nestjs/throttler 429 with a Retry-After header,
+   propagated through Caddy unchanged (no reverse-proxy-level rate limiting added
+   in this phase — Caddy passes the upstream status/headers through as-is).
+
+6. Explicit scope boundary: this phase limits control-server's own routes only. It
+   does not rate-limit PostgREST's /rest/v1/* directly — fronting PostgREST through
+   control-server to add limiting there would mean control-server intercepting
+   every data-API call, which contradicts §19 point 3 (the control service does not
+   duplicate PostgREST). A future reverse-proxy-level limiter (a Caddy rate-limit
+   plugin, applied uniformly regardless of upstream) is a reasonable follow-up if
+   raw REST traffic ever needs limiting, not required for this phase.
+
+7. No new admin UI page in v1 (same "no dedicated surface" non-goal already used
+   for Scheduler §27 point 9 and Vault §30 point 8) — lockout events are just
+   auth.login_failed rows, already visible through the existing Audit page.
+```
+
+**Acceptance**: repeated wrong-password attempts against one email from one IP return 429 after
+`RATE_LIMIT_AUTH_MAX` attempts within the window, with a `Retry-After` header intact through
+Caddy; a different email attempted from the same IP is unaffected until its own threshold;
+sustained slow attempts spread out to stay under the request-rate window still trigger the
+persistent `LOGIN_LOCKOUT_THRESHOLD` lockout once enough `auth.login_failed` events accumulate;
+ordinary traffic under the global limit sees no behavior change.
+
+---
+
+# 32. Outbound Email Model
+
+Phase 18. Backed by the Resend API — a new module wraps it via plain `fetch` (no SDK dependency,
+consistent with this project's minimal-dependency posture), not a self-hosted MTA. Finally
+implements the password-reset email deferred since §6, and gives Functions a
+`ctx.email.send()` capability for their own transactional notifications.
+
+```text
+1. Platform-level credential, not a per-project Vault secret: RESEND_API_KEY and
+   EMAIL_FROM_ADDRESS (a verified sending domain), supplied via env or mounted file,
+   same convention as AUTH_JWT_PRIVATE_KEY_BASE64 / VAULT_MASTER_KEY_BASE64 (§6, §30
+   point 3). Sending capability is a shared platform service, not project-owned
+   data, so it doesn't belong in a project's own Secrets Vault namespace.
+
+2. email.sent_messages (id, project_id nullable, to_address, subject, status
+   ('sent'|'failed'), provider_message_id, error, created_at) — audit table, same
+   convention as functions.invocations / scheduler.job_runs. project_id is nullable
+   because a platform-level system email (e.g. triggered by an admin action with no
+   project context) is possible in principle, even though every v1 caller
+   (password-reset requests, ctx.email.send) always has one.
+
+3. No template engine, no stored/editable templates in v1 — a real added surface,
+   deferred per this platform's "start simple" posture elsewhere (mirrors §26
+   point 2's single-file-no-dependency stance and §30 point 1's no-version-history
+   stance). The password-reset email body is a small hardcoded HTML string built by
+   EmailModule itself; ctx.email.send() takes raw {to, subject, html, text?}
+   directly from calling code. Stored/editable templates are a reasonable later
+   addition once real usage exists, not required for v1.
+
+4. Self-service password reset, finally implemented: POST
+   /auth/v1/password-reset/request {email} (public, unauthenticated) generates the
+   existing auth.password_reset_tokens row (already modeled in §7) and emails a
+   link built from PASSWORD_RESET_URL_TEMPLATE (an env var like
+   "https://myapp.example/reset?token={token}" — a multi-project platform has no
+   single admin-owned reset page for arbitrary tenant end-users, so the developer's
+   own frontend URL is configured per deployment, same spirit as examples/todo-app's
+   own config.js convention, §25 point 5). Always returns 200 regardless of whether
+   the email exists, to avoid user enumeration — this must be true of both the
+   response body and its timing.
+
+   This is additive to, not a replacement for, the existing §6 admin-generated
+   reset-link/temporary-password flow — that flow keeps working exactly as it does
+   today.
+
+5. ctx.email.send({to, subject, html, text?}) Functions capability: reuses the
+   internal-callback mechanism already built for ctx.secrets (§30 point 5) rather
+   than inventing a new one — the same per-invocation opaque token, minted by
+   control-server at the same moment it calls function-runner's /run, is now also
+   accepted by a new POST /internal/email/send endpoint (alongside the existing
+   /internal/vault/resolve). Recorded into email.sent_messages with the invoking
+   function's project_id. A scheduled invocation (§27) goes through this identical
+   path with no special-casing, same as vault access already does.
+
+6. Volume control: a single global EMAIL_MAX_PER_MINUTE throttle on the internal
+   send endpoint, reusing Phase 17's @nestjs/throttler infrastructure directly
+   rather than a new per-project quota table — matches the "trust the platform
+   operator" posture already extended to functions.functions and
+   hosting.site_files row counts (no cap there either).
+
+7. Explicit non-goals: no inbound email, no bounce/complaint webhook handling (Resend
+   supports delivery-event webhooks, but wiring a public webhook endpoint with
+   signature verification is real added surface, not required for v1's send-only
+   scope), no template system (point 3), no per-project sending quota (point 6), no
+   admin compose/send-test UI — the admin console gets a minimal /admin/email recent-
+   sends list reading email.sent_messages (same list-only pattern as the Audit page),
+   nothing more.
+```
+
+**Acceptance**: `POST /auth/v1/password-reset/request` for a real user's email results in a
+Resend-delivered email containing a valid reset-token link, and submitting that token to the
+existing password-reset-confirm endpoint successfully sets a new password; requesting a reset
+for a non-existent email returns the identical 200 response with no observable difference; a
+Function calling `ctx.email.send()` produces a `'sent'` row in `email.sent_messages` carrying a
+real Resend `provider_message_id`.
+
+---
+
+# 33. MFA Model
+
+Phase 19. TOTP (RFC 6238) plus backup codes, the v1 factor per §18 Expansion 6 — no SMS, no
+WebAuthn/passkeys yet. Lives in the Auth module itself, not Functions, since MFA is part of the
+login handshake and a project-scoped, post-authentication Function has no way to intercept that
+handshake.
+
+```text
+1. auth.mfa_factors (id, user_id references auth.users(id) on delete cascade,
+   type text default 'totp', secret_nonce bytea, secret_ciphertext bytea, verified
+   boolean default false, created_at, verified_at), unique(user_id) — one TOTP
+   factor per user in v1 (not multiple enrolled devices); multiple factors per user
+   is a reasonable later extension, not required now. The TOTP secret is encrypted
+   with the exact same libsodium primitive and VAULT_MASTER_KEY_BASE64 master key
+   already built for the Secrets Vault (§30 point 3) — no new crypto dependency, no
+   second master key to manage or lose.
+
+2. auth.mfa_backup_codes (id, user_id references auth.users(id) on delete cascade,
+   code_hash text, used_at nullable, created_at) — codes hashed with Argon2id (the
+   same password-hashing primitive already in the stack, §5 recommended-stack
+   table), one-time use (used_at set on redemption, a used code is never valid
+   again). A batch of 10 is generated at successful enrollment and shown once (same
+   write-once-reveal convention as API keys, §14, and Vault secrets, §30 point 4);
+   regenerating invalidates all previously-unused codes.
+
+3. TOTP implementation: the `otplib` npm package (MIT-licensed, RFC 6238-compliant)
+   for secret generation and code verification — the crypto-primitive reuse
+   instruction in §18 Expansion 6 is about the encryption-at-rest layer (point 1),
+   not the TOTP algorithm itself, which unavoidably needs its own well-known
+   implementation.
+
+4. Enrollment flow (requires an already-authenticated session — MFA enrollment is
+   self-service, not something an unauthenticated caller can trigger):
+
+   a) POST /auth/v1/mfa/enroll — generates a new TOTP secret, stores it encrypted
+      with verified=false, and returns both the raw base32 secret (for manual
+      entry) and a standard otpauth:// URI (for QR-code rendering — no server-side
+      QR image generation needed; any calling frontend can render the URI as a QR
+      code with a small client-side library, or show the base32 secret directly).
+
+   b) POST /auth/v1/mfa/verify-enrollment {code} — validates the submitted TOTP
+      code against the pending factor; on success sets verified=true and returns
+      the one-time backup-code batch (point 2). A factor is never usable for login
+      purposes until verified=true — this prevents a user locking themselves out by
+      enrolling with a misconfigured authenticator app before ever confirming it
+      works.
+
+5. Login handshake change: POST /auth/v1/login, when the caller has a verified
+   mfa_factors row, does not return access/refresh tokens directly. Instead it
+   returns { mfaRequired: true, mfaToken } — mfaToken is a short-lived (~5 minute),
+   narrowly-scoped signed token (same Ed25519 key, but a distinct aud/role claim
+   shape that AccessTokenGuard structurally rejects, so it can never be mistaken
+   for or replayed as a real access token) carrying only user_id and
+   purpose: 'mfa'. It proves the password step already succeeded; it grants nothing
+   else.
+
+   POST /auth/v1/mfa/verify {mfaToken, code} validates the TOTP code (or a backup
+   code as a fallback, marking it used on success) against the token's user_id, and
+   on success issues the real access/refresh token pair through the exact same
+   session-creation path a normal successful login uses.
+
+6. Rate limiting: /auth/v1/mfa/verify gets the same strict per-route throttle as
+   /auth/v1/login (§31 point 3 — a 6-digit TOTP code is a small enough space to be
+   brute-forceable without this).
+
+7. Admin-triggered reset: DELETE /admin/v1/users/:id/mfa (AdminSessionGuard) deletes
+   the user's mfa_factors and mfa_backup_codes rows outright, for lockout recovery
+   when a device and backup codes are both lost. Same trust level as every other
+   admin user-management action (§5.1) — this console has no role/permission system
+   to introduce a narrower one for (§29 point 6 already established this). Audited
+   as admin.mfa_reset.
+
+8. Self-service disable: DELETE /auth/v1/mfa (authenticated) requires the current
+   password plus a valid TOTP/backup code as re-confirmation — disabling MFA is
+   itself a sensitive action and shouldn't be possible from a bare authenticated
+   session alone (e.g. a stolen access token with no factor of its own).
+
+9. Admin UI: the existing Users page gains an MFA status badge and a "Reset MFA"
+   row action (§28 point 2's icon set) with a confirm modal. No new self-service
+   enrollment UI in the admin console itself — the admin console manages
+   application users, it never role-plays as the tenant application's own
+   frontend (the same boundary already implicit in every prior phase); enrollment
+   is exercised via the API by whatever frontend a downstream project builds.
+
+10. Explicit non-goal for v1: a project-level "MFA required" policy toggle. Per-user
+    optional enrollment only in v1; a required-for-all-users policy is a natural
+    fast-follow once enrollment itself is proven, not bundled into this phase.
+```
+
+**Acceptance**: enrolling MFA for a test user and verifying with a real (or `otplib`-computed)
+TOTP code confirms the factor; a subsequent login returns `mfaRequired` instead of tokens;
+`mfa/verify` with the correct code issues real tokens, with an incorrect code is rejected, and
+enough incorrect attempts trigger Phase 17's rate limit; a backup code succeeds exactly once and
+fails on reuse; an admin-triggered reset clears the factor and password-only login works again
+immediately afterward.
+
+---
+
+# 34. PDF Generation Model
+
+Phase 20. Backed by an external HTML→PDF API — wrap a hosted API rather than self-hosting a
+renderer, the same shape as Phase 18's email choice — designed vendor-agnostically, with the
+actual vendor selection deliberately deferred to a later, purely-configuration decision.
+
+```text
+1. PdfProvider interface: render(html: string, options?: { format?, margin?,
+   timeoutMs? }) => Promise<Buffer>. A new PdfModule in control-server holds the
+   interface and its adapters — structurally similar in spirit to the AI Gateway's
+   own provider abstraction (§35), just a single-method surface instead of a whole
+   request/response negotiation.
+
+2. GenericHttpPdfProvider — the real, vendor-agnostic adapter, entirely
+   config-driven: PDF_API_URL, PDF_API_AUTH_HEADER, PDF_API_AUTH_VALUE,
+   PDF_API_HTML_FIELD (default "html"), and PDF_API_RESPONSE_MODE
+   ("binary" | "json_url" | "json_base64", default "binary") — covering the three
+   common response shapes hosted HTML→PDF APIs use (raw PDF bytes in the response
+   body; a JSON body containing a downloadable URL; a JSON body containing
+   base64-encoded bytes). Whichever vendor eventually gets chosen is very likely to
+   fit one of these three shapes with zero code change, only env configuration —
+   this is the concrete deliverable of "design provider-agnostic, pick vendor
+   later."
+
+3. MockPdfProvider — selected when PDF_PROVIDER=mock or when no PDF_API_URL is
+   configured (the default out of the box). Returns a minimal valid single-page PDF
+   byte buffer with no network call, sufficient to prove the whole path (Functions
+   capability → provider → Storage write) end-to-end without committing to or
+   paying for a real vendor account. Real vendor wiring is a deployment-time
+   decision, not a code change.
+
+4. Size/timeout/output caps: PDF_MAX_HTML_BYTES (input), PDF_TIMEOUT_MS,
+   PDF_MAX_OUTPUT_BYTES (defends against a misbehaving vendor response) — same
+   *_MAX_*_BYTES-style env convention as Storage (§21 point 6) and Hosting (§25
+   point 3).
+
+5. ctx.pdf.render(html, options?) Functions capability: goes through the same
+   internal-callback pattern as ctx.secrets/ctx.email (a new POST
+   /internal/pdf/render control-server endpoint, reusing the existing
+   per-invocation opaque token) rather than letting function-runner call an
+   external PDF vendor directly — function-runner holds no outbound credential of
+   its own, and the vendor's auth header value should only ever live inside
+   control-server's own process, mirroring §30 point 5's rationale for secrets.
+   Returns a Buffer to the calling function's code.
+
+6. ctx.pdf.renderToStorage(html, { bucket, path, options? }) — a convenience that
+   renders then writes the resulting bytes through the existing internal
+   storage-write path (reusing StorageService directly, no new upload mechanism),
+   returning the resulting storage.objects row. This is the "bytes land in Storage
+   through the existing storage-write path" design goal made concrete.
+
+7. pdf.render_requests (id, project_id, status, duration_ms, output_bytes, error,
+   created_at) — same audit/observability convention as functions.invocations /
+   scheduler.job_runs.
+
+8. No direct /pdf/v1/* REST endpoint in v1 — PDF generation is Functions-only,
+   deliberately, since it composes naturally with a Function already assembling
+   HTML from ctx.rest data, and a direct endpoint is an easy later addition if a
+   concrete need for one shows up. This is a scoping choice, not an oversight.
+
+9. Vendor credential scope: platform-level config (PDF_API_URL etc.), not a
+   per-project Vault secret — a PDF-rendering credential is a shared platform cost
+   center like Resend (Phase 18), not project-owned data the way an AI provider key
+   is; Expansion 9 never asked for per-project vendor configurability the way the
+   AI Gateway question explicitly did.
+
+10. Explicit non-goals: no vendor selected or wired by default (point 3), no
+    per-project vendor override (point 9), no PDF template system, no async/
+    webhook-callback rendering mode — v1 is synchronous request/response only,
+    bounded by PDF_TIMEOUT_MS.
+```
+
+**Acceptance**: with the default `MockPdfProvider`, a Function calling `ctx.pdf.render('<h1>hi</h1>')`
+receives non-empty PDF-like bytes and a `pdf.render_requests` row is written;
+`ctx.pdf.renderToStorage(...)` produces a real, downloadable `storage.objects` row containing
+those bytes; switching `PDF_PROVIDER` to a real vendor requires only env-var changes when that
+vendor's response shape matches one of `GenericHttpPdfProvider`'s three supported modes, no code
+change.
+
+---
+
+# 35. AI Gateway Model
+
+Phase 21. The most substantial of the five newly-promoted phases — genuine new architectural
+surface, not a thin API wrapper like Phases 18/20. Provider-agnostic by design, with per-project
+admin-configured provider selection: a core requirement (not a v1 shortcut) driven directly by
+downstream-project need, so at least two real adapters ship in v1 rather than one — a
+"configurable" choice with only one real option isn't actually configurable.
+
+```text
+1. AiProvider interface: complete(request: AiCompletionRequest) =>
+   Promise<AiCompletionResponse>, where both request and response are a normalized
+   common shape (messages array, model, maxTokens, temperature, optional
+   responseFormat.jsonSchema) — never any one vendor's raw wire format leaking
+   through this layer. Two concrete adapters ship in v1: AnthropicProvider and
+   OpenAiProvider, each translating the common shape to/from that vendor's actual
+   REST contract.
+
+2. ai.provider_configs (id, project_id references platform.projects(id) on delete
+   cascade, provider text check (provider in ('anthropic','openai')), model text,
+   enabled boolean default true, created_at, updated_at), unique(project_id) — one
+   active provider+model pair per project in v1 (switching providers means editing
+   this row, not running two in parallel simultaneously) — the same "one active X
+   per project" shape hosting.sites already uses (§25 point 2). model is free text,
+   not a hardcoded enum, since providers ship new models faster than this platform
+   should need a code deploy to allow one.
+
+3. API key storage reuses the Secrets Vault (§30) rather than inventing a second
+   encryption path: the admin console's AI config page writes the provider's API
+   key as a vault secret under a reserved name, AI_PROVIDER_API_KEY, in that
+   project's own vault namespace — same vault.secrets table, same libsodium
+   primitive, same write-only-reveal semantics (§30 point 4: an admin sets it, no
+   code path anywhere ever reads it back to the console). This makes Phase 21
+   depend on Phase 16 (Vault, already shipped), and it's a real dependency, not
+   just convention-following — there is no separate credential store for this
+   phase to build.
+
+4. Admin UI: /admin/ai/:project — a provider dropdown (Anthropic/OpenAI), a free-
+   text model input, an API-key input reusing the Vault page's own write-only-
+   secret-input component, and an enabled toggle. A requests-history view reading
+   ai.requests (point 9) mirrors the Functions/Scheduler invocation-history pages.
+
+5. Two call surfaces:
+
+   a) POST /ai/v1/complete — AccessTokenGuard-protected (same trust level as
+      /storage/v1/* and /functions/v1/*), project resolved from the caller's JWT
+      project_id claim, no new header (§23 point 5's established convention).
+      Body: { messages: [{role, content}], responseFormat?: { jsonSchema } } —
+      provider and model are never caller-supplied; they always come from that
+      project's ai.provider_configs row, so a caller can't force a different,
+      possibly unconfigured or costlier provider/model than the project admin
+      chose.
+
+   b) ctx.ai.complete(request) Functions capability — the same internal-callback
+      pattern as ctx.secrets/ctx.email/ctx.pdf (a new POST /internal/ai/complete
+      endpoint, reusing the existing per-invocation opaque token), letting a
+      Function combine ctx.rest data with an AI call in the same invocation — the
+      explicit reason a Functions-side capability exists alongside the direct REST
+      endpoint.
+
+6. Structured-output validation: a request may include responseFormat.jsonSchema —
+   a JSON Schema object, not a provider-specific "function calling" spec, kept
+   provider-agnostic at this layer. control-server validates the provider's
+   returned content against that schema using `ajv` (a small, dependency-light,
+   widely-used JSON Schema validator — not zod, since a schema here needs to be
+   storable/transmittable data traveling over HTTP and into prompt_templates rows,
+   not TypeScript-authored code). A response that fails validation gets one
+   automatic retry (point 8); if still invalid, a typed validation error is
+   returned to the caller rather than passing through a document that silently
+   violates its own requested shape.
+
+7. Prompt/template versioning: ai.prompt_templates (id, project_id, name, template
+   text, variables jsonb, created_at, updated_at), unique(project_id, name) —
+   referenced from a completion request via { templateName, variables } instead of
+   raw messages, so prompt text lives in the database and is editable from the
+   admin console rather than hardcoded in Function source — the explicit design
+   goal here. No version history in v1 (same overwrite-in-place convention as Vault
+   secrets, §30 point 1); a later addition if real usage shows it's needed, not a
+   v1 requirement.
+
+8. Retries/timeouts: a single automatic retry on a transient provider error (5xx,
+   timeout, or a schema-validation failure per point 6) with a fixed short backoff,
+   then a typed error to the caller — no exponential-backoff queue or background
+   job in v1, consistent with this platform's in-process/synchronous posture
+   elsewhere (Scheduler §27, PDF §34). AI_REQUEST_TIMEOUT_MS is env-configurable,
+   same convention as every other *_TIMEOUT_MS on this platform.
+
+9. Cost/token metering: ai.requests (id, project_id, provider, model,
+   prompt_tokens, completion_tokens, cost_estimate_usd, status, duration_ms, error,
+   created_at) — same audit-table convention as functions.invocations /
+   scheduler.job_runs. cost_estimate_usd is computed from a small hardcoded
+   per-provider-per-model $/1K-token price table in code, updated by hand as
+   vendor pricing changes — no live pricing-API integration in v1. A model missing
+   from the table logs a null cost_estimate_usd rather than failing the request.
+
+10. Feature-flag/policy layer: ai.provider_configs.enabled (point 2) is itself the
+    v1 policy mechanism — a project with no enabled config gets a 404 from both
+    call surfaces, "AI is off for this project" being the only policy granularity
+    in v1. A finer-grained per-capability flag set (separately toggling e.g. raw
+    completion vs. structured output vs. some future embeddings capability) is an
+    explicit non-goal for v1 and the natural extension point once this needs more
+    than one boolean.
+
+11. Explicit non-goal: streaming. Both call surfaces are synchronous request/
+    response only in v1. Streaming is very likely the largest single scope driver
+    if added (a new transport — SSE or WebSocket, echoing Realtime's §22 own
+    sibling-service reasoning — plus partial-response handling on both call
+    surfaces) and is deliberately deferred rather than folded into this already-
+    substantial phase.
+
+12. Audit: ai.provider_config_saved via the existing AuthAuditService.record()
+    convention, using a new ai.*-prefix (matching how every other subsystem —
+    realtime.*, functions.*, hosting.*, vault.* — introduces its own event-type
+    prefix rather than overloading admin.*).
+```
+
+**Acceptance**: configuring project A with `provider=anthropic` and project B with
+`provider=openai` (each with its own vault-stored key) and calling `POST /ai/v1/complete`
+against each returns a real completion from the correct, distinct provider, proving per-project
+provider selection actually works; a request with a `responseFormat.jsonSchema` that the raw
+provider response violates is either corrected by the single retry or returned as a typed
+validation error, never passed through unvalidated; a successful call produces an `ai.requests`
+row with non-null token counts and a cost estimate; a project with no `ai.provider_configs` row
+gets a clean 404 from both `/ai/v1/complete` and `ctx.ai.complete`; a Function combining
+`ctx.rest` (to fetch data) and `ctx.ai.complete` (to summarize it) in one invocation succeeds
+end-to-end.
 
 ---
 

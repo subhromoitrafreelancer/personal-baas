@@ -1,4 +1,10 @@
-import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as argon2 from 'argon2';
 import { randomUUID } from 'node:crypto';
@@ -38,8 +44,27 @@ export class LoginService {
     userAgent: string | null,
     project: ProjectRow,
   ): Promise<LoginResult> {
+    // Persistent lockout check (scope.md §31 point 4) — independent of the request-rate
+    // throttle on this route, catches a slow brute force spread out under that throttle's own
+    // window. Checked before the user lookup, purely on the submitted email, so a locked-out
+    // attacker never gets far enough to learn whether the account even exists.
+    const recentFailures = await this.audit.countRecentByEmail(
+      email,
+      'auth.login_failed',
+      this.config.get('LOGIN_LOCKOUT_WINDOW_MINUTES', { infer: true }),
+    );
+    if (recentFailures >= this.config.get('LOGIN_LOCKOUT_THRESHOLD', { infer: true })) {
+      throw new HttpException(
+        'Too many failed login attempts. Try again later.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
     const user = await this.usersRepo.findByEmail(email, project.id);
     if (!user) {
+      this.audit.record(null, 'auth.login_failed', ipAddress, userAgent, {
+        email: email.toLowerCase(),
+      });
       throw new UnauthorizedException('Invalid login credentials');
     }
     if (user.status === 'disabled') {
@@ -48,6 +73,9 @@ export class LoginService {
 
     const valid = await argon2.verify(user.password_hash, password);
     if (!valid) {
+      this.audit.record(user.id, 'auth.login_failed', ipAddress, userAgent, {
+        email: email.toLowerCase(),
+      });
       throw new UnauthorizedException('Invalid login credentials');
     }
 

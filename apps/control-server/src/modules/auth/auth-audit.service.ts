@@ -17,6 +17,12 @@ export class AuthAuditService {
   ): void {
     this.auditEventsRepo
       .create(userId, eventType, ipAddress, userAgent, metadata)
-      .catch((err) => this.logger.error({ msg: 'failed to record auth audit event', eventType, err }));
+      .catch((err) =>
+        this.logger.error({ msg: 'failed to record auth audit event', eventType, err }),
+      );
+  }
+
+  countRecentByEmail(email: string, eventType: string, windowMinutes: number): Promise<number> {
+    return this.auditEventsRepo.countRecentByEmail(email, eventType, windowMinutes);
   }
 }
