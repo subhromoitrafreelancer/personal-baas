@@ -60,8 +60,11 @@ export class VaultService {
     return { deleted: true };
   }
 
-  // The one method that actually decrypts a value — used exclusively by the internal
-  // invocation-token-authorized endpoint (VaultInternalController), never by any admin-facing
+  // The one method that actually decrypts a value. Originally used only by the internal
+  // invocation-token-authorized endpoint (VaultInternalController); EmailModule (scope.md §32
+  // point 3) also calls this directly in-process to resolve a project's EMAIL_PROVIDER_SECRET
+  // when actually sending mail — a legitimate second caller, not a workaround, since sending
+  // also happens inside control-server's own process. Never called from any admin-facing
   // controller. Deliberately no audit event per call (scope.md §30 point 7): a per-invocation
   // read is potentially high-volume, unlike every other event this platform audits today.
   async resolveForFunction(projectId: string, name: string): Promise<string | null> {

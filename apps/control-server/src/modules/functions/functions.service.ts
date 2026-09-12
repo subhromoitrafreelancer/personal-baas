@@ -117,9 +117,11 @@ export class FunctionsService {
       params.fn.timeout_ms + RUNNER_CALL_GRACE_MS,
     );
     // Brackets exactly one invocation, mirroring the abort timer above (scope.md §30 point 5) —
-    // authorizes the ctx.secrets.get() callback a function-runner worker may make back into
-    // control-server's /internal/vault/resolve for this call only.
-    const secretsToken = this.vaultTokens.issue(
+    // authorizes the ctx.secrets.get()/ctx.email.send() callbacks a function-runner worker may
+    // make back into control-server for this call only. One shared token for both capabilities
+    // (and, once built, ctx.pdf/ctx.ai) — it only ever resolves an invocation to a project id,
+    // never anything vault-specific, despite living on VaultInvocationTokensService.
+    const invocationToken = this.vaultTokens.issue(
       params.project.id,
       params.fn.timeout_ms + RUNNER_CALL_GRACE_MS,
     );
@@ -140,7 +142,7 @@ export class FunctionsService {
             project: params.project,
             auth: params.auth,
             callerAuthorization: params.callerAuthorization,
-            secretsToken,
+            invocationToken,
           },
         }),
         signal: controller.signal,
@@ -171,7 +173,7 @@ export class FunctionsService {
       result = { kind: 'unavailable' };
     } finally {
       clearTimeout(abortTimer);
-      this.vaultTokens.revoke(secretsToken);
+      this.vaultTokens.revoke(invocationToken);
     }
 
     await this.invocations.record({

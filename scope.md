@@ -1154,22 +1154,25 @@ Closes the still-open Phase 6b items. Promoted from §18 Expansion 7. See §31 R
 
 ### Features
 
-* Platform-level Resend integration (`EmailModule`, plain fetch wrapper — no SDK dependency)
+* Provider-agnostic `EmailProvider` interface with two adapters in v1: Resend (REST API) and generic SMTP (`nodemailer`)
+* Per-project provider configuration (`email.provider_configs`), secret stored in that project's own Secrets Vault — same shape as the AI Gateway (§35)
 * `email.sent_messages` audit table
 * Self-service `/auth/v1/password-reset/request` — the password-reset email deferred since §6
 * `ctx.email.send()` Functions capability, reusing the internal-callback mechanism built for Vault (§30)
 
-Promoted from §18 Expansion 8. See §32 Outbound Email Model for the full design.
+Promoted from §18 Expansion 8, reshaped 2026-09-12 from a platform-level Resend-only design to provider-agnostic and per-project. See §32 Outbound Email Model for the full design.
 
 ## Phase 19 — Multi-Factor Authentication
 
 ### Features
 
+* Project-level `mfa_required` toggle (`platform.projects`), default **off** — admin-controlled, not user-opt-in only
 * TOTP (RFC 6238) enrollment + backup codes, encrypted at rest with the same libsodium primitive as the Secrets Vault (§30)
-* `/auth/v1/login` returns a pending-MFA state; `/auth/v1/mfa/verify` issues the real token pair
+* Three-way `/auth/v1/login` handshake: normal tokens, pending-verify, or (new) pending-enrollment when the project requires MFA and the user has no factor yet
+* Voluntary self-service enrollment still works even when the project doesn't require it
 * Admin-triggered MFA reset for lockout recovery
 
-Lives in the Auth module itself, not Functions. Promoted from §18 Expansion 6. See §33 MFA Model for the full design.
+Lives in the Auth module itself, not Functions. Promoted from §18 Expansion 6, reshaped 2026-09-12 to make the project-level policy a core v1 requirement rather than a deferred fast-follow. See §33 MFA Model for the full design.
 
 ## Phase 20 — PDF generation
 
@@ -2295,90 +2298,142 @@ ordinary traffic under the global limit sees no behavior change.
 
 # 32. Outbound Email Model
 
-Phase 18. Backed by the Resend API — a new module wraps it via plain `fetch` (no SDK dependency,
-consistent with this project's minimal-dependency posture), not a self-hosted MTA. Finally
-implements the password-reset email deferred since §6, and gives Functions a
-`ctx.email.send()` capability for their own transactional notifications.
+Phase 18. Revised 2026-09-12 from the original Resend-only sketch (below) at the user's
+direction: provider-agnostic, admin-configured **per project** — the same shape as the AI
+Gateway (§35), not the "shared platform service" framing the original sketch used. Two concrete
+adapters ship in v1: Resend (REST API) and a generic SMTP adapter (`nodemailer`) — SMTP alone
+already covers SES, SendGrid, Mailgun, Postmark, Gmail, or any self-hosted mail server with zero
+vendor-specific code, so this pair gives genuine "works with almost anything" coverage without
+writing a bespoke adapter per vendor. Finally implements the password-reset email deferred since
+§6, and gives Functions a `ctx.email.send()` capability for their own transactional
+notifications.
 
 ```text
-1. Platform-level credential, not a per-project Vault secret: RESEND_API_KEY and
-   EMAIL_FROM_ADDRESS (a verified sending domain), supplied via env or mounted file,
-   same convention as AUTH_JWT_PRIVATE_KEY_BASE64 / VAULT_MASTER_KEY_BASE64 (§6, §30
-   point 3). Sending capability is a shared platform service, not project-owned
-   data, so it doesn't belong in a project's own Secrets Vault namespace.
+1. EmailProvider interface: send({to, subject, html, text?}) => Promise<{providerMessageId?}>.
+   A new EmailModule holds the interface and its two adapters (ResendProvider,
+   SmtpProvider) — structurally identical in spirit to the AI Gateway's AiProvider
+   (§35 point 1) and PDF's PdfProvider (§34 point 1).
 
-2. email.sent_messages (id, project_id nullable, to_address, subject, status
-   ('sent'|'failed'), provider_message_id, error, created_at) — audit table, same
-   convention as functions.invocations / scheduler.job_runs. project_id is nullable
-   because a platform-level system email (e.g. triggered by an admin action with no
-   project context) is possible in principle, even though every v1 caller
-   (password-reset requests, ctx.email.send) always has one.
+2. email.provider_configs (id, project_id references platform.projects(id) on
+   delete cascade, provider text check (provider in ('resend','smtp')),
+   from_address text not null, smtp_host text, smtp_port integer, smtp_secure
+   boolean, smtp_username text, enabled boolean default true, created_at,
+   updated_at), unique(project_id) — one active provider+config per project in v1,
+   same "one active X per project" shape as ai.provider_configs (§35 point 2) and
+   hosting.sites (§25 point 2). The smtp_* columns are simply null/unused when
+   provider = 'resend'.
 
-3. No template engine, no stored/editable templates in v1 — a real added surface,
+3. Secret storage reuses the Secrets Vault (§30) exactly the way the AI Gateway
+   does (§35 point 3), now that this is genuinely per-project, admin-supplied,
+   project-owned configuration rather than a platform-wide credential: the
+   project's Resend API key or SMTP password is written as a vault secret under a
+   reserved name, EMAIL_PROVIDER_SECRET, in that project's own vault namespace —
+   same vault.secrets table, same libsodium primitive, same write-only-reveal
+   semantics (§30 point 4). This makes Phase 18 depend on Phase 16 (Vault, already
+   shipped) exactly as Phase 21 does, and needs no new encryption path at all.
+
+4. Admin UI: /admin/email/:project — a provider dropdown (Resend/SMTP), a
+   from_address input, SMTP-specific fields shown only when provider = 'smtp'
+   (host/port/secure/username), a secret input reusing the Vault page's own
+   write-only-secret-input component (writing to EMAIL_PROVIDER_SECRET), and an
+   enabled toggle. A recent-sends list reading email.sent_messages (point 6) below
+   it, same list-only pattern the original sketch planned.
+
+5. No template engine, no stored/editable templates in v1 — a real added surface,
    deferred per this platform's "start simple" posture elsewhere (mirrors §26
    point 2's single-file-no-dependency stance and §30 point 1's no-version-history
    stance). The password-reset email body is a small hardcoded HTML string built by
    EmailModule itself; ctx.email.send() takes raw {to, subject, html, text?}
-   directly from calling code. Stored/editable templates are a reasonable later
-   addition once real usage exists, not required for v1.
+   directly from calling code.
 
-4. Self-service password reset, finally implemented: POST
-   /auth/v1/password-reset/request {email} (public, unauthenticated) generates the
-   existing auth.password_reset_tokens row (already modeled in §7) and emails a
-   link built from PASSWORD_RESET_URL_TEMPLATE (an env var like
-   "https://myapp.example/reset?token={token}" — a multi-project platform has no
-   single admin-owned reset page for arbitrary tenant end-users, so the developer's
-   own frontend URL is configured per deployment, same spirit as examples/todo-app's
-   own config.js convention, §25 point 5). Always returns 200 regardless of whether
-   the email exists, to avoid user enumeration — this must be true of both the
-   response body and its timing.
+6. email.sent_messages (id, project_id not null references platform.projects(id),
+   to_address, subject, provider text, status ('sent'|'failed'),
+   provider_message_id, error, created_at) — audit table, same convention as
+   functions.invocations / scheduler.job_runs. project_id is now not-null (unlike
+   the original platform-level sketch) since every send always has a project —
+   there is no platform-level system-email case now that config itself is
+   per-project.
+
+7. Self-service password reset, finally implemented: POST
+   /auth/v1/password-reset/request {email} (public, unauthenticated, project
+   resolved from the caller's publishable-key bearer per the existing §23 point 5
+   convention) generates the existing auth.password_reset_tokens row (already
+   modeled in §7) and emails a link built from PASSWORD_RESET_URL_TEMPLATE (an env
+   var like "https://myapp.example/reset?token={token}" — a multi-project platform
+   has no single admin-owned reset page for arbitrary tenant end-users, so the
+   developer's own frontend URL is configured per deployment, same spirit as
+   examples/todo-app's own config.js convention, §25 point 5). Always returns 200
+   regardless of whether the email exists *or whether that project has email
+   configured at all* — a project with no enabled email.provider_configs row
+   simply logs a 'failed' email.sent_messages row (error: "no provider
+   configured") and still returns 200, since leaking configuration state to an
+   unauthenticated public endpoint is the same class of problem as leaking
+   account existence.
 
    This is additive to, not a replacement for, the existing §6 admin-generated
    reset-link/temporary-password flow — that flow keeps working exactly as it does
    today.
 
-5. ctx.email.send({to, subject, html, text?}) Functions capability: reuses the
+8. ctx.email.send({to, subject, html, text?}) Functions capability: reuses the
    internal-callback mechanism already built for ctx.secrets (§30 point 5) rather
    than inventing a new one — the same per-invocation opaque token, minted by
    control-server at the same moment it calls function-runner's /run, is now also
    accepted by a new POST /internal/email/send endpoint (alongside the existing
-   /internal/vault/resolve). Recorded into email.sent_messages with the invoking
-   function's project_id. A scheduled invocation (§27) goes through this identical
-   path with no special-casing, same as vault access already does.
+   /internal/vault/resolve). Unlike the public password-reset endpoint (point 7),
+   a Function calling this with no email provider configured gets a real error
+   back (not a silently-swallowed success) — a developer authoring a function
+   should immediately know to configure email for their project, the same
+   "fail loudly to the caller who can act on it" posture the AI Gateway takes for
+   an unconfigured project (§35 point 10). Recorded into email.sent_messages with
+   the invoking function's project_id. A scheduled invocation (§27) goes through
+   this identical path with no special-casing, same as vault access already does.
 
-6. Volume control: a single global EMAIL_MAX_PER_MINUTE throttle on the internal
+9. Volume control: a single global EMAIL_MAX_PER_MINUTE throttle on the internal
    send endpoint, reusing Phase 17's @nestjs/throttler infrastructure directly
    rather than a new per-project quota table — matches the "trust the platform
    operator" posture already extended to functions.functions and
    hosting.site_files row counts (no cap there either).
 
-7. Explicit non-goals: no inbound email, no bounce/complaint webhook handling (Resend
-   supports delivery-event webhooks, but wiring a public webhook endpoint with
-   signature verification is real added surface, not required for v1's send-only
-   scope), no template system (point 3), no per-project sending quota (point 6), no
-   admin compose/send-test UI — the admin console gets a minimal /admin/email recent-
-   sends list reading email.sent_messages (same list-only pattern as the Audit page),
-   nothing more.
+10. Explicit non-goals: no inbound email, no bounce/complaint webhook handling
+    (Resend and most SMTP relays support delivery-event webhooks, but wiring a
+    public webhook endpoint with signature verification is real added surface, not
+    required for v1's send-only scope), no template system (point 5), no
+    per-project sending quota (point 9), no per-project vendor beyond the two
+    adapters in point 1 (a third provider is a config addition to EmailModule
+    later, not a v1 requirement).
 ```
 
-**Acceptance**: `POST /auth/v1/password-reset/request` for a real user's email results in a
-Resend-delivered email containing a valid reset-token link, and submitting that token to the
-existing password-reset-confirm endpoint successfully sets a new password; requesting a reset
-for a non-existent email returns the identical 200 response with no observable difference; a
-Function calling `ctx.email.send()` produces a `'sent'` row in `email.sent_messages` carrying a
-real Resend `provider_message_id`.
+**Acceptance**: configuring project A with provider=resend and project B with provider=smtp
+(each with its own vault-stored secret) and triggering a send from each (via
+`/auth/v1/password-reset/request` or `ctx.email.send`) results in a real delivered email from
+the correct, distinct provider for each project, proving per-project provider selection actually
+works; requesting a password reset for a non-existent email, or for a project with no email
+provider configured, both return the identical 200 response with no observable difference; a
+Function calling `ctx.email.send()` in a project with no configured provider gets a clear error,
+not a silent no-op; a successful send produces a `'sent'` row in `email.sent_messages` carrying a
+real `provider_message_id` and the correct `provider` value.
 
 ---
 
 # 33. MFA Model
 
 Phase 19. TOTP (RFC 6238) plus backup codes, the v1 factor per §18 Expansion 6 — no SMS, no
-WebAuthn/passkeys yet. Lives in the Auth module itself, not Functions, since MFA is part of the
-login handshake and a project-scoped, post-authentication Function has no way to intercept that
-handshake.
+email OTP, no WebAuthn/passkeys. Lives in the Auth module itself, not Functions, since MFA is
+part of the login handshake and a project-scoped, post-authentication Function has no way to
+intercept that handshake. Revised 2026-09-12 from the original sketch (below) at the user's
+direction: a project-level, admin-controlled, default-**off** policy is a core v1 requirement,
+not a deferred fast-follow — turning it on is what makes "the MFA screen" appear for that
+project's users.
 
 ```text
-1. auth.mfa_factors (id, user_id references auth.users(id) on delete cascade,
+1. platform.projects gains mfa_required boolean not null default false — a plain
+   column, matching how schema_name/anon_role/authenticated_role/service_role_role
+   already live directly on that table (no generic "project settings" table exists
+   yet, and one isn't needed for a single flag). LoginService already receives the
+   full ProjectRow (a plain SELECT *), so this flows into the login handshake with
+   no new query — it's just project.mfa_required.
+
+2. auth.mfa_factors (id, user_id references auth.users(id) on delete cascade,
    type text default 'totp', secret_nonce bytea, secret_ciphertext bytea, verified
    boolean default false, created_at, verified_at), unique(user_id) — one TOTP
    factor per user in v1 (not multiple enrolled devices); multiple factors per user
@@ -2387,7 +2442,7 @@ handshake.
    already built for the Secrets Vault (§30 point 3) — no new crypto dependency, no
    second master key to manage or lose.
 
-2. auth.mfa_backup_codes (id, user_id references auth.users(id) on delete cascade,
+3. auth.mfa_backup_codes (id, user_id references auth.users(id) on delete cascade,
    code_hash text, used_at nullable, created_at) — codes hashed with Argon2id (the
    same password-hashing primitive already in the stack, §5 recommended-stack
    table), one-time use (used_at set on redemption, a used code is never valid
@@ -2395,76 +2450,115 @@ handshake.
    write-once-reveal convention as API keys, §14, and Vault secrets, §30 point 4);
    regenerating invalidates all previously-unused codes.
 
-3. TOTP implementation: the `otplib` npm package (MIT-licensed, RFC 6238-compliant)
+4. TOTP implementation: the `otplib` npm package (MIT-licensed, RFC 6238-compliant)
    for secret generation and code verification — the crypto-primitive reuse
-   instruction in §18 Expansion 6 is about the encryption-at-rest layer (point 1),
+   instruction in §18 Expansion 6 is about the encryption-at-rest layer (point 2),
    not the TOTP algorithm itself, which unavoidably needs its own well-known
    implementation.
 
-4. Enrollment flow (requires an already-authenticated session — MFA enrollment is
-   self-service, not something an unauthenticated caller can trigger):
+5. Three-way login handshake. POST /auth/v1/login, after password verification
+   succeeds, branches on (project.mfa_required, whether the user has a verified
+   mfa_factors row):
 
-   a) POST /auth/v1/mfa/enroll — generates a new TOTP secret, stores it encrypted
-      with verified=false, and returns both the raw base32 secret (for manual
-      entry) and a standard otpauth:// URI (for QR-code rendering — no server-side
-      QR image generation needed; any calling frontend can render the URI as a QR
-      code with a small client-side library, or show the base32 secret directly).
+   a) No requirement, no factor — normal login, access/refresh tokens returned
+      exactly as today. Unchanged v1 behavior for a project that never turns MFA on.
 
-   b) POST /auth/v1/mfa/verify-enrollment {code} — validates the submitted TOTP
-      code against the pending factor; on success sets verified=true and returns
-      the one-time backup-code batch (point 2). A factor is never usable for login
-      purposes until verified=true — this prevents a user locking themselves out by
-      enrolling with a misconfigured authenticator app before ever confirming it
-      works.
+   b) A verified factor exists (because project.mfa_required is true, or because
+      the user voluntarily self-enrolled earlier, point 8) — login does not return
+      tokens directly. It returns { mfaRequired: true, mfaToken }. mfaToken is a
+      short-lived (~5 minute), narrowly-scoped signed token (same Ed25519 key, but
+      a distinct aud/role claim shape that AccessTokenGuard structurally rejects,
+      so it can never be mistaken for or replayed as a real access token) carrying
+      user_id and project_id. POST /auth/v1/mfa/verify {mfaToken, code} validates
+      the TOTP code (or a backup code as fallback, marking it used) against the
+      token's user_id, and on success issues real tokens through the exact same
+      session-creation path a normal login uses.
 
-5. Login handshake change: POST /auth/v1/login, when the caller has a verified
-   mfa_factors row, does not return access/refresh tokens directly. Instead it
-   returns { mfaRequired: true, mfaToken } — mfaToken is a short-lived (~5 minute),
-   narrowly-scoped signed token (same Ed25519 key, but a distinct aud/role claim
-   shape that AccessTokenGuard structurally rejects, so it can never be mistaken
-   for or replayed as a real access token) carrying only user_id and
-   purpose: 'mfa'. It proves the password step already succeeded; it grants nothing
-   else.
+   c) project.mfa_required is true but the user has no verified factor yet — login
+      returns { mfaEnrollmentRequired: true, mfaToken } instead (same token shape as
+      (b)). This is the new case, and is literally "the MFA screen comes up": the
+      calling frontend uses this mfaToken against POST /auth/v1/mfa/enroll (get the
+      otpauth:// URI / QR data) and then POST /auth/v1/mfa/verify-enrollment {code}
+      — which, since the password step already succeeded, issues real tokens
+      immediately on success rather than requiring a second /mfa/verify round-trip.
 
-   POST /auth/v1/mfa/verify {mfaToken, code} validates the TOTP code (or a backup
-   code as a fallback, marking it used on success) against the token's user_id, and
-   on success issues the real access/refresh token pair through the exact same
-   session-creation path a normal successful login uses.
+   Enforcement is checked at login time only — turning project.mfa_required on does
+   not retroactively touch any already-issued session or refresh token. A user with
+   a live session keeps working until it naturally expires or they log out; the
+   branch above is only evaluated on a fresh password login. This was a deliberate
+   choice over immediately revoking every session for the project: nothing else on
+   this platform mass-revokes sessions on a settings change, and building that
+   machinery for this one case wasn't justified.
 
-6. Rate limiting: /auth/v1/mfa/verify gets the same strict per-route throttle as
+6. auth.audit_events gains no new event type for (c) specifically beyond the
+   existing convention — mfa.enrollment_required / mfa.enrolled / mfa.verified are
+   recorded the same way user.login already is, via AuthAuditService.record().
+
+7. MfaEnrollmentGuard: a single guard used by both POST /auth/v1/mfa/enroll and
+   POST /auth/v1/mfa/verify-enrollment, accepting *either* a valid mfaToken (the
+   forced mid-login path, point 5c) *or* a real access token (voluntary self-service
+   enrollment when the project does not require MFA, point 8) — both resolve to the
+   same { userId, projectId } shape before reaching MfaService, so there is exactly
+   one enroll/verify-enrollment code path, not two near-duplicates guarded
+   differently. A request bearing neither is rejected the same way AccessTokenGuard
+   already rejects a missing/invalid bearer elsewhere.
+
+8. Voluntary self-service enrollment stays available even when project.mfa_required
+   is false — a user can turn MFA on for their own account ahead of their project's
+   policy via an access-token-authenticated call into the same
+   enroll/verify-enrollment endpoints (point 7). Once enrolled, login always follows
+   branch (b) above regardless of the project flag's later value — the user's own
+   choice is respected even if an admin subsequently turns the project-wide
+   requirement back off. This was a deliberate decision to keep the self-service
+   path rather than gating enrollment entirely behind the project flag: the
+   marginal cost is near zero once the enroll/verify machinery exists for the
+   required case anyway.
+
+9. Rate limiting: /auth/v1/mfa/verify gets the same strict per-route throttle as
    /auth/v1/login (§31 point 3 — a 6-digit TOTP code is a small enough space to be
    brute-forceable without this).
 
-7. Admin-triggered reset: DELETE /admin/v1/users/:id/mfa (AdminSessionGuard) deletes
-   the user's mfa_factors and mfa_backup_codes rows outright, for lockout recovery
-   when a device and backup codes are both lost. Same trust level as every other
-   admin user-management action (§5.1) — this console has no role/permission system
-   to introduce a narrower one for (§29 point 6 already established this). Audited
-   as admin.mfa_reset.
+10. Admin-triggered reset: DELETE /admin/v1/users/:id/mfa (AdminSessionGuard)
+    deletes the user's mfa_factors and mfa_backup_codes rows outright, for lockout
+    recovery when a device and backup codes are both lost. If project.mfa_required
+    is still true, this simply routes the user back through branch (c) — forced
+    re-enrollment — on their next login, not back to a no-MFA state. Same trust
+    level as every other admin user-management action (§5.1) — this console has no
+    role/permission system to introduce a narrower one for (§29 point 6 already
+    established this). Audited as admin.mfa_reset.
 
-8. Self-service disable: DELETE /auth/v1/mfa (authenticated) requires the current
-   password plus a valid TOTP/backup code as re-confirmation — disabling MFA is
-   itself a sensitive action and shouldn't be possible from a bare authenticated
-   session alone (e.g. a stolen access token with no factor of its own).
+11. Self-service disable: DELETE /auth/v1/mfa (authenticated) requires the current
+    password plus a valid TOTP/backup code as re-confirmation — disabling MFA is
+    itself a sensitive action and shouldn't be possible from a bare authenticated
+    session alone (e.g. a stolen access token with no factor of its own). If
+    project.mfa_required is true, this endpoint still succeeds (a user is never
+    permanently unable to remove their own factor), but their very next login
+    immediately re-enters branch (c) — disabling is not a way to escape a project's
+    policy, only a way to reset a broken enrollment.
 
-9. Admin UI: the existing Users page gains an MFA status badge and a "Reset MFA"
-   row action (§28 point 2's icon set) with a confirm modal. No new self-service
-   enrollment UI in the admin console itself — the admin console manages
-   application users, it never role-plays as the tenant application's own
-   frontend (the same boundary already implicit in every prior phase); enrollment
-   is exercised via the API by whatever frontend a downstream project builds.
-
-10. Explicit non-goal for v1: a project-level "MFA required" policy toggle. Per-user
-    optional enrollment only in v1; a required-for-all-users policy is a natural
-    fast-follow once enrollment itself is proven, not bundled into this phase.
+12. Admin: a new PATCH /admin/v1/projects/:id/mfa-required {enabled} endpoint (there
+    is no generic project-update endpoint yet — this platform's existing convention
+    is narrow, purpose-built endpoints like API keys' /revoke and /reveal, not a
+    general PATCH, so this follows that same shape) flips the flag, audited as
+    admin.project_mfa_required_changed. The existing Users page gains an MFA status
+    badge and a "Reset MFA" row action (§28 point 2's icon set) with a confirm
+    modal; the Projects page gains the required-toggle itself. No new *end-user*
+    enrollment UI in the admin console — the QR/verify screen is rendered by
+    whatever frontend the project's own developer builds against the API, same
+    boundary as every other phase (the admin console manages application users, it
+    never role-plays as the tenant application's own frontend).
 ```
 
-**Acceptance**: enrolling MFA for a test user and verifying with a real (or `otplib`-computed)
-TOTP code confirms the factor; a subsequent login returns `mfaRequired` instead of tokens;
-`mfa/verify` with the correct code issues real tokens, with an incorrect code is rejected, and
-enough incorrect attempts trigger Phase 17's rate limit; a backup code succeeds exactly once and
-fails on reuse; an admin-triggered reset clears the factor and password-only login works again
-immediately afterward.
+**Acceptance**: with a project's `mfa_required` off, a user can still voluntarily enroll (real
+TOTP or `otplib`-computed code) and every subsequent login for that user returns `mfaRequired`
+instead of tokens; flipping `mfa_required` on for a project does not affect an already-logged-in
+user's live session, but the next fresh login for any of that project's *not-yet-enrolled* users
+returns `mfaEnrollmentRequired` instead, and completing enroll→verify-enrollment in one flow
+issues real tokens without a second `/mfa/verify` call; `mfa/verify` with an incorrect code is
+rejected and enough incorrect attempts trigger Phase 17's rate limit; a backup code succeeds
+exactly once and fails on reuse; an admin-triggered reset clears the factor and the user is
+routed back through forced enrollment on next login if the project still requires it, or plain
+password login if it doesn't.
 
 ---
 

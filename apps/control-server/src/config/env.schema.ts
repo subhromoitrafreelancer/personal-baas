@@ -93,6 +93,18 @@ export const envSchema = z.object({
   // limit's own window. Backed by auth.audit_events (auth.login_failed rows), not in-memory.
   LOGIN_LOCKOUT_THRESHOLD: z.coerce.number().int().positive().default(10),
   LOGIN_LOCKOUT_WINDOW_MINUTES: z.coerce.number().int().positive().default(15),
+  // Outbound Email (Phase 18, scope.md §32). A multi-project platform has no single
+  // admin-owned reset page for arbitrary tenant end-users, so the developer's own frontend URL
+  // is configured per deployment — the literal string "{token}" is replaced with the raw reset
+  // token. Provider/credentials are per-project (email.provider_configs + that project's own
+  // Secrets Vault), not env-configured — this is the one genuinely deployment-wide email setting.
+  PASSWORD_RESET_URL_TEMPLATE: z
+    .string()
+    .min(1)
+    .default('http://localhost:8000/reset-password?token={token}'),
+  // Throttle on the internal /internal/email/send callback (ctx.email.send), reusing Phase 17's
+  // @nestjs/throttler infrastructure rather than a new per-project quota table.
+  EMAIL_MAX_PER_MINUTE: z.coerce.number().int().positive().default(60),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

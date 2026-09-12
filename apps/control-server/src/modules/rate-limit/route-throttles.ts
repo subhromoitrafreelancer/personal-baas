@@ -10,3 +10,12 @@ export const AUTH_THROTTLE = {
     ttl: Number(process.env.RATE_LIMIT_AUTH_WINDOW_MS ?? 60_000),
   },
 };
+
+// Per-route override for POST /internal/email/send (scope.md §32 point 9) — a volume control on
+// ctx.email.send(), reusing this same infrastructure rather than a new per-project quota table.
+export const EMAIL_SEND_THROTTLE = {
+  default: {
+    limit: Number(process.env.EMAIL_MAX_PER_MINUTE ?? 60),
+    ttl: 60_000,
+  },
+};

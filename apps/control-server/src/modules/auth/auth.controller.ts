@@ -11,7 +11,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { z } from 'zod';
-import { AUTH_THROTTLE } from '../rate-limit/auth-throttle';
+import { AUTH_THROTTLE } from '../rate-limit/route-throttles';
 import { AccessTokenGuard } from './access-token.guard';
 import { ApiKeyBearerGuard } from './api-key-bearer.guard';
 import { LoginService } from './login.service';
@@ -43,6 +43,10 @@ const changePasswordBodySchema = z.object({
 const passwordResetBodySchema = z.object({
   token: z.string().min(1),
   newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+});
+
+const passwordResetRequestBodySchema = z.object({
+  email: z.string().email(),
 });
 
 @Controller('auth/v1')
@@ -137,6 +141,31 @@ export class AuthController {
     await this.selfService.logout(
       req.user!.sub,
       req.user!.sessionId,
+      req.ip ?? null,
+      req.headers['user-agent'] ?? null,
+    );
+  }
+
+  // Self-service password reset (scope.md §32 point 7), finally implementing the flow deferred
+  // since §6. Project resolved from the caller's publishable-key bearer, same convention as
+  // signup/login. Always returns 204 regardless of whether the email exists or the project has
+  // email configured at all — see PasswordResetService.requestReset() for why.
+  @Post('password-reset/request')
+  @UseGuards(ApiKeyBearerGuard)
+  @Throttle(AUTH_THROTTLE)
+  @HttpCode(204)
+  async requestPasswordReset(
+    @Body() body: unknown,
+    @Req() req: RequestWithApiKeyProject,
+  ): Promise<void> {
+    const parsed = passwordResetRequestBodySchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.issues.map((issue) => issue.message).join('; '));
+    }
+
+    await this.passwordResetService.requestReset(
+      parsed.data.email,
+      req.apiKeyProject!,
       req.ip ?? null,
       req.headers['user-agent'] ?? null,
     );

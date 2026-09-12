@@ -14,6 +14,7 @@ import { DashboardSummaryModule } from './modules/dashboard-summary/dashboard-su
 import { DatabaseModule } from './modules/database/database.module';
 import { DbExplorerModule } from './modules/db-explorer/db-explorer.module';
 import { DbManagementModule } from './modules/db-management/db-management.module';
+import { EmailModule } from './modules/email/email.module';
 import { FunctionsModule } from './modules/functions/functions.module';
 import { HealthModule } from './modules/health/health.module';
 import { HostingModule } from './modules/hosting/hosting.module';
@@ -67,6 +68,7 @@ import { VaultModule } from './modules/vault/vault.module';
     StorageModule,
     HostingModule,
     VaultModule,
+    EmailModule,
     FunctionsModule,
     SchedulerModule,
     DashboardSummaryModule,

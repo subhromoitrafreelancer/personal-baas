@@ -31,12 +31,12 @@ function buildRestClient(schemaName: string, callerAuthorization: string | null)
 // itself, authorized by the invocation-scoped token minted for this one /run call. Unlike
 // ctx.rest, there is no public endpoint for this: control-server's /internal/vault/resolve is
 // deliberately never routed through Caddy, reachable only over the internal docker network.
-function buildSecretsClient(controlServerUrl: string, secretsToken: string) {
+function buildSecretsClient(controlServerUrl: string, invocationToken: string) {
   return {
     get: async (name: string): Promise<string | null> => {
       const res = await fetch(`${controlServerUrl}/internal/vault/resolve`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Invocation-Token': secretsToken },
+        headers: { 'Content-Type': 'application/json', 'X-Invocation-Token': invocationToken },
         body: JSON.stringify({ name }),
       });
       if (res.status === 404) {
@@ -47,6 +47,36 @@ function buildSecretsClient(controlServerUrl: string, secretsToken: string) {
       }
       const { value } = (await res.json()) as { value: string };
       return value;
+    },
+  };
+}
+
+// Backs ctx.email.send(...) (scope.md §32 point 8) -- same shape as buildSecretsClient above,
+// reusing the identical invocation token against a separate internal endpoint. A 'failed' send
+// (unconfigured project, provider error) reaches the calling function as a rejected promise, not
+// a silent no-op -- see EmailService.sendOrThrow()'s doc comment for why that asymmetry with the
+// public password-reset flow is deliberate.
+function buildEmailClient(controlServerUrl: string, invocationToken: string) {
+  return {
+    send: async (message: {
+      to: string;
+      subject: string;
+      html?: string;
+      text?: string;
+    }): Promise<{ providerMessageId: string | null }> => {
+      const res = await fetch(`${controlServerUrl}/internal/email/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Invocation-Token': invocationToken },
+        body: JSON.stringify(message),
+      });
+      const payload = (await res.json().catch(() => ({}))) as {
+        providerMessageId?: string | null;
+        message?: string;
+      };
+      if (!res.ok) {
+        throw new Error(payload.message ?? `Email send failed (${res.status})`);
+      }
+      return { providerMessageId: payload.providerMessageId ?? null };
     },
   };
 }
@@ -79,7 +109,8 @@ async function run(): Promise<void> {
       project: { id: ctx.project.id, slug: ctx.project.slug },
       auth: ctx.auth,
       rest: buildRestClient(ctx.project.schemaName, ctx.callerAuthorization),
-      secrets: buildSecretsClient(process.env.CONTROL_SERVER_URL ?? '', ctx.secretsToken),
+      secrets: buildSecretsClient(process.env.CONTROL_SERVER_URL ?? '', ctx.invocationToken),
+      email: buildEmailClient(process.env.CONTROL_SERVER_URL ?? '', ctx.invocationToken),
     };
 
     const result = await handler(invocationCtx);

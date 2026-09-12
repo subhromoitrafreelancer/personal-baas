@@ -1,0 +1,10 @@
+.hint {
+  color: var(--color-text-muted);
+  font-size: 0.9em;
+}
+
+/* .inline-form sets display: flex, which (author CSS always beats the UA stylesheet) would
+   otherwise override the native [hidden] attribute's default display:none. */
+#smtp-fields[hidden] {
+  display: none;
+}

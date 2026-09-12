@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Outbound Email — Personal BaaS Admin</title>
+  <link rel="stylesheet" href="/admin/static/css/admin.css" />
+  <link rel="stylesheet" href="/admin/static/css/email.css" />
+</head>
+<body>
+  {{> topbar}}
+
+  <main class="page email-page">
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Outbound Email</h1>
+        <p class="page-description">Per-project email provider, used for self-service password reset and Functions' <code>ctx.email.send(...)</code>.</p>
+      </div>
+      <div class="page-header-actions">
+        <label class="field">Project <select id="project-select"></select></label>
+        <span id="email-status" class="run-status" role="status"></span>
+      </div>
+    </div>
+
+    <form id="config-form" class="inline-form">
+      <label class="field">
+        Provider
+        <select id="provider-select">
+          <option value="resend">Resend</option>
+          <option value="smtp">SMTP</option>
+        </select>
+      </label>
+      <label class="field">
+        From address
+        <input id="from-address" type="email" required placeholder="noreply@example.com" />
+      </label>
+      <label class="field checkbox-field">
+        <input id="enabled-checkbox" type="checkbox" checked /> Enabled
+      </label>
+      <button type="submit" class="btn btn-primary" data-icon="save">Save</button>
+    </form>
+
+    <div id="smtp-fields" class="inline-form" hidden>
+      <label class="field">
+        SMTP host
+        <input id="smtp-host" type="text" placeholder="smtp.example.com" />
+      </label>
+      <label class="field">
+        Port
+        <input id="smtp-port" type="number" placeholder="587" />
+      </label>
+      <label class="field checkbox-field">
+        <input id="smtp-secure" type="checkbox" /> Use TLS (secure)
+      </label>
+      <label class="field">
+        Username
+        <input id="smtp-username" type="text" autocomplete="off" placeholder="optional" />
+      </label>
+    </div>
+    <p class="hint">A Resend API key or SMTP password is set separately below — it is never shown again after saving. Saving the form above never touches that value.</p>
+
+    <form id="secret-form" class="inline-form">
+      <label class="field">
+        Secret value
+        <input id="secret-value" type="password" required autocomplete="off" placeholder="Resend API key or SMTP password" />
+      </label>
+      <button type="submit" class="btn btn-outline" data-icon="save">Save secret</button>
+    </form>
+
+    <h2>Recent sends</h2>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>To</th>
+            <th>Subject</th>
+            <th>Provider</th>
+            <th>Status</th>
+            <th>Error</th>
+            <th>Sent</th>
+          </tr>
+        </thead>
+        <tbody id="sent-tbody"></tbody>
+      </table>
+    </div>
+  </main>
+
+  {{> footer}}
+
+  <script src="/admin/static/js/icons.js"></script>
+  <script src="/admin/static/js/toast.js"></script>
+  <script src="/admin/static/js/topbar.js"></script>
+  <script src="/admin/static/js/project-selector.js"></script>
+  <script src="/admin/static/js/email.js"></script>
+</body>
+</html>
