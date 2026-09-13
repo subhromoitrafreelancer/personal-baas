@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>PDF Generation — Personal BaaS Admin</title>
+  <link rel="stylesheet" href="/admin/static/css/admin.css" />
+  <link rel="stylesheet" href="/admin/static/css/pdf.css" />
+</head>
+<body>
+  {{> topbar}}
+
+  <main class="page pdf-page">
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>PDF Generation</h1>
+        <p class="page-description">Per-project HTML→PDF vendor config, used by Functions' <code>ctx.pdf.render(...)</code> and <code>ctx.pdf.renderToStorage(...)</code>.</p>
+      </div>
+      <div class="page-header-actions">
+        <label class="field">Project <select id="project-select"></select></label>
+        <span id="pdf-status" class="run-status" role="status"></span>
+      </div>
+    </div>
+
+    <form id="config-form" class="inline-form">
+      <label class="field">
+        Vendor API URL
+        <input id="api-url" type="url" required placeholder="https://api.example.com/render" />
+      </label>
+      <label class="field">
+        Auth header name
+        <input id="auth-header" type="text" autocomplete="off" placeholder="e.g. Authorization (optional)" />
+      </label>
+      <label class="field">
+        HTML field name
+        <input id="html-field" type="text" placeholder="html" />
+      </label>
+      <label class="field">
+        Response mode
+        <select id="response-mode">
+          <option value="binary">Raw PDF bytes</option>
+          <option value="json_url">JSON with a download URL</option>
+          <option value="json_base64">JSON with base64 data</option>
+        </select>
+      </label>
+      <label class="field checkbox-field">
+        <input id="enabled-checkbox" type="checkbox" checked /> Enabled
+      </label>
+      <button type="submit" class="btn btn-primary" data-icon="save">Save</button>
+    </form>
+    <p class="hint">No vendor is wired up by default — any hosted HTML→PDF API that returns raw bytes, a JSON <code>{ url }</code>, or a JSON <code>{ data }</code> (base64) will work here with no code change.</p>
+
+    <form id="secret-form" class="inline-form">
+      <label class="field">
+        Secret value
+        <input id="secret-value" type="password" required autocomplete="off" placeholder="Vendor API key (sent as the auth header's value)" />
+      </label>
+      <button type="submit" class="btn btn-outline" data-icon="save">Save secret</button>
+    </form>
+    <p class="hint">Set only if the vendor needs an auth header — it is never shown again after saving. Saving the form above never touches this value.</p>
+
+    <h2>Recent renders</h2>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Duration</th>
+            <th>Output size</th>
+            <th>Error</th>
+            <th>Requested</th>
+          </tr>
+        </thead>
+        <tbody id="requests-tbody"></tbody>
+      </table>
+    </div>
+  </main>
+
+  {{> footer}}
+
+  <script src="/admin/static/js/icons.js"></script>
+  <script src="/admin/static/js/toast.js"></script>
+  <script src="/admin/static/js/topbar.js"></script>
+  <script src="/admin/static/js/project-selector.js"></script>
+  <script src="/admin/static/js/pdf.js"></script>
+</body>
+</html>

@@ -20,6 +20,7 @@ import { HealthModule } from './modules/health/health.module';
 import { HostingModule } from './modules/hosting/hosting.module';
 import { LandingModule } from './modules/landing/landing.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
+import { PdfModule } from './modules/pdf/pdf.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { RateLimitModule } from './modules/rate-limit/rate-limit.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
@@ -69,6 +70,7 @@ import { VaultModule } from './modules/vault/vault.module';
     HostingModule,
     VaultModule,
     EmailModule,
+    PdfModule,
     FunctionsModule,
     SchedulerModule,
     DashboardSummaryModule,

@@ -81,6 +81,58 @@ function buildEmailClient(controlServerUrl: string, invocationToken: string) {
   };
 }
 
+// Backs ctx.pdf.render()/ctx.pdf.renderToStorage() (scope.md §34 point 8) -- same invocation-
+// token-authorized callback shape as buildSecretsClient/buildEmailClient. render() decodes the
+// base64-encoded bytes control-server sends back into a real Buffer -- raw bytes can't travel
+// cleanly over a JSON response body.
+function buildPdfClient(controlServerUrl: string, invocationToken: string) {
+  async function post(path: string, body: unknown): Promise<Record<string, unknown>> {
+    const res = await fetch(`${controlServerUrl}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Invocation-Token': invocationToken },
+      body: JSON.stringify(body),
+    });
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      throw new Error(
+        typeof payload.message === 'string'
+          ? payload.message
+          : `PDF request failed (${res.status})`,
+      );
+    }
+    return payload;
+  }
+
+  return {
+    render: async (
+      html: string,
+      options?: { format?: string; margin?: string },
+    ): Promise<Buffer> => {
+      const payload = await post('/internal/pdf/render', { html, ...options });
+      return Buffer.from(payload.pdfBase64 as string, 'base64');
+    },
+    renderToStorage: async (
+      html: string,
+      params: { bucket: string; path: string; options?: { format?: string; margin?: string } },
+    ) => {
+      const payload = await post('/internal/pdf/render-to-storage', {
+        html,
+        bucket: params.bucket,
+        path: params.path,
+        ...params.options,
+      });
+      return payload as {
+        id: string;
+        path: string;
+        owner: string | null;
+        size: number;
+        contentType: string | null;
+        createdAt: string;
+      };
+    },
+  };
+}
+
 async function run(): Promise<void> {
   const { code, ctx } = workerData as { code: string; ctx: InvocationCtxWire };
   try {
@@ -111,6 +163,7 @@ async function run(): Promise<void> {
       rest: buildRestClient(ctx.project.schemaName, ctx.callerAuthorization),
       secrets: buildSecretsClient(process.env.CONTROL_SERVER_URL ?? '', ctx.invocationToken),
       email: buildEmailClient(process.env.CONTROL_SERVER_URL ?? '', ctx.invocationToken),
+      pdf: buildPdfClient(process.env.CONTROL_SERVER_URL ?? '', ctx.invocationToken),
     };
 
     const result = await handler(invocationCtx);

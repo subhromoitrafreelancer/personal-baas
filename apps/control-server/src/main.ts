@@ -6,6 +6,7 @@ import { WsAdapter } from '@nestjs/platform-ws';
 import { ConfigService } from '@nestjs/config';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
+import express from 'express';
 import helmet from 'helmet';
 import hbs from 'hbs';
 import { Logger } from 'nestjs-pino';
@@ -14,7 +15,19 @@ import { EnvConfig } from './config/env.schema';
 import { sameOriginGuard } from './common/same-origin.middleware';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
+  // Nest's automatic body parser (bodyParser: true, the default) caps JSON/urlencoded bodies at
+  // Express's own 100kb default — silently rejecting a request with "request entity too large"
+  // before it ever reaches application code. Phase 20's /internal/pdf/render needs to accept an
+  // HTML document up to PDF_MAX_HTML_BYTES (2MB default) in a JSON body, so the parser itself
+  // needs a generous outer limit; PdfService.render() still enforces the real, precise
+  // PDF_MAX_HTML_BYTES limit afterward with a proper error message and pdf.render_requests row —
+  // this is just the safety net that stops something absurd from reaching that check at all.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bufferLogs: true,
+    bodyParser: false,
+  });
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
   app.useLogger(app.get(Logger));
   // HSTS is disabled: the control-server doesn't know whether Caddy proxied a request from the
   // HTTPS (:443) or plain-HTTP (:8000, dev convenience) entry point, and HSTS applies per-host

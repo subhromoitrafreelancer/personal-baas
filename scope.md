@@ -1178,11 +1178,12 @@ Lives in the Auth module itself, not Functions. Promoted from §18 Expansion 6, 
 
 ### Features
 
-* Vendor-agnostic `PdfProvider` interface; a config-driven `GenericHttpPdfProvider` covers three common hosted-API response shapes, plus a `MockPdfProvider` for v1 acceptance testing
+* Vendor-agnostic `PdfProvider` interface; a config-driven `GenericHttpPdfProvider` covers three common hosted-API response shapes
+* Per-project provider configuration (`pdf.provider_configs`), secret stored in that project's own Secrets Vault — same shape as Email (§32) and the AI Gateway (§35)
 * `ctx.pdf.render()` / `ctx.pdf.renderToStorage()` Functions capabilities, via the same internal-callback mechanism as Vault/Email
 * `pdf.render_requests` audit table
 
-No concrete vendor is selected or wired by default — wiring one in later is pure env configuration. Promoted from §18 Expansion 9. See §34 PDF Generation Model for the full design.
+No concrete vendor is selected or wired by default for any project. Promoted from §18 Expansion 9, reshaped 2026-09-13 from a platform-level design to per-project (mirroring Email's own reshape). See §34 PDF Generation Model for the full design.
 
 ## Phase 21 — AI Gateway
 
@@ -2590,9 +2591,13 @@ enrollment URIs for the same person's email are visibly distinguishable in an au
 
 # 34. PDF Generation Model
 
-Phase 20. Backed by an external HTML→PDF API — wrap a hosted API rather than self-hosting a
-renderer, the same shape as Phase 18's email choice — designed vendor-agnostically, with the
-actual vendor selection deliberately deferred to a later, purely-configuration decision.
+Phase 20. Revised 2026-09-13 from the original platform-level sketch (below) at the user's
+direction: per-project config, matching how both Email (§32) and the AI Gateway (§35) ended up —
+the original platform-level decision (point 9, historical) was explicitly reasoned from Email's
+*original* platform-level design, which no longer holds now that Email is per-project. Backed by
+an external HTML→PDF API — wrap a hosted API rather than self-hosting a renderer — designed
+vendor-agnostically, with the actual vendor selection deliberately deferred to a later,
+purely-configuration decision (unchanged from the original design).
 
 ```text
 1. PdfProvider interface: render(html: string, options?: { format?, margin?,
@@ -2601,71 +2606,123 @@ actual vendor selection deliberately deferred to a later, purely-configuration d
    own provider abstraction (§35), just a single-method surface instead of a whole
    request/response negotiation.
 
-2. GenericHttpPdfProvider — the real, vendor-agnostic adapter, entirely
-   config-driven: PDF_API_URL, PDF_API_AUTH_HEADER, PDF_API_AUTH_VALUE,
-   PDF_API_HTML_FIELD (default "html"), and PDF_API_RESPONSE_MODE
-   ("binary" | "json_url" | "json_base64", default "binary") — covering the three
-   common response shapes hosted HTML→PDF APIs use (raw PDF bytes in the response
-   body; a JSON body containing a downloadable URL; a JSON body containing
-   base64-encoded bytes). Whichever vendor eventually gets chosen is very likely to
-   fit one of these three shapes with zero code change, only env configuration —
-   this is the concrete deliverable of "design provider-agnostic, pick vendor
-   later."
+2. pdf.provider_configs (id, project_id references platform.projects(id) on
+   delete cascade, api_url text not null, auth_header text, html_field text not
+   null default 'html', response_mode text not null default 'binary' check
+   (response_mode in ('binary', 'json_url', 'json_base64')), enabled boolean not
+   null default true, created_at, updated_at), unique(project_id) — one active
+   config per project, same shape as email.provider_configs (§32) and
+   ai.provider_configs (§35). No "provider" column: unlike Email/AI, there is only
+   one real adapter (point 3) — vendor identity lives entirely in api_url/
+   response_mode, not a separate enum.
 
-3. MockPdfProvider — selected when PDF_PROVIDER=mock or when no PDF_API_URL is
-   configured (the default out of the box). Returns a minimal valid single-page PDF
-   byte buffer with no network call, sufficient to prove the whole path (Functions
-   capability → provider → Storage write) end-to-end without committing to or
-   paying for a real vendor account. Real vendor wiring is a deployment-time
-   decision, not a code change.
+3. GenericHttpPdfProvider — the one real, vendor-agnostic adapter, entirely
+   config-driven from a project's own pdf.provider_configs row: api_url,
+   auth_header (the header name to send the secret under), html_field (default
+   "html"), and response_mode ("binary" | "json_url" | "json_base64", default
+   "binary") — covering the three common response shapes hosted HTML→PDF APIs use
+   (raw PDF bytes in the response body; a JSON body containing a downloadable URL,
+   `{ url }`; a JSON body containing base64-encoded bytes, `{ data }`). Whichever
+   vendor a project's admin eventually picks is very likely to fit one of these
+   three shapes with zero code change, only config — this is the concrete
+   deliverable of "design provider-agnostic, pick vendor later."
 
-4. Size/timeout/output caps: PDF_MAX_HTML_BYTES (input), PDF_TIMEOUT_MS,
-   PDF_MAX_OUTPUT_BYTES (defends against a misbehaving vendor response) — same
-   *_MAX_*_BYTES-style env convention as Storage (§21 point 6) and Hosting (§25
-   point 3).
+4. Secret storage reuses the Secrets Vault (§30) exactly the way Email (§32 point
+   3) and the AI Gateway (§35 point 3) do: the vendor's auth header value is
+   written as a vault secret under a reserved name, PDF_PROVIDER_SECRET, in that
+   project's own vault namespace. No new encryption path.
 
-5. ctx.pdf.render(html, options?) Functions capability: goes through the same
+5. Per-project "unconfigured" behavior matches Email/AI, not the original
+   platform-level sketch's silent Mock fallback: a project with no enabled
+   pdf.provider_configs row gets a real, immediate error from ctx.pdf.render() —
+   "fail loudly to the caller who can act on it," the same posture §32 point 8 and
+   §35 point 10 already take. MockPdfProvider (below) still exists in the
+   codebase, but purely as an internal implementation-testing tool — no per-project
+   config path ever selects it. This is the one deliberate behavioral consequence
+   of moving from a single deployment-wide feature (where "not configured yet" was
+   an expected transient platform-setup state) to a per-project one (where it's a
+   specific project's admin not having set it up) — worth stating explicitly since
+   it inverts the original sketch's default-to-Mock framing.
+
+6. MockPdfProvider — used only for this phase's own acceptance testing (and any
+   future unit tests), returning a minimal valid single-page PDF byte buffer with
+   no network call. Proves the whole path (Functions capability → provider →
+   Storage write) end-to-end without needing a real vendor account, but is never
+   reachable through any per-project admin configuration.
+
+7. Size/timeout/output caps stay platform-wide env vars, not per-project columns —
+   these are deployment safety limits, not business config: PDF_MAX_HTML_BYTES
+   (input), PDF_TIMEOUT_MS, PDF_MAX_OUTPUT_BYTES (defends against a misbehaving
+   vendor response) — same *_MAX_*_BYTES-style convention as Storage (§21 point 6)
+   and Hosting (§25 point 3), and the same "safety limit stays platform-wide even
+   though the feature above it is per-project" split Storage itself already uses
+   (STORAGE_MAX_UPLOAD_BYTES is platform-wide; buckets are per-project).
+
+8. ctx.pdf.render(html, options?) Functions capability: goes through the same
    internal-callback pattern as ctx.secrets/ctx.email (a new POST
    /internal/pdf/render control-server endpoint, reusing the existing
    per-invocation opaque token) rather than letting function-runner call an
    external PDF vendor directly — function-runner holds no outbound credential of
    its own, and the vendor's auth header value should only ever live inside
    control-server's own process, mirroring §30 point 5's rationale for secrets.
-   Returns a Buffer to the calling function's code.
+   Returns a Buffer to the calling function's code (bytes travel base64-encoded
+   over the internal JSON call, decoded back to a Buffer inside the worker).
 
-6. ctx.pdf.renderToStorage(html, { bucket, path, options? }) — a convenience that
+9. ctx.pdf.renderToStorage(html, { bucket, path, options? }) — a convenience that
    renders then writes the resulting bytes through the existing internal
-   storage-write path (reusing StorageService directly, no new upload mechanism),
-   returning the resulting storage.objects row. This is the "bytes land in Storage
-   through the existing storage-write path" design goal made concrete.
+   storage-write path (reusing StorageService.uploadObject() directly, no new
+   upload mechanism), returning the resulting storage.objects row. Writes as a
+   service-key-shaped requester (no owner attribution, full read/write access —
+   the same "no owner" treatment admin/service-role uploads already get), since a
+   Function-initiated render has no single well-defined "owner" the way a real
+   user's direct upload does.
 
-7. pdf.render_requests (id, project_id, status, duration_ms, output_bytes, error,
-   created_at) — same audit/observability convention as functions.invocations /
-   scheduler.job_runs.
+10. pdf.render_requests (id, project_id, status, duration_ms, output_bytes, error,
+    created_at) — same audit/observability convention as functions.invocations /
+    scheduler.job_runs.
 
-8. No direct /pdf/v1/* REST endpoint in v1 — PDF generation is Functions-only,
-   deliberately, since it composes naturally with a Function already assembling
-   HTML from ctx.rest data, and a direct endpoint is an easy later addition if a
-   concrete need for one shows up. This is a scoping choice, not an oversight.
+11. No direct /pdf/v1/* REST endpoint in v1 — PDF generation is Functions-only,
+    deliberately, since it composes naturally with a Function already assembling
+    HTML from ctx.rest data, and a direct endpoint is an easy later addition if a
+    concrete need for one shows up. This is a scoping choice, not an oversight —
+    reconfirmed 2026-09-13 alongside the per-project reshape.
 
-9. Vendor credential scope: platform-level config (PDF_API_URL etc.), not a
-   per-project Vault secret — a PDF-rendering credential is a shared platform cost
-   center like Resend (Phase 18), not project-owned data the way an AI provider key
-   is; Expansion 9 never asked for per-project vendor configurability the way the
-   AI Gateway question explicitly did.
+12. Admin: /admin/pdf/:project — api_url/auth_header-name/html_field/response_mode
+    form, a write-only secret input (writing PDF_PROVIDER_SECRET, reusing the same
+    component pattern as Vault/Email's admin pages), an enabled toggle, and a
+    recent-requests list reading pdf.render_requests. Config saves audited as
+    pdf.provider_config_saved via the existing AuthAuditService.record() convention
+    (matching the ai.*-prefix precedent §35 point 12 already calls for, tightening
+    up a gap the original Email admin page left unaudited).
 
-10. Explicit non-goals: no vendor selected or wired by default (point 3), no
-    per-project vendor override (point 9), no PDF template system, no async/
-    webhook-callback rendering mode — v1 is synchronous request/response only,
-    bounded by PDF_TIMEOUT_MS.
+13. Explicit non-goals: no vendor selected or wired by default for any project
+    (point 5), no PDF template system, no async/webhook-callback rendering mode —
+    v1 is synchronous request/response only, bounded by PDF_TIMEOUT_MS.
 ```
 
-**Acceptance**: with the default `MockPdfProvider`, a Function calling `ctx.pdf.render('<h1>hi</h1>')`
-receives non-empty PDF-like bytes and a `pdf.render_requests` row is written;
-`ctx.pdf.renderToStorage(...)` produces a real, downloadable `storage.objects` row containing
-those bytes; switching `PDF_PROVIDER` to a real vendor requires only env-var changes when that
-vendor's response shape matches one of `GenericHttpPdfProvider`'s three supported modes, no code
-change.
+**Acceptance**: configuring two different projects with two different api_url/response_mode
+combinations (each with its own vault-stored secret) and calling `ctx.pdf.render()` from a
+Function in each produces a real rendered PDF from the correct, distinct endpoint for each
+project, proving per-project provider selection actually works; a project with no
+pdf.provider_configs row gets a clean, immediate error from `ctx.pdf.render()`, never a silent
+Mock fallback; `ctx.pdf.renderToStorage(...)` produces a real, downloadable `storage.objects` row
+containing the rendered bytes; a `pdf.render_requests` row is written for both a successful and a
+failed render; switching a project's vendor requires only admin-console config changes when the
+new vendor's response shape matches one of `GenericHttpPdfProvider`'s three supported modes, no
+code change.
+
+## Historical note (superseded 2026-09-13)
+
+The original v1 design made PDF vendor credentials platform-level config (PDF_API_URL etc.), not
+a per-project Vault secret, reasoning that "a PDF-rendering credential is a shared platform cost
+center like Resend (Phase 18), not project-owned data the way an AI provider key is" — a
+reasonable read of Expansion 9's original text, but one explicitly reasoned from Email's own
+*original* platform-level design (§32), which itself was later reshaped to per-project. Once
+Email moved, the analogy this section's platform-level decision rested on no longer held, so PDF
+was reshaped to match on the same 2026-09-13 pass. `MockPdfProvider` was originally the default
+fallback whenever nothing was configured; per-project, that would have meant a specific project's
+own admin not finishing setup silently degrades to fake output rather than a clear error, so that
+behavior was inverted (point 5) to match Email/AI's "fail loudly" posture instead.
 
 ---
 

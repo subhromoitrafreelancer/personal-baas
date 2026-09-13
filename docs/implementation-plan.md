@@ -1037,6 +1037,119 @@ incorrect attempts trigger Phase 17's rate limit; a backup code succeeds exactly
 reuse; an admin-triggered reset clears the factor and routes the user back through forced
 enrollment on next login if the project still requires it, or plain password login if it doesn't.
 
+## Phase 20 — PDF Generation
+
+Vendor-agnostic HTML→PDF rendering (scope.md §34, reshaped 2026-09-13 same session as scoped:
+per-project config, mirroring Email §32/AI Gateway §35, not the original platform-level sketch).
+Three product questions were asked and resolved before writing this breakdown: (1) config scope
+— **per-project**, not platform-wide, since the original platform-level reasoning was itself
+based on Email's now-superseded platform-level design; (2) vendor wiring — ship the
+vendor-agnostic `GenericHttpPdfProvider` + a `MockPdfProvider` for testing, not a specific named
+vendor wired up now; (3) exposure surface — **Functions-only**, no direct `/pdf/v1/*` REST
+endpoint, reconfirming the original scope.md decision.
+
+1. **Schema** — one migration, own schema (following the vault/scheduler/email upgrade-safety
+   fix from the start, `pgm.createSchema('pdf', { ifNotExists: true, authorization: 'baas_admin'
+   })`, not relying on bootstrap SQL):
+   - `pdf.provider_configs` (`id`, `project_id references platform.projects(id) on delete
+     cascade`, `api_url text not null`, `auth_header text`, `html_field text not null default
+     'html'`, `response_mode text not null default 'binary' check (response_mode in ('binary',
+     'json_url', 'json_base64'))`, `enabled boolean not null default true`, `created_at`,
+     `updated_at`), `unique(project_id)`. No `provider` enum column — there's only one real
+     adapter (point 2), vendor identity lives entirely in `api_url`/`response_mode`.
+   - `pdf.render_requests` (`id`, `project_id not null references platform.projects(id) on
+     delete cascade`, `status text not null check (status in ('success', 'failed'))`,
+     `duration_ms integer`, `output_bytes integer`, `error text`, `created_at`), indexes on
+     `project_id` and `created_at`.
+
+2. **New `apps/control-server/src/modules/pdf/` module** (mirrors `email/`'s shape exactly):
+   - `pdf.types.ts` — `PdfProviderConfigRow`, `PdfRenderOptions`, `PdfProvider` interface
+     (`render(html, options?) => Promise<Buffer>`), `PDF_PROVIDER_SECRET_NAME` constant.
+   - `providers/generic-http.provider.ts` — `GenericHttpPdfProvider`, config-driven per point 2
+     above: POSTs `{ [htmlField]: html, ...options }` to `api_url` with the secret under
+     `auth_header` (when set); parses the response per `response_mode` — `'binary'` reads the
+     raw response body as a `Buffer`; `'json_url'` reads `{ url }` from the JSON body and fetches
+     that URL for the actual bytes; `'json_base64'` reads `{ data }` and base64-decodes it. These
+     two field names (`url`, `data`) are a documented convention, not user-configurable — picking
+     one reasonable shape per mode is what keeps this adapter simple; a vendor using different
+     field names needs a small adapter change, not new config surface.
+   - `providers/mock.provider.ts` — `MockPdfProvider`, returns a minimal valid single-page PDF
+     `Buffer` synchronously, no network call. **Never reachable through any per-project admin
+     config** (point 5 below) — exists solely for this phase's own acceptance testing.
+   - `pdf-provider.factory.ts` — `buildPdfProvider(config, secret): PdfProvider`, mirroring
+     `email-provider.factory.ts`'s shape (always returns a `GenericHttpPdfProvider` — the
+     factory's only job here is wiring config+secret into the one real adapter).
+   - `pdf-provider-configs.repository.ts` / `pdf-render-requests.repository.ts` — CRUD, mirroring
+     `email-provider-configs.repository.ts`/`email-sent-messages.repository.ts` exactly
+     (`findByProjectId`, `upsert` for the former; `record`, `listByProject` for the latter).
+   - `pdf.service.ts` — `getConfig`/`saveConfig`/`setSecret`/`listRequests` (admin-facing,
+     mirroring `EmailService`), plus:
+     - `render(projectId, html, options): Promise<PdfRenderOutcome>` — never throws, always
+       writes a `pdf.render_requests` row. Checks `html.length` against `PDF_MAX_HTML_BYTES`
+       before calling any provider (reject oversized input for free, no vendor round-trip
+       wasted); on success checks the returned buffer against `PDF_MAX_OUTPUT_BYTES` (a
+       misbehaving vendor returning something huge is still capped); enforces `PDF_TIMEOUT_MS`
+       via `AbortController` passed through to the provider's own `fetch` calls.
+     - `renderOrThrow(projectId, html, options)` — used only by the internal Functions callback
+       (point 8): throws `NotFoundException` when unconfigured/disabled (mirrors
+       `EmailService.sendOrThrow`'s `'not_configured'` branch exactly), `BadGatewayException` for
+       an actual provider failure.
+     - `renderToStorage(projectId, html, { bucket, path, options })` — calls `renderOrThrow`,
+       then `StorageService.uploadObject({ bucketName: bucket, path, requester: { kind:
+       'service-key', role: 'service_role', projectId }, buffer, contentType: 'application/pdf'
+       })` — the `service-key` requester variant already has unconditional read/write access
+       (`canWrite`/`canRead` in `storage.service.ts` both special-case it), matching the "no
+       single owner" reality of a Function-initiated render.
+   - `pdf-admin.controller.ts` / `pdf-internal.controller.ts` / `pdf-page.controller.ts` —
+     mirror `email-admin.controller.ts` (`?projectId=` convention) / `email-internal.controller.ts`
+     (reuses `VaultInvocationTokenGuard` as-is, exactly like Email's internal controller) /
+     `email-page.controller.ts`.
+   - `pdf.module.ts` — `imports: [AdminAuthModule, ProjectsModule, VaultModule, StorageModule]`
+     (needs `StorageModule` for `renderToStorage`, unlike `EmailModule`) — no cycle risk:
+     `StorageModule` imports `AuthModule`, which has no path back to a new leaf `PdfModule`.
+
+3. **Secret storage reuses the Secrets Vault** exactly the way Email (§32 point 3) does: the
+   vendor's auth header value is written under a reserved name, `PDF_PROVIDER_SECRET`, in that
+   project's own vault namespace via `VaultService.upsert()` — no new encryption path.
+
+4. **Internal callback endpoints** (reusing the exact mechanism already built for
+   `ctx.secrets`/`ctx.email`, no new plumbing): `POST /internal/pdf/render` returns `{
+   pdfBase64: string }` (raw bytes can't travel cleanly over a JSON body, so this endpoint
+   base64-encodes; `worker-entry.ts`'s `buildPdfClient` decodes back to a `Buffer` before handing
+   it to function code) or throws per `renderOrThrow`'s exceptions; `POST
+   /internal/pdf/render-to-storage` takes `{ html, bucket, path, options? }` and returns the
+   public `storage.objects` shape. Both guarded by the existing `VaultInvocationTokenGuard` —
+   unmodified, since it was already fully generic (resolves an invocation token to a project id,
+   nothing vault-specific).
+
+5. **`ctx.pdf` Functions capability** — `apps/function-runner/src/types.ts`'s `InvocationCtx`
+   gains `pdf: { render(html, options?): Promise<Buffer>; renderToStorage(html, { bucket, path,
+   options? }): Promise<{ id, path, owner, size, contentType, createdAt }> }`; `worker-entry.ts`
+   gains `buildPdfClient(controlServerUrl, invocationToken)` alongside
+   `buildSecretsClient`/`buildEmailClient`, using the identical `X-Invocation-Token` header
+   convention.
+
+6. **Env vars** (platform-wide safety limits, not per-project config — same split Storage
+   already uses): `PDF_MAX_HTML_BYTES` (default e.g. 2MB), `PDF_TIMEOUT_MS` (default e.g.
+   30000), `PDF_MAX_OUTPUT_BYTES` (default e.g. 20MB).
+
+7. **Admin UI**: `/admin/pdf` — provider config form (`api_url`, `auth_header` name,
+   `html_field`, `response_mode` dropdown, `enabled` toggle), a write-only secret input (reusing
+   the same write-only-secret-input pattern as Vault/Email), and a recent-requests list reading
+   `pdf.render_requests`. Config saves audited as `pdf.provider_config_saved` — tightens up a gap
+   Email's own admin page left unaudited (`EmailAdminController.saveConfig()`/`setSecret()`
+   currently record no `AuthAuditService` event of their own, relying only on `VaultService`'s
+   own `vault.secret_created`/`_rotated` events for the secret half) — not retroactively fixed on
+   Email in this pass, but not repeated here either.
+
+**Acceptance**: configuring two different projects with two different `api_url`/`response_mode`
+combinations (each with its own vault-stored secret) and calling `ctx.pdf.render()` from a
+Function in each produces a real rendered PDF from the correct, distinct endpoint per project; a
+project with no `pdf.provider_configs` row gets a clean, immediate error from `ctx.pdf.render()`,
+never a silent Mock fallback; `ctx.pdf.renderToStorage(...)` produces a real, downloadable
+`storage.objects` row containing the rendered bytes; a `pdf.render_requests` row is written for
+both a successful and a failed render; oversized input HTML is rejected before any vendor call.
+
 ---
 
 ## Cross-cutting conventions

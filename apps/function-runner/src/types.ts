@@ -9,7 +9,7 @@ export interface RunRequestBody {
   ctx: InvocationCtxWire;
 }
 
-// Everything the worker needs to build the real ctx.rest/ctx.secrets/ctx.email closures.
+// Everything the worker needs to build the real ctx.rest/ctx.secrets/ctx.email/ctx.pdf closures.
 // schemaName/callerAuthorization/invocationToken are internal-only -- not copied verbatim into
 // the ctx object handed to function code (which only ever sees the public shape below).
 export interface InvocationCtxWire {
@@ -28,11 +28,12 @@ export interface InvocationCtxWire {
   invocationToken: string;
 }
 
-// The public invocation contract (scope.md §26 point 3, extended by §30 point 5 and §32 point
-// 8) -- what a function's handler actually receives. `rest`/`secrets`/`email` are constructed
-// locally inside the worker (functions can't be sent over workerData/JSON): `rest` pre-bound to
-// POSTGREST_URL with the invoking caller's own JWT forwarded, `secrets`/`email` calling back
-// into control-server per call rather than handing the worker any credential up front.
+// The public invocation contract (scope.md §26 point 3, extended by §30 point 5, §32 point 8,
+// and §34 point 8) -- what a function's handler actually receives. `rest`/`secrets`/`email`/
+// `pdf` are constructed locally inside the worker (functions can't be sent over workerData/
+// JSON): `rest` pre-bound to POSTGREST_URL with the invoking caller's own JWT forwarded, the
+// others calling back into control-server per call rather than handing the worker any
+// credential up front.
 export interface InvocationCtx {
   body: unknown;
   headers: Record<string, string>;
@@ -46,6 +47,20 @@ export interface InvocationCtx {
   email: {
     send: (message: { to: string; subject: string; html?: string; text?: string }) => Promise<{
       providerMessageId: string | null;
+    }>;
+  };
+  pdf: {
+    render: (html: string, options?: { format?: string; margin?: string }) => Promise<Buffer>;
+    renderToStorage: (
+      html: string,
+      params: { bucket: string; path: string; options?: { format?: string; margin?: string } },
+    ) => Promise<{
+      id: string;
+      path: string;
+      owner: string | null;
+      size: number;
+      contentType: string | null;
+      createdAt: string;
     }>;
   };
 }

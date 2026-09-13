@@ -31,6 +31,7 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "cron-parser": "^5.10.0",
+    "express": "^5.2.1",
     "hbs": "^4.2.0",
     "helmet": "^8.3.0",
     "jose": "^5.9.6",

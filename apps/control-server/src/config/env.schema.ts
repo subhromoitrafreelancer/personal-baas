@@ -105,6 +105,20 @@ export const envSchema = z.object({
   // Throttle on the internal /internal/email/send callback (ctx.email.send), reusing Phase 17's
   // @nestjs/throttler infrastructure rather than a new per-project quota table.
   EMAIL_MAX_PER_MINUTE: z.coerce.number().int().positive().default(60),
+  // PDF Generation (Phase 20, scope.md §34) — platform-wide safety limits, not per-project
+  // config (the feature itself is per-project via pdf.provider_configs; these are deployment
+  // safety caps, same split as STORAGE_MAX_UPLOAD_BYTES vs. per-project storage buckets).
+  PDF_MAX_HTML_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2 * 1024 * 1024),
+  PDF_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
+  PDF_MAX_OUTPUT_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20 * 1024 * 1024),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
