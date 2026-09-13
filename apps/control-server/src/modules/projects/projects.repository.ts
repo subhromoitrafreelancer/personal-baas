@@ -10,6 +10,7 @@ export interface ProjectRow {
   anon_role: string;
   authenticated_role: string;
   service_role_role: string;
+  mfa_required: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -66,6 +67,16 @@ export class ProjectsRepository {
       'SELECT * FROM platform.projects ORDER BY created_at ASC',
     );
     return rows;
+  }
+
+  // Phase 19 (scope.md §33 point 14) — no generic project-update endpoint exists yet, so this
+  // stays a narrow, single-purpose method rather than a general partial-update one.
+  async setMfaRequired(id: string, enabled: boolean): Promise<ProjectRow | null> {
+    const { rows } = await this.pool.query<ProjectRow>(
+      'UPDATE platform.projects SET mfa_required = $2, updated_at = now() WHERE id = $1 RETURNING *',
+      [id, enabled],
+    );
+    return rows[0] ?? null;
   }
 
   async schemaExists(schemaName: string): Promise<boolean> {

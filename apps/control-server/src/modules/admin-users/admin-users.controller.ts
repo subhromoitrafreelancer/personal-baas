@@ -1,4 +1,16 @@
-import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { z } from 'zod';
 import { AdminSessionGuard } from '../admin-auth/admin-session.guard';
 import { RequestWithAdmin } from '../admin-auth/admin.types';
@@ -44,7 +56,12 @@ export class AdminUsersController {
     if (!parsed.success) {
       throw new BadRequestException(parsed.error.issues.map((issue) => issue.message).join('; '));
     }
-    return this.adminUsers.list(search?.trim() || null, parsed.data.limit, parsed.data.offset, projectId);
+    return this.adminUsers.list(
+      search?.trim() || null,
+      parsed.data.limit,
+      parsed.data.offset,
+      projectId,
+    );
   }
 
   @Post()
@@ -87,5 +104,12 @@ export class AdminUsersController {
   @Post(':id/temporary-password')
   async temporaryPassword(@Param('id') id: string, @Req() req: RequestWithAdmin) {
     return this.adminUsers.setTemporaryPassword(id, req.admin!.email);
+  }
+
+  // Lockout recovery when a device and backup codes are both lost (scope.md §33 point 12) —
+  // same trust level as every other admin user-management action above (§5.1).
+  @Delete(':id/mfa')
+  async resetMfa(@Param('id') id: string, @Req() req: RequestWithAdmin) {
+    return this.adminUsers.resetMfa(id, req.admin!.email);
   }
 }

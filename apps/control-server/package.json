@@ -40,6 +40,7 @@
     "multer": "^2.2.0",
     "nestjs-pino": "^4.1.0",
     "nodemailer": "^10.0.9",
+    "otplib": "^13.5.0",
     "pg": "^8.13.1",
     "pino-http": "^10.3.0",
     "prom-client": "^15.1.3",

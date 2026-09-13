@@ -75,12 +75,14 @@ function renderRow(user) {
     </td>
     <td><span class="badge status-${escapeHtml(user.status)}">${escapeHtml(user.status)}</span></td>
     <td>${user.emailVerified ? 'Yes' : 'No'}</td>
+    <td><span class="badge ${user.mfaEnabled ? 'status-active' : 'status-disabled'}">${user.mfaEnabled ? 'Enabled' : 'Disabled'}</span></td>
     <td>${new Date(user.createdAt).toLocaleString()}</td>
     <td>${user.lastSignInAt ? new Date(user.lastSignInAt).toLocaleString() : '—'}</td>
     <td class="actions-cell">
       <button type="button" class="btn btn-outline btn-sm" data-action="status" data-status="${nextStatus}">${disableLabel}</button>
       <button type="button" class="btn btn-outline btn-sm" data-action="reset-token">${window.Icons.markup('external-link')} Reset link</button>
       <button type="button" class="btn btn-outline btn-sm" data-action="temp-password">${window.Icons.markup('view')} Temp password</button>
+      ${user.mfaEnabled ? `<button type="button" class="btn btn-outline btn-sm" data-action="reset-mfa">${window.Icons.markup('warning')} Reset MFA</button>` : ''}
     </td>
   `;
 
@@ -126,6 +128,22 @@ function renderRow(user) {
     const body = await res.json();
     showSecret(`Temporary password for ${user.email}: ${body.temporaryPassword}`);
   });
+
+  const resetMfaBtn = tr.querySelector('[data-action="reset-mfa"]');
+  if (resetMfaBtn) {
+    resetMfaBtn.addEventListener('click', async () => {
+      if (!window.confirm(`Reset MFA for ${user.email}? They will need to re-enroll.`)) return;
+      const res = await apiFetch(`/admin/v1/users/${user.id}/mfa`, { method: 'DELETE' });
+      if (!res) return;
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        showToast(body.message ?? 'Failed to reset MFA', 'error');
+        return;
+      }
+      showToast(`MFA reset for ${user.email}`, 'success');
+      loadUsers();
+    });
+  }
 
   return tr;
 }

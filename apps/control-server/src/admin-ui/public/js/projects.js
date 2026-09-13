@@ -42,8 +42,36 @@ function renderRow(project) {
     <td><a href="/admin/api?schema=${schema}" title="Open in API Explorer">${escapeHtml(project.name)}</a></td>
     <td><a href="/admin/database?schema=${schema}" title="Open in Database Explorer"><code>${escapeHtml(project.schemaName)}</code></a></td>
     <td><code>${escapeHtml(project.anonRole)}</code>, <code>${escapeHtml(project.authenticatedRole)}</code>, <code>${escapeHtml(project.serviceRoleRole)}</code></td>
+    <td>
+      <label class="field checkbox-field" title="Takes effect on each user's next login, not retroactively">
+        <input type="checkbox" data-action="mfa-required" ${project.mfaRequired ? 'checked' : ''} />
+      </label>
+    </td>
     <td>${new Date(project.createdAt).toLocaleString()}</td>
   `;
+
+  tr.querySelector('[data-action="mfa-required"]').addEventListener('change', async (e) => {
+    const enabled = e.target.checked;
+    const res = await apiFetch(`/admin/v1/projects/${project.id}/mfa-required`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+    if (!res) return;
+    if (!res.ok) {
+      e.target.checked = !enabled;
+      const body = await res.json().catch(() => ({}));
+      showToast(body.message ?? 'Failed to update MFA setting', 'error');
+      return;
+    }
+    showToast(
+      enabled
+        ? `MFA required for "${project.name}" — takes effect on each user's next login`
+        : `MFA no longer required for "${project.name}"`,
+      'success',
+    );
+  });
+
   return tr;
 }
 

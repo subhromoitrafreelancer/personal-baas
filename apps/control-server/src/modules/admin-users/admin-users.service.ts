@@ -5,6 +5,8 @@ import { AuthAuditService } from '../auth/auth-audit.service';
 import { AuthPasswordResetTokensRepository } from '../auth/auth-password-reset-tokens.repository';
 import { PublicUser, toPublicUser } from '../auth/auth-user.dto';
 import { AuthUsersRepository } from '../auth/auth-users.repository';
+import { MfaFactorsRepository } from '../auth/mfa/mfa-factors.repository';
+import { MfaService } from '../auth/mfa/mfa.service';
 import { ProjectRow } from '../projects/projects.repository';
 import { ProjectsService } from '../projects/projects.service';
 
@@ -31,12 +33,33 @@ export class AdminUsersService {
     private readonly resetTokensRepo: AuthPasswordResetTokensRepository,
     private readonly audit: AuthAuditService,
     private readonly projects: ProjectsService,
+    private readonly mfaFactors: MfaFactorsRepository,
+    private readonly mfa: MfaService,
   ) {}
 
   async list(search: string | null, limit: number, offset: number, projectId?: string) {
-    const project = projectId ? await this.projects.getById(projectId) : await this.projects.getDefault();
+    const project = projectId
+      ? await this.projects.getById(projectId)
+      : await this.projects.getDefault();
     const { rows, total } = await this.usersRepo.list(search, limit, offset, project.id);
-    return { users: rows.map(toPublicUser), total };
+    // One extra batched query rather than joining MFA state into AuthUsersRepository.list()
+    // itself (scope.md §33 point 9) — keeps the non-admin /auth/v1/user self-service DTO
+    // untouched by an admin-only concern.
+    const verifiedIds = await this.mfaFactors.findVerifiedUserIds(rows.map((row) => row.id));
+    const users = rows.map((row) => ({
+      ...toPublicUser(row),
+      mfaEnabled: verifiedIds.has(row.id),
+    }));
+    return { users, total };
+  }
+
+  async resetMfa(id: string, adminEmail: string): Promise<{ reset: true }> {
+    const user = await this.usersRepo.findById(id);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    await this.mfa.adminReset(id, adminEmail);
+    return { reset: true };
   }
 
   async create(
@@ -45,7 +68,9 @@ export class AdminUsersService {
     adminEmail: string,
     projectId?: string,
   ): Promise<{ user: PublicUser; temporaryPassword?: string }> {
-    const project = projectId ? await this.projects.getById(projectId) : await this.projects.getDefault();
+    const project = projectId
+      ? await this.projects.getById(projectId)
+      : await this.projects.getDefault();
     return this.createOne(email, password, adminEmail, project);
   }
 
@@ -70,7 +95,10 @@ export class AdminUsersService {
     const user = await this.usersRepo.create(email, passwordHash, project.id);
     this.audit.record(user.id, 'admin.user_created', null, null, { createdBy: adminEmail });
 
-    return { user: toPublicUser(user), temporaryPassword: password ? undefined : temporaryPassword };
+    return {
+      user: toPublicUser(user),
+      temporaryPassword: password ? undefined : temporaryPassword,
+    };
   }
 
   /**
@@ -82,8 +110,13 @@ export class AdminUsersService {
     entries: BulkCreateUserEntry[],
     adminEmail: string,
     projectId?: string,
-  ): Promise<{ results: BulkCreateUserResult[]; summary: { created: number; skipped: number; failed: number } }> {
-    const project = projectId ? await this.projects.getById(projectId) : await this.projects.getDefault();
+  ): Promise<{
+    results: BulkCreateUserResult[];
+    summary: { created: number; skipped: number; failed: number };
+  }> {
+    const project = projectId
+      ? await this.projects.getById(projectId)
+      : await this.projects.getDefault();
 
     const results: BulkCreateUserResult[] = [];
     let created = 0;
@@ -102,7 +135,11 @@ export class AdminUsersService {
         created += 1;
       } catch (err) {
         if (err instanceof UnprocessableEntityException) {
-          results.push({ email: entry.email, status: 'skipped', message: 'User already registered' });
+          results.push({
+            email: entry.email,
+            status: 'skipped',
+            message: 'User already registered',
+          });
           skipped += 1;
         } else {
           results.push({
@@ -118,16 +155,26 @@ export class AdminUsersService {
     return { results, summary: { created, skipped, failed } };
   }
 
-  async setStatus(id: string, status: 'active' | 'disabled', adminEmail: string): Promise<PublicUser> {
+  async setStatus(
+    id: string,
+    status: 'active' | 'disabled',
+    adminEmail: string,
+  ): Promise<PublicUser> {
     const user = await this.usersRepo.setStatus(id, status);
     if (!user) {
       throw new NotFoundException('User not found');
     }
-    this.audit.record(user.id, 'admin.user_status_changed', null, null, { status, changedBy: adminEmail });
+    this.audit.record(user.id, 'admin.user_status_changed', null, null, {
+      status,
+      changedBy: adminEmail,
+    });
     return toPublicUser(user);
   }
 
-  async generateResetToken(id: string, adminEmail: string): Promise<{ token: string; expiresAt: string }> {
+  async generateResetToken(
+    id: string,
+    adminEmail: string,
+  ): Promise<{ token: string; expiresAt: string }> {
     const user = await this.usersRepo.findById(id);
     if (!user) {
       throw new NotFoundException('User not found');
@@ -142,7 +189,10 @@ export class AdminUsersService {
     return { token, expiresAt: expiresAt.toISOString() };
   }
 
-  async setTemporaryPassword(id: string, adminEmail: string): Promise<{ temporaryPassword: string }> {
+  async setTemporaryPassword(
+    id: string,
+    adminEmail: string,
+  ): Promise<{ temporaryPassword: string }> {
     const user = await this.usersRepo.findById(id);
     if (!user) {
       throw new NotFoundException('User not found');

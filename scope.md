@@ -2514,11 +2514,34 @@ project's users.
    marginal cost is near zero once the enroll/verify machinery exists for the
    required case anyway.
 
-9. Rate limiting: /auth/v1/mfa/verify gets the same strict per-route throttle as
-   /auth/v1/login (§31 point 3 — a 6-digit TOTP code is a small enough space to be
-   brute-forceable without this).
+9. Re-enrollment conflict (resolved 2026-09-13): POST /auth/v1/mfa/enroll checks for
+   an existing verified=true row first and rejects with 409 Conflict if one exists —
+   the caller must DELETE /auth/v1/mfa (point 13) or get an admin reset (point 12)
+   before a fresh enrollment can start. Chosen over silently allowing replacement:
+   a narrow-window credential (e.g. a stolen but not-yet-expired access token)
+   shouldn't be able to displace someone's existing MFA on its own via the
+   voluntary self-service path (point 8). Enroll may still overwrite an existing
+   *unverified* row with no such check — an abandoned, never-confirmed enrollment
+   attempt has nothing valid to protect.
 
-10. Admin-triggered reset: DELETE /admin/v1/users/:id/mfa (AdminSessionGuard)
+10. TOTP issuer label (resolved 2026-09-13): the otpauth:// URI's issuer parameter
+    (shown in the user's authenticator app next to the account) uses that project's
+    own name field as-is — otpauth://totp/<project.name>:<email>?...&issuer=
+    <project.name> — no new column, no new admin UI, no env var. A platform-wide
+    env var was considered and rejected: this platform is multi-project on one
+    deployment, so a single deployment-wide issuer string can't differentiate
+    between projects/orgs hosted on the same instance anyway, while a project's
+    name is already an admin-editable per-project label that changes without a
+    restart — it already is "a different label per agency/org," via a mechanism
+    this platform already has. A separate branding field (for when a project's
+    internal name should differ from its authenticator-app label) was also
+    considered and explicitly deferred to a later addition if a real need shows up.
+
+11. Rate limiting: /auth/v1/mfa/verify gets the same strict per-route throttle as
+    /auth/v1/login (§31 point 3 — a 6-digit TOTP code is a small enough space to be
+    brute-forceable without this).
+
+12. Admin-triggered reset: DELETE /admin/v1/users/:id/mfa (AdminSessionGuard)
     deletes the user's mfa_factors and mfa_backup_codes rows outright, for lockout
     recovery when a device and backup codes are both lost. If project.mfa_required
     is still true, this simply routes the user back through branch (c) — forced
@@ -2527,7 +2550,7 @@ project's users.
     role/permission system to introduce a narrower one for (§29 point 6 already
     established this). Audited as admin.mfa_reset.
 
-11. Self-service disable: DELETE /auth/v1/mfa (authenticated) requires the current
+13. Self-service disable: DELETE /auth/v1/mfa (authenticated) requires the current
     password plus a valid TOTP/backup code as re-confirmation — disabling MFA is
     itself a sensitive action and shouldn't be possible from a bare authenticated
     session alone (e.g. a stolen access token with no factor of its own). If
@@ -2536,7 +2559,7 @@ project's users.
     immediately re-enters branch (c) — disabling is not a way to escape a project's
     policy, only a way to reset a broken enrollment.
 
-12. Admin: a new PATCH /admin/v1/projects/:id/mfa-required {enabled} endpoint (there
+14. Admin: a new PATCH /admin/v1/projects/:id/mfa-required {enabled} endpoint (there
     is no generic project-update endpoint yet — this platform's existing convention
     is narrow, purpose-built endpoints like API keys' /revoke and /reveal, not a
     general PATCH, so this follows that same shape) flips the flag, audited as
@@ -2558,7 +2581,10 @@ issues real tokens without a second `/mfa/verify` call; `mfa/verify` with an inc
 rejected and enough incorrect attempts trigger Phase 17's rate limit; a backup code succeeds
 exactly once and fails on reuse; an admin-triggered reset clears the factor and the user is
 routed back through forced enrollment on next login if the project still requires it, or plain
-password login if it doesn't.
+password login if it doesn't; a second `enroll` call while a verified factor already exists is
+rejected with `409`, and only succeeds after a self-disable or admin reset; the enroll response's
+`otpauth://` URI carries the calling project's own name as `issuer`, and two different projects'
+enrollment URIs for the same person's email are visibly distinguishable in an authenticator app.
 
 ---
 

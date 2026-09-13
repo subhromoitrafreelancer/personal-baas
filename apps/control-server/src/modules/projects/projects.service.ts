@@ -1,4 +1,10 @@
-import { ConflictException, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { PostgrestConfigService } from './postgrest-config.service';
 import { ProjectRow, ProjectsRepository } from './projects.repository';
 import { validateProjectSlug } from './project-slug.util';
@@ -40,7 +46,7 @@ export class ProjectsService {
 
     const created = await this.repository.insert(DEFAULT_PROJECT);
     this.logger.warn(
-      "Default project row was missing at boot and has been re-seeded. This normally " +
+      'Default project row was missing at boot and has been re-seeded. This normally ' +
         'happens once via migration — seeing this log after the first boot may indicate the ' +
         'platform.projects row was deleted.',
     );
@@ -86,6 +92,17 @@ export class ProjectsService {
     const project = await this.repository.findById(projectId);
     if (!project) {
       throw new InternalServerErrorException(`Project '${projectId}' not found`);
+    }
+    return project;
+  }
+
+  // Phase 19 (scope.md §33 point 14) — a genuine client error (a bad/typo'd :id in an admin
+  // PATCH request), unlike getById() above whose callers treat a miss as an internal
+  // invariant violation.
+  async setMfaRequired(projectId: string, enabled: boolean): Promise<ProjectRow> {
+    const project = await this.repository.setMfaRequired(projectId, enabled);
+    if (!project) {
+      throw new NotFoundException(`Project '${projectId}' not found`);
     }
     return project;
   }

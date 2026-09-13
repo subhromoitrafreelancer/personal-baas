@@ -30,6 +30,9 @@ import { VaultService } from './vault.service';
   // worker's ctx.secrets.get() callback. VaultService is consumed by EmailModule (and, once
   // built, PdfModule/AiModule) — each stores its own project-scoped provider secret under its
   // own reserved vault-secret name, reusing this same encryption path (scope.md §32 point 3).
-  exports: [VaultInvocationTokensService, VaultService],
+  // VaultCryptoService is consumed directly by AuthModule's MFA subsystem (Phase 19, scope.md
+  // §33 point 3) to encrypt a user's TOTP secret with this exact same primitive/master key —
+  // no new crypto dependency, no second master key.
+  exports: [VaultInvocationTokensService, VaultService, VaultCryptoService],
 })
 export class VaultModule {}

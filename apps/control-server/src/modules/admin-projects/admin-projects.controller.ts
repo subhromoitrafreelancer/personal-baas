@@ -1,12 +1,28 @@
-import { BadRequestException, Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { z } from 'zod';
 import { AdminSessionGuard } from '../admin-auth/admin-session.guard';
+import { RequestWithAdmin } from '../admin-auth/admin.types';
+import { AuthAuditService } from '../auth/auth-audit.service';
 import { ProjectRow } from '../projects/projects.repository';
 import { ProjectsService } from '../projects/projects.service';
 
 const createProjectBodySchema = z.object({
   slug: z.string().min(1),
   name: z.string().min(1),
+});
+
+const setMfaRequiredBodySchema = z.object({
+  enabled: z.boolean(),
 });
 
 function toPublicProject(row: ProjectRow) {
@@ -18,6 +34,7 @@ function toPublicProject(row: ProjectRow) {
     anonRole: row.anon_role,
     authenticatedRole: row.authenticated_role,
     serviceRoleRole: row.service_role_role,
+    mfaRequired: row.mfa_required,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -26,12 +43,38 @@ function toPublicProject(row: ProjectRow) {
 @Controller('admin/v1/projects')
 @UseGuards(AdminSessionGuard)
 export class AdminProjectsController {
-  constructor(private readonly projects: ProjectsService) {}
+  constructor(
+    private readonly projects: ProjectsService,
+    private readonly audit: AuthAuditService,
+  ) {}
 
   @Get()
   async list() {
     const rows = await this.projects.list();
     return { projects: rows.map(toPublicProject) };
+  }
+
+  // Phase 19 (scope.md §33 point 14) — no generic project-update endpoint exists yet, so this
+  // is a narrow, purpose-built endpoint like API keys' /revoke and /reveal, not a general PATCH.
+  // Enforcement is checked only at each affected user's next fresh login (§33 point 5) — this
+  // never retroactively touches an already-issued session/refresh token.
+  @Patch(':id/mfa-required')
+  async setMfaRequired(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Req() req: RequestWithAdmin,
+  ) {
+    const parsed = setMfaRequiredBodySchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.issues.map((issue) => issue.message).join('; '));
+    }
+    const project = await this.projects.setMfaRequired(id, parsed.data.enabled);
+    this.audit.record(null, 'admin.project_mfa_required_changed', null, null, {
+      projectId: id,
+      enabled: parsed.data.enabled,
+      changedBy: req.admin!.email,
+    });
+    return toPublicProject(project);
   }
 
   @Post()

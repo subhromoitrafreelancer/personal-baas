@@ -877,6 +877,166 @@ feature doesn't have.
      invalidates the old value with no way to recover it (no version-history table exists to
      recover it from).
 
+## Phase 19 — Multi-Factor Authentication
+
+TOTP-only MFA (scope.md §33, reshaped 2026-09-12 from the original per-user-opt-in-only sketch):
+a project-level `mfa_required` toggle, default **off**, admin-controlled — not a deferred
+fast-follow. Lives inside the Auth module (own subdirectory, not a separate top-level Nest
+module — MFA is part of the login handshake itself). Two open product questions are called out
+explicitly at the end of this section rather than decided silently, since both materially change
+behavior in ways the existing scope.md write-up doesn't pin down.
+
+1. **Schema** — three changes, one migration file (`apps/control-server/migrations/
+   <ts>_create-mfa.ts`):
+   - `ALTER TABLE platform.projects ADD COLUMN mfa_required boolean NOT NULL DEFAULT false;` — a
+     plain column, matching how `schema_name`/role columns already live directly on that table.
+   - `auth.mfa_factors` (`id uuid pk`, `user_id uuid not null references auth.users(id) on
+     delete cascade`, `type text not null default 'totp'`, `secret_nonce bytea not null`,
+     `secret_ciphertext bytea not null`, `verified boolean not null default false`, `created_at`,
+     `verified_at timestamptz`), `unique(user_id)`.
+   - `auth.mfa_backup_codes` (`id uuid pk`, `user_id uuid not null references auth.users(id) on
+     delete cascade`, `code_hash text not null`, `used_at timestamptz`, `created_at`), index on
+     `user_id`.
+
+2. **Dependency**: `otplib` (MIT). `authenticator.generateSecret()` for enrollment,
+   `authenticator.verify({ token, secret })` for both `verify-enrollment` and login-time
+   `verify` — `otplib`'s default window (±1 step, 30s each) tolerates normal clock drift without
+   a new env-configurable knob.
+
+3. **Crypto reuse, not a second primitive**: `VaultCryptoService` (Phase 16) gains an export —
+   add it to `VaultModule`'s `exports` array alongside `VaultInvocationTokensService`/
+   `VaultService`. `AuthModule` adds `VaultModule` to its own `imports` (safe now — `VaultModule`
+   has no path back to `AuthModule` after the Phase 18 `AuthAuditModule` extraction, so this
+   doesn't reopen a cycle) so a new `MfaFactorsService` can call
+   `vaultCrypto.encrypt(secret)`/`.decrypt(nonce, ciphertext)` directly — the exact same
+   `libsodium crypto_secretbox` primitive and `VAULT_MASTER_KEY_BASE64` key already protecting
+   Vault secrets and (once built) the AI Gateway/Email provider secrets, applied to a `auth.
+   mfa_factors` row instead of a `vault.secrets` row. No new master key, no new crypto
+   dependency.
+
+4. **New `apps/control-server/src/modules/auth/mfa/` subdirectory** (mirrors `email/providers`'
+   precedent for a module-internal subdirectory):
+   - `mfa.types.ts` — row interfaces, `MfaChallenge` result shapes.
+   - `mfa-factors.repository.ts` — `findByUserId`, `upsert` (insert-or-replace only when no row
+     exists or the existing row is unverified — `MfaService.enroll()` checks `verified` first and
+     throws `409 Conflict` itself rather than pushing that rule into the repository's SQL, see
+     the resolved question A below), `markVerified`, `deleteByUserId`.
+   - `mfa-backup-codes.repository.ts` — `insertBatch`, `findUnusedByHash`, `markUsed`,
+     `deleteByUserId`.
+   - `mfa.service.ts` — `enroll(userId)`, `verifyEnrollment(userId, code)`, `verifyLogin(userId,
+     code)` (TOTP or backup-code fallback), `selfDisable(userId, password, code)`,
+     `adminReset(userId, adminEmail)`, `hasVerifiedFactor(userId): Promise<boolean>` (the one
+     method `LoginService` needs).
+   - `mfa-enrollment.guard.ts` — accepts *either* a real access token (voluntary self-service,
+     project doesn't require MFA) *or* a valid mfa-pending token (forced mid-login enrollment),
+     normalizing both to `req.mfaSubject = { userId, projectId }`. One guard, one code path for
+     `enroll`/`verify-enrollment`, not two near-duplicate controllers.
+   - `mfa.controller.ts` — `@Controller('auth/v1/mfa')`: `POST enroll` (`MfaEnrollmentGuard`),
+     `POST verify-enrollment` (`MfaEnrollmentGuard`), `POST verify` (public — the mfa-pending
+     token itself is the credential, same "unauthenticated because the token is the proof"
+     reasoning as the existing `/auth/v1/password-reset` confirm endpoint), `DELETE` (self-service
+     disable, `AccessTokenGuard`).
+
+5. **`AuthJwtService` gains a third token type** — `signMfaToken(userId, projectId, ttlSeconds =
+   300)` / `verifyMfaToken(token)`, mirroring `signAccessToken`/`verifyAccessToken`'s shape but
+   with a distinct `aud` claim (`'mfa-pending'` instead of `'authenticated'`). This is the actual
+   structural-rejection mechanism scope.md §33 point 5(b) calls for: `jwtVerify(token, key, {
+   audience: 'authenticated' })` inside `verifyAccessToken` throws on an `'mfa-pending'`-audience
+   token before ever inspecting its claims, and vice versa — no manual claim-shape checking needed
+   to keep the two token types from being confused, `jose`'s own audience check does it.
+
+6. **`LoginService.login()` rewrite** — after the existing `argon2.verify` success (currently the
+   point where tokens are unconditionally issued), insert the three-way branch from scope.md §33
+   point 5:
+   ```
+   const hasFactor = await this.mfa.hasVerifiedFactor(user.id);
+   if (hasFactor) {
+     const mfaToken = await this.jwt.signMfaToken(user.id, project.id);
+     return { mfaRequired: true, mfaToken };
+   }
+   if (project.mfa_required) {
+     const mfaToken = await this.jwt.signMfaToken(user.id, project.id);
+     return { mfaEnrollmentRequired: true, mfaToken };
+   }
+   // ...existing session/token issuance, unchanged
+   ```
+   `LoginResult` becomes a union type (`LoginResult | MfaChallenge`); `AuthController.login()`
+   needs no change — it already just returns whatever the service resolves.
+
+7. **Rate limiting**: `@Throttle(AUTH_THROTTLE)` (Phase 17) on `POST /auth/v1/mfa/verify` and
+   `POST /auth/v1/mfa/verify-enrollment` — both take a caller-supplied code guess. `enroll` and
+   the `DELETE` disable endpoint don't need the override (no guessable secret in the request).
+
+8. **Admin: project toggle** — `ProjectsRepository.setMfaRequired(id, enabled)` (plain `UPDATE
+   ... SET mfa_required = $2, updated_at = now() WHERE id = $1 RETURNING *`),
+   `ProjectsService.setMfaRequired`, new `PATCH /admin/v1/projects/:id/mfa-required { enabled }`
+   on `AdminProjectsController` (there's no generic project-update endpoint yet, so this follows
+   the platform's existing narrow-purpose-endpoint convention — API keys' `/revoke`/`/reveal`,
+   not a general PATCH). Audited as `admin.project_mfa_required_changed`.
+
+9. **Admin: user MFA status + reset** — `AdminUsersService.list()` currently returns rows via
+   `AuthUsersRepository.list()` with no MFA awareness; rather than joining `auth.mfa_factors`
+   into that core query (which would leak an MFA-shaped column into every other `AuthUserRow`
+   consumer, including the non-admin `/auth/v1/user` self-service DTO), `AdminUsersService.list()`
+   does one extra batched query — `SELECT user_id FROM auth.mfa_factors WHERE verified = true AND
+   user_id = ANY($1)` — after fetching the page of users, and merges an `mfaEnabled: boolean`
+   field into the admin-only response shape only. New `DELETE /admin/v1/users/:id/mfa` on
+   `AdminUsersController`, delegating to `MfaService.adminReset()`. Audited as `admin.mfa_reset`.
+
+10. **Admin UI**:
+    - Projects page (`projects.hbs`/`projects.js`): new "MFA required" column, a checkbox per
+      row wired to the new `PATCH` endpoint — no confirm modal (reversible, same "plain toggle"
+      treatment as Storage's "Public read" checkbox), but a toast confirms the change and a short
+      inline note ("takes effect on each user's next login") sets expectations, since this phase's
+      earlier design pass already decided against retroactively touching live sessions.
+    - Users page (`admin-users.hbs`/`admin-users.js`): an "MFA" column showing a badge (enabled/
+      disabled) per row, and a "Reset MFA" row action (icon set from §28) — `window.confirm()`
+      before firing the `DELETE`, matching this page's existing per-action confirmation weight
+      (slightly more caution than the no-confirm `reset-token`/`temp-password` actions, since a
+      reset touches another user's existing protection, but not the typed-name-to-confirm weight
+      reserved for whole-table deletion).
+    - No new self-service enrollment UI anywhere in the admin console — unchanged from the
+      original design: the admin console manages application users, it never role-plays as the
+      tenant application's own frontend. Enrollment is exercised via the API by whatever frontend
+      a downstream project builds (`examples/todo-app` could grow an opt-in demo later, not
+      required for this phase).
+
+11. **Audit events** (existing `AuthAuditService.record()` convention): `mfa.enrolled`,
+    `mfa.verify_failed` (optional — see whether this needs its own lockout signal below),
+    `mfa.disabled`, `admin.mfa_reset`, `admin.project_mfa_required_changed`.
+
+### Two open questions — resolved 2026-09-13
+
+**A. Re-enrollment when a verified factor already exists.** Resolved: **reject with `409
+Conflict`**. `POST /auth/v1/mfa/enroll` checks for an existing `verified = true` row in
+`auth.mfa_factors` first and refuses if found — the caller must `DELETE /auth/v1/mfa`
+(self-disable, which itself requires the current password + a valid code) or get an admin reset
+(point 9) before a fresh enrollment can start. Chosen over silently allowing replacement because
+a narrow-window credential (e.g. a stolen but not-yet-expired access token) shouldn't be able to
+displace someone's existing MFA on its own. An enroll call is still allowed to *overwrite* an
+existing **unverified** (`verified = false`) row with no such check — an abandoned/never-confirmed
+enrollment attempt has nothing valid to protect.
+
+**B. TOTP issuer label in the `otpauth://` URI.** Resolved: **use that project's own `name`
+field as-is** (`otpauth://totp/<project.name>:<email>?...&issuer=<project.name>`) — no new
+column, no new admin UI, no env var. An env var was considered and rejected: this platform is
+multi-project on one deployment, so a single deployment-wide issuer string can't differentiate
+between projects/orgs hosted on the same instance anyway, and a project's `name` is already an
+admin-editable per-project label that changes without a restart — it already *is* "a different
+label per agency/org," just via the mechanism this platform already has. A separate branding
+field (for when a project's internal name should differ from its authenticator-app label) was
+also considered and explicitly deferred — add it later only if a real need shows up.
+
+**Acceptance**: with a project's `mfa_required` off, a user can
+still voluntarily enroll and every subsequent login for that user returns `mfaRequired` instead of
+tokens; flipping `mfa_required` on for a project doesn't affect an already-logged-in user's live
+session, but the next fresh login for any not-yet-enrolled user in that project returns
+`mfaEnrollmentRequired`, and completing enroll→verify-enrollment in one flow issues real tokens
+with no second `/mfa/verify` call; `mfa/verify` with an incorrect code is rejected and enough
+incorrect attempts trigger Phase 17's rate limit; a backup code succeeds exactly once and fails on
+reuse; an admin-triggered reset clears the factor and routes the user back through forced
+enrollment on next login if the project still requires it, or plain password login if it doesn't.
+
 ---
 
 ## Cross-cutting conventions
