@@ -12,8 +12,8 @@
     <span class="landing-badge">Self-hosted</span>
     <h1>Personal BaaS</h1>
     <p class="landing-tagline">
-      Point it at a Postgres schema. Get back a secure REST API, auth, file storage, and an
-      admin console — running entirely on your own infrastructure.
+      Point it at a Postgres schema. Get back a secure REST API, auth, storage, serverless
+      functions, and an admin console — running entirely on your own infrastructure.
     </p>
     <a class="btn btn-primary btn-lg" href="/admin/login">Open Admin Console →</a>
 
@@ -23,24 +23,60 @@
         <p>PostgREST turns tables, views, and functions into a live API — no boilerplate.</p>
       </div>
       <div class="landing-feature">
-        <h3>Auth & JWTs</h3>
-        <p>Email/password signup and login, project-scoped tokens, enforced by Postgres roles.</p>
+        <h3>Auth, JWTs & MFA</h3>
+        <p>Email/password signup and login, project-scoped JWTs, and optional TOTP two-factor with backup codes.</p>
       </div>
       <div class="landing-feature">
         <h3>Row-level security</h3>
         <p>Access control lives in Postgres policies, not application code.</p>
       </div>
       <div class="landing-feature">
+        <h3>Rate limiting</h3>
+        <p>Per-route throttling protects your API from abuse out of the box.</p>
+      </div>
+      <div class="landing-feature">
         <h3>Object storage</h3>
         <p>Upload, download, and manage files per user or per bucket.</p>
+      </div>
+      <div class="landing-feature">
+        <h3>Static hosting</h3>
+        <p>Deploy a static site or frontend build alongside your API.</p>
+      </div>
+      <div class="landing-feature">
+        <h3>Serverless functions</h3>
+        <p>Run project-scoped JS/TS in an isolated worker — no separate deploy pipeline.</p>
+      </div>
+      <div class="landing-feature">
+        <h3>Scheduler</h3>
+        <p>Cron-style jobs trigger functions on a schedule — no external cron needed.</p>
+      </div>
+      <div class="landing-feature">
+        <h3>Secrets vault</h3>
+        <p>Encrypted, write-only secrets for functions and integrations — never re-displayed in plaintext.</p>
+      </div>
+      <div class="landing-feature">
+        <h3>Transactional email</h3>
+        <p>Send email straight from your backend without wiring up a third-party SaaS.</p>
+      </div>
+      <div class="landing-feature">
+        <h3>On-demand PDFs</h3>
+        <p>Generate PDFs from functions for invoices, reports, and receipts.</p>
       </div>
       <div class="landing-feature">
         <h3>SQL editor & DB explorer</h3>
         <p>Browse schemas and run queries straight from the browser.</p>
       </div>
       <div class="landing-feature">
+        <h3>API Explorer</h3>
+        <p>Discover and test every live endpoint without leaving the console.</p>
+      </div>
+      <div class="landing-feature">
         <h3>Multi-project isolation</h3>
         <p>Run several isolated projects on one Postgres instance — separate schemas, roles, and users.</p>
+      </div>
+      <div class="landing-feature">
+        <h3>Audit log</h3>
+        <p>Every operator action is recorded — who did what, and when.</p>
       </div>
     </div>
   </main>
