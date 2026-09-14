@@ -1,22 +1,70 @@
-.kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--space-4);
-}
-
-.kpi-card {
-  background: var(--color-surface);
+/* Instrument bank (2026-09-13 Operations Control Room redesign) — replaces the old grid of
+   same-size KPI cards. One project = one channel row; the left edge stripe carries the row's
+   functional-color status (teal/neutral = nominal, red = a real RLS warning), not decoration. */
+.channel-bank {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-  padding: var(--space-4);
+  background: var(--color-surface);
+}
+
+.channel-table {
+  font-size: 0.85rem;
+}
+
+.channel-table th {
+  background: var(--color-surface-muted);
+}
+
+.channel-row {
+  border-left: 3px solid transparent;
+}
+
+.channel-row-nominal {
+  border-left-color: var(--color-success);
+}
+
+.channel-row-danger {
+  border-left-color: var(--color-danger);
+}
+
+.channel-row td:first-child {
+  padding-left: calc(0.75rem - 3px);
+}
+
+/* Instance readouts: a dense instrument strip, hairline-divided, not bordered boxes each with
+   their own shadow — one shared panel, several readings inside it. */
+.instrument-strip {
+  display: flex;
+  flex-wrap: wrap;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.instrument-group {
+  display: flex;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+}
+
+.instrument-cell {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+  flex: 1 1 160px;
+  padding: var(--space-4);
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
 }
 
-.kpi-card.skeleton {
-  min-height: 92px;
+.instrument-group:last-child .instrument-cell:last-child,
+.instrument-strip .instrument-cell:last-child {
+  border-right: none;
+}
+
+.instrument-cell.skeleton {
+  min-height: 78px;
   background: linear-gradient(
     90deg,
     var(--color-surface) 25%,
@@ -24,10 +72,10 @@
     var(--color-surface) 63%
   );
   background-size: 400% 100%;
-  animation: kpi-shimmer 1.4s ease infinite;
+  animation: instrument-shimmer 1.4s ease infinite;
 }
 
-@keyframes kpi-shimmer {
+@keyframes instrument-shimmer {
   0% {
     background-position: 100% 50%;
   }
@@ -36,30 +84,33 @@
   }
 }
 
-.kpi-label {
-  font-size: 0.75rem;
+.instrument-label {
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.06em;
   color: var(--color-text-muted);
 }
 
-.kpi-value {
-  font-size: 1.8rem;
-  font-weight: 600;
+.instrument-value {
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-weight: 500;
   line-height: 1.1;
+  color: var(--color-text);
 }
 
-.kpi-sub {
-  font-size: 0.8rem;
+.instrument-sub {
+  font-size: 0.78rem;
   color: var(--color-text-muted);
 }
 
-.kpi-sub.kpi-warning {
-  color: var(--color-danger);
+.instrument-sub.instrument-warning {
+  color: var(--color-warning);
   font-weight: 600;
 }
 
-.kpi-card.kpi-error {
+.instrument-cell.instrument-error {
   color: var(--color-danger);
   font-size: 0.85rem;
 }

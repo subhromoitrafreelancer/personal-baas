@@ -2,13 +2,17 @@
    section rather than a data-dense table/form layout, since this is the first thing a visitor
    sees before ever reaching /admin. */
 
+/* Same fixed dark-graphite world as the login page (admin.css's .auth-page) — a visitor
+   clicking through to the console should land somewhere continuous with it, not a themed
+   content page. Not part of the Operate-mode admin console redesign's direction contract;
+   recolored here only so the shared indigo accent doesn't clash with the new teal identity. */
 body.landing-page {
-  background: radial-gradient(circle at 20% -10%, #2a2f6b 0%, #14162b 45%, #0b0c17 100%);
+  background: radial-gradient(circle at 50% -10%, #1a2a28 0%, #12151a 45%, #0a0c10 100%);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
-  color: #f2f2f6;
+  color: var(--color-chrome-text);
 }
 
 .landing-hero {
@@ -28,7 +32,7 @@ body.landing-page {
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #b9bdf0;
+  color: var(--color-chrome-accent);
   background: rgba(255, 255, 255, 0.06);
   margin-bottom: 1.5rem;
 }
@@ -38,13 +42,13 @@ body.landing-page {
   font-weight: 700;
   letter-spacing: -0.02em;
   margin: 0 0 1rem;
-  color: #ffffff;
+  color: var(--color-chrome-text);
 }
 
 .landing-tagline {
   font-size: 1.15rem;
   line-height: 1.6;
-  color: #c7c9de;
+  color: var(--color-chrome-text-muted);
   max-width: 560px;
   margin: 0 auto 2rem;
 }
@@ -54,17 +58,17 @@ body.landing-page {
   font-size: 1rem;
   padding: 0.8rem 1.75rem;
   border-radius: var(--radius);
-  box-shadow: 0 8px 24px rgba(90, 100, 220, 0.35);
+  box-shadow: 0 8px 24px rgba(53, 201, 185, 0.25);
 }
 
 .landing-hero .btn-primary {
-  background: #6366f1;
-  border-color: #6366f1;
+  background: var(--color-chrome-accent);
+  border-color: var(--color-chrome-accent);
 }
 
 .landing-hero .btn-primary:hover {
-  background: #7678f5;
-  border-color: #7678f5;
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
 }
 
 .landing-features {
@@ -85,19 +89,19 @@ body.landing-page {
 .landing-feature h3 {
   margin: 0 0 0.4rem;
   font-size: 0.95rem;
-  color: #fff;
+  color: var(--color-chrome-text);
 }
 
 .landing-feature p {
   margin: 0;
   font-size: 0.85rem;
   line-height: 1.5;
-  color: #b3b6cc;
+  color: var(--color-chrome-text-muted);
 }
 
 .landing-footer {
   margin-top: auto;
   padding: 1.5rem;
   font-size: 0.8rem;
-  color: #7d80a0;
+  color: var(--color-chrome-text-muted);
 }

@@ -1,54 +1,127 @@
 /* ============================================================
-   Design tokens
+   Fonts — self-hosted, no runtime CDN dependency (2026-09-13 Operations Control Room redesign).
+   Latin subset only; this console has no localized copy today.
+   ============================================================ */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/admin/static/fonts/ibm-plex-sans-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/admin/static/fonts/ibm-plex-sans-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/admin/static/fonts/ibm-plex-sans-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/admin/static/fonts/ibm-plex-sans-700.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/admin/static/fonts/ibm-plex-mono-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/admin/static/fonts/ibm-plex-mono-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/admin/static/fonts/ibm-plex-mono-600.woff2') format('woff2');
+}
+
+/* ============================================================
+   Design tokens — "Operations Control Room" (impeccable direction fcf29c5e, 2026-09-13)
+   Dark is the base/default theme (a night-ops instrument panel); [data-theme="light"] or a
+   light system preference switches to the daylight-ops variant. The rail/chrome tokens
+   deliberately do NOT change between themes — the tab rail reads as a physical panel that
+   stays the same material regardless of ambient light, only the content canvas changes.
+   Functional color is restrained to exactly three roles: teal (nominal/interactive), amber
+   (caution), red (destructive only) — never decorative, never a fourth "brand" hue.
    ============================================================ */
 :root {
-  --color-bg: #f5f5f7;
-  --color-surface: #fff;
-  --color-surface-muted: #f0f0f2;
-  --color-border: #e0e0e0;
-  --color-border-strong: #ccc;
-  --color-text: #1a1a1a;
-  --color-text-muted: #666;
-  --color-text-faint: #999;
+  color-scheme: dark;
 
-  /* Accent — Phase 14 (scope.md §28 point 1): the one deliberate departure from the otherwise
-     monochrome palette, carrying primary actions, active nav, links, and focus rings. */
-  --color-accent: #4f46e5;
-  --color-accent-hover: #4338ca;
-  --color-accent-bg: #eef1fd;
+  --color-bg: #12151a;
+  --color-surface: #191d24;
+  --color-surface-muted: #20252d;
+  --color-surface-raised: #232833;
+  --color-border: #2a303b;
+  --color-border-strong: #3a4150;
+  --color-text: #e7eaee;
+  --color-text-muted: #98a1b0;
+  --color-text-faint: #67707f;
 
-  --color-danger: #a13b2f;
-  --color-danger-bg: #fdecea;
-  --color-success: #2e6b2a;
-  --color-success-bg: #e3f2e1;
-  --color-warning: #8a6d00;
-  --color-warning-bg: #fff8db;
-  --color-info: #33409e;
-  --color-info-bg: #eef0fb;
+  /* The one interactive/nominal accent (scope.md §28 point 1's discipline, carried forward). */
+  --color-accent: #35c9b9;
+  --color-accent-hover: #2aab9d;
+  --color-accent-bg: rgba(53, 201, 185, 0.14);
+
+  --color-success: #35c9b9;
+  --color-success-bg: rgba(53, 201, 185, 0.14);
+  --color-warning: #dba337;
+  --color-warning-bg: rgba(219, 163, 55, 0.14);
+  --color-danger: #e0594c;
+  --color-danger-hover: #c94a3e;
+  --color-danger-bg: rgba(224, 89, 76, 0.14);
+  --color-info: #7c8aad;
+  --color-info-bg: rgba(124, 138, 173, 0.14);
   /* Neutral "in progress" state (Scheduler/Functions run history) — deliberately distinct from
      the warning amber, which means "needs attention," not "still working." */
-  --color-pending: #55597a;
-  --color-pending-bg: #eceefa;
+  --color-pending: #8890a6;
+  --color-pending-bg: rgba(136, 144, 166, 0.14);
 
-  /* Topbar "chrome" — the persistent nav band every page shares, deliberately pulled from the
-     same dark indigo-navy world as the public landing page's hero (landing.css) rather than the
-     light content palette above, so the marketing page and the console read as one product
-     instead of two disconnected surfaces (2026-09-09 colorize pass). Content areas (.page, .card,
-     tables, forms) are untouched — this only reaches the nav band itself. */
-  --color-chrome-bg: #14162b;
-  --color-chrome-bg-elevated: #1b1e3d;
-  --color-chrome-text: #f2f2f6;
-  --color-chrome-text-muted: #9295c4;
-  --color-chrome-border: #2a2d55;
-  --color-chrome-accent: #8688f5;
-  --color-chrome-accent-bg: rgba(134, 136, 245, 0.18);
+  /* Chrome — the login card and public landing page only. Deliberately fixed dark graphite in
+     both themes (an "airlock" look neither page can toggle, since neither has a theme switch). */
+  --color-chrome-bg: #0d0f13;
+  --color-chrome-bg-elevated: #171b22;
+  --color-chrome-text: #e7eaee;
+  --color-chrome-text-muted: #7b8494;
+  --color-chrome-border: #262b34;
+  --color-chrome-accent: #35c9b9;
+  --color-chrome-accent-bg: rgba(53, 201, 185, 0.16);
 
-  --radius: 6px;
-  --radius-sm: 4px;
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
+  /* Tab rail — unlike the fixed chrome above, the rail DOES follow the theme toggle (2026-09-14
+     fix: it used to reuse the chrome tokens and stayed dark even in light mode). Dark-theme
+     values match the chrome tokens exactly so dark mode is visually unchanged. */
+  --color-rail-bg: #0d0f13;
+  --color-rail-text: #e7eaee;
+  --color-rail-text-muted: #7b8494;
+  --color-rail-border: #262b34;
+  --color-rail-accent: #35c9b9;
+  --color-rail-accent-bg: rgba(53, 201, 185, 0.16);
+  --color-rail-hover: rgba(255, 255, 255, 0.05);
+  --color-rail-hover-strong: rgba(255, 255, 255, 0.08);
 
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --radius: 4px;
+  --radius-sm: 3px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --space-1: 0.25rem;
   --space-2: 0.5rem;
@@ -61,6 +134,91 @@
      toolbar row lines up on both height and vertical-center (Phase 14). */
   --control-height: 2.25rem;
   --control-height-sm: 1.85rem;
+
+  /* Tab rail width, referenced by the app-shell layout and page max-width math below. */
+  --rail-width: 232px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    color-scheme: light;
+    --color-bg: #f3f1ea;
+    --color-surface: #fffdf9;
+    --color-surface-muted: #ece8dd;
+    --color-surface-raised: #ffffff;
+    --color-border: #ddd7c8;
+    --color-border-strong: #c4bca8;
+    --color-text: #1c1a16;
+    --color-text-muted: #6b6558;
+    --color-text-faint: #948d7c;
+
+    --color-accent: #12867a;
+    --color-accent-hover: #0e6a61;
+    --color-accent-bg: rgba(18, 134, 122, 0.1);
+    --color-success: #12867a;
+    --color-success-bg: rgba(18, 134, 122, 0.1);
+    --color-warning: #92650a;
+    --color-warning-bg: rgba(146, 101, 10, 0.12);
+    --color-danger: #b23a2c;
+    --color-danger-hover: #9c3123;
+    --color-danger-bg: rgba(178, 58, 44, 0.1);
+    --color-info: #5b6478;
+    --color-info-bg: rgba(91, 100, 120, 0.12);
+    --color-pending: #6b7387;
+    --color-pending-bg: rgba(107, 115, 135, 0.12);
+
+    --color-rail-bg: #ece8dd;
+    --color-rail-text: #1c1a16;
+    --color-rail-text-muted: #6b6558;
+    --color-rail-border: #ddd7c8;
+    --color-rail-accent: #12867a;
+    --color-rail-accent-bg: rgba(18, 134, 122, 0.1);
+    --color-rail-hover: rgba(28, 26, 22, 0.05);
+    --color-rail-hover-strong: rgba(28, 26, 22, 0.08);
+
+    --shadow-sm: 0 1px 2px rgba(28, 26, 22, 0.08);
+    --shadow-md: 0 8px 24px rgba(28, 26, 22, 0.1);
+  }
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --color-bg: #f3f1ea;
+  --color-surface: #fffdf9;
+  --color-surface-muted: #ece8dd;
+  --color-surface-raised: #ffffff;
+  --color-border: #ddd7c8;
+  --color-border-strong: #c4bca8;
+  --color-text: #1c1a16;
+  --color-text-muted: #6b6558;
+  --color-text-faint: #948d7c;
+
+  --color-accent: #12867a;
+  --color-accent-hover: #0e6a61;
+  --color-accent-bg: rgba(18, 134, 122, 0.1);
+  --color-success: #12867a;
+  --color-success-bg: rgba(18, 134, 122, 0.1);
+  --color-warning: #92650a;
+  --color-warning-bg: rgba(146, 101, 10, 0.12);
+  --color-danger: #b23a2c;
+  --color-danger-hover: #9c3123;
+  --color-danger-bg: rgba(178, 58, 44, 0.1);
+  --color-info: #5b6478;
+  --color-info-bg: rgba(91, 100, 120, 0.12);
+  --color-pending: #6b7387;
+  --color-pending-bg: rgba(107, 115, 135, 0.12);
+
+  --color-rail-bg: #ece8dd;
+  --color-rail-text: #1c1a16;
+  --color-rail-text-muted: #6b6558;
+  --color-rail-border: #ddd7c8;
+  --color-rail-accent: #12867a;
+  --color-rail-accent-bg: rgba(18, 134, 122, 0.1);
+  --color-rail-hover: rgba(28, 26, 22, 0.05);
+  --color-rail-hover-strong: rgba(28, 26, 22, 0.08);
+
+  --shadow-sm: 0 1px 2px rgba(28, 26, 22, 0.08);
+  --shadow-md: 0 8px 24px rgba(28, 26, 22, 0.1);
 }
 
 /* ============================================================
@@ -70,15 +228,53 @@
   box-sizing: border-box;
 }
 
+html {
+  color-scheme: dark light;
+}
+
 body {
   margin: 0;
-  font-family:
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    sans-serif;
+  font-family: var(--font-sans);
   color: var(--color-text);
   background: var(--color-bg);
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+/* Numeric/identifier data reads as instrumentation, not prose — every id, count, timestamp,
+   status code, and log line in the console shares this one measured typeface. */
+code,
+pre,
+kbd,
+.mono,
+.table td[data-kind='id'],
+.table td[data-kind='numeric'] {
+  font-family: var(--font-mono);
+}
+
+::selection {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+
+/* A value that just changed reads as a visible event, not a silent DOM swap (direction
+   contract's signature interaction, raised from the nixie-tube counter challenger). Toggled by
+   live-values.js when a watched number/status node's text content changes. */
+@keyframes value-tick {
+  0% {
+    opacity: 0.35;
+    transform: translateY(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.value-tick {
+  animation: value-tick 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 a {
@@ -162,8 +358,8 @@ a:focus-visible,
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #8a2f25;
-  border-color: #8a2f25;
+  background: var(--color-danger-hover);
+  border-color: var(--color-danger-hover);
 }
 
 .btn-sm {
@@ -219,20 +415,63 @@ a:focus-visible,
 }
 
 /* ============================================================
-   Layout: topbar / topnav / footer
+   Layout: tab rail (2026-09-13 Operations Control Room redesign)
+   Replaces the old horizontal 15-link topbar. Every authenticated page's <body> renders
+   {{> topbar}} (kept as the partial name for git-history continuity) immediately followed by
+   its own <main class="page ...">; :has() scopes the flex shell to exactly those pages without
+   editing all 17 view files' markup. Pre-auth pages (login/landing) include no .tab-rail and
+   are completely unaffected.
    ============================================================ */
-.topbar {
+/* Grid, not flex: every authenticated page's <body> is rail + .page + .admin-footer as flat
+   siblings (the hbs templates never wrap them), so the shell needs two content rows sharing one
+   column next to the fixed-width rail column — a plain flex row can't express that without
+   also touching all 15 page templates' closing markup. */
+body:has(> .tab-rail) {
+  display: grid;
+  grid-template-columns: var(--rail-width) 1fr;
+  grid-template-rows: 1fr auto;
+  min-height: 100vh;
+}
+
+body:has(> .tab-rail) > .tab-rail {
+  grid-column: 1;
+  grid-row: 1 / -1;
+}
+
+body:has(> .tab-rail) > .page {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  height: 100%;
+  overflow-y: auto;
+}
+
+body:has(> .tab-rail) > .admin-footer {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.tab-rail {
   position: sticky;
   top: 0;
-  z-index: 10;
+  width: var(--rail-width);
+  max-height: 100vh;
+  overflow-y: auto;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  background: var(--color-rail-bg);
+  border-right: 1px solid var(--color-rail-border);
+  z-index: 20;
+}
+
+.rail-head {
+  display: flex;
   align-items: center;
-  gap: var(--space-4);
-  padding: 0.7rem var(--space-5);
-  background: var(--color-chrome-bg);
-  border-bottom: 1px solid var(--color-chrome-border);
-  box-shadow: var(--shadow-md);
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-4) var(--space-3);
+  border-bottom: 1px solid var(--color-rail-border);
+  flex-shrink: 0;
 }
 
 .brand {
@@ -240,34 +479,73 @@ a:focus-visible,
   align-items: center;
   gap: 0.5rem;
   font-weight: 600;
-  font-size: 0.95rem;
-  color: var(--color-chrome-text);
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  color: var(--color-rail-text);
   white-space: nowrap;
 }
 
-/* Small CSS-drawn mark, not a fabricated logo asset — a rounded square carrying the accent as a
-   two-stop gradient, the same low-cost "wordmark needs a glyph" move most dashboards make. */
+/* An engraved panel indicator, not a logo asset — a hairline-ringed dot in the one interactive
+   accent, reading as a status lamp rather than a decorative mark. */
 .brand::before {
   content: '';
-  width: 1.05rem;
-  height: 1.05rem;
-  border-radius: 6px;
-  background: linear-gradient(135deg, var(--color-chrome-accent) 0%, var(--color-accent) 100%);
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--color-rail-accent);
+  box-shadow: 0 0 0 3px var(--color-rail-accent-bg);
   flex-shrink: 0;
 }
 
-.topnav {
-  display: flex;
-  gap: 0.25rem;
-  font-size: 0.85rem;
-  flex: 1;
-  overflow-x: auto;
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  border: 1px solid var(--color-rail-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-rail-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
-.topnav a {
-  padding: 0.4rem 0.7rem;
+.theme-toggle:hover {
+  color: var(--color-rail-text);
+  background: var(--color-rail-hover);
+}
+
+.theme-toggle .icon-moon {
+  display: none;
+}
+
+:root[data-theme='light'] .theme-toggle .icon-sun {
+  display: none;
+}
+
+:root[data-theme='light'] .theme-toggle .icon-moon {
+  display: block;
+}
+
+.rail-nav {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 0.85rem;
+}
+
+.rail-link {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 0.6rem;
   border-radius: var(--radius-sm);
-  color: var(--color-chrome-text-muted);
+  color: var(--color-rail-text-muted);
   text-decoration: none;
   white-space: nowrap;
   transition:
@@ -275,48 +553,137 @@ a:focus-visible,
     color 0.12s ease;
 }
 
-.topnav a:hover {
-  color: var(--color-chrome-text);
-  background: rgba(255, 255, 255, 0.06);
+.rail-link:hover {
+  color: var(--color-rail-text);
+  background: var(--color-rail-hover);
 }
 
-.topnav a.active {
-  color: var(--color-chrome-accent);
-  background: var(--color-chrome-accent-bg);
+.rail-link.active {
+  color: var(--color-rail-accent);
+  background: var(--color-rail-accent-bg);
   font-weight: 600;
+}
+
+/* Proportional grouping (direction contract FIRST VIEWPORT): a section's rail footprint is
+   just its own link count stacked in normal flow, so a 4-link group naturally reads as bigger
+   than a 2-link one — no separate sizing mechanism needed. */
+.rail-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+}
+
+.rail-group-label {
+  padding: 0 0.6rem;
+  margin-bottom: 0.15rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-rail-text-muted);
+  opacity: 0.75;
+}
+
+/* 2026-09-14 fix: leaf links now sit visibly indented under their group label instead of flush
+   with it — the standalone "Dashboard" link above every group keeps the shallower inset since
+   it's a top-level item, not a group member. */
+.rail-group .rail-link {
+  padding-left: 1.15rem;
+}
+
+.rail-toggle {
+  display: none;
+  position: fixed;
+  top: var(--space-3);
+  left: var(--space-3);
+  z-index: 30;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--color-rail-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-rail-bg);
+  color: var(--color-rail-text);
+  cursor: pointer;
 }
 
 .logout-form {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-rail-border);
   flex-shrink: 0;
 }
 
 .signed-in-as {
-  color: var(--color-chrome-text-muted);
-  font-size: 0.85rem;
+  color: var(--color-rail-text-muted);
+  font-size: 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* The sign-out button inherits .btn-outline's light-surface colors by default, which would be
-   nearly invisible on the dark chrome band — scoped override, content-area buttons untouched. */
-.topbar .btn-outline {
+/* The sign-out button inherits .btn-outline's default surface colors, which don't have enough
+   contrast against the rail's own background in either theme — scoped override, content-area
+   buttons untouched. */
+.tab-rail .btn-outline {
   background: transparent;
-  border-color: var(--color-chrome-border);
-  color: var(--color-chrome-text);
+  border-color: var(--color-rail-border);
+  color: var(--color-rail-text);
+  flex-shrink: 0;
 }
 
-.topbar .btn-outline:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: var(--color-chrome-text-muted);
+.tab-rail .btn-outline:hover:not(:disabled) {
+  background: var(--color-rail-hover-strong);
+  border-color: var(--color-rail-text-muted);
 }
 
-/* The base :focus-visible ring uses --color-accent, which only reaches 2.83:1 against the dark
-   chrome background — under the 3:1 floor for focus indicators. Every focusable topbar element
-   gets the lighter --color-chrome-accent instead (5.81:1). */
-.topbar a:focus-visible,
-.topbar .btn:focus-visible {
-  outline-color: var(--color-chrome-accent);
+/* The base :focus-visible ring uses --color-accent, which can fall under the 3:1 floor against
+   the rail's own background in some theme/accent combinations — every focusable rail element
+   gets the rail's own accent instead, which is always tuned against --color-rail-bg. */
+.tab-rail a:focus-visible,
+.tab-rail button:focus-visible {
+  outline-color: var(--color-rail-accent);
+}
+
+@media (max-width: 900px) {
+  .rail-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  body:has(> .tab-rail) {
+    display: block;
+  }
+
+  .tab-rail {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(var(--rail-width), 80vw);
+    max-height: 100vh;
+    transform: translateX(-100%);
+    box-shadow: var(--shadow-md);
+    transition: transform 0.18s ease;
+  }
+
+  .tab-rail.rail-open {
+    transform: translateX(0);
+  }
+
+  body:has(> .tab-rail) > .page {
+    height: auto;
+    min-height: 100vh;
+    overflow-y: visible;
+    padding-top: calc(var(--space-6) + var(--space-3));
+  }
+
+  body:has(> .tab-rail) > .admin-footer {
+    padding-left: var(--space-5);
+    padding-right: var(--space-5);
+  }
 }
 
 .admin-footer {
@@ -342,6 +709,20 @@ a:focus-visible,
 .page h1 {
   margin: 0;
   font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Page-level section headers (outside any card) read as instrument-panel labels: small,
+   tracked, uppercase, monospace — not a second scale of prose heading. */
+.page > h2 {
+  margin: var(--space-5) 0 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
 }
 
 .toolbar {
@@ -519,7 +900,7 @@ textarea {
 .table td {
   text-align: left;
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--color-border);
   vertical-align: top;
 }
 
@@ -542,14 +923,79 @@ textarea {
   flex-wrap: wrap;
 }
 
+/* Row-actions dropdown menu (2026-09-14, Users table) — a single shared element appended once
+   to <body> and repositioned per click via getBoundingClientRect, rather than one menu per row:
+   avoids clipping inside a scrollable .table-wrap and keeps the table itself compact. Reusable
+   by any other dense table that wants a kebab-menu actions column later. */
+.actions-menu {
+  position: fixed;
+  z-index: 40;
+  min-width: 180px;
+  padding: 0.3rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.actions-menu[hidden] {
+  display: none;
+}
+
+.actions-menu button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 0.85rem;
+  font-family: inherit;
+  text-align: left;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.actions-menu button:hover {
+  background: var(--color-surface-muted);
+}
+
+.actions-menu button.danger {
+  color: var(--color-danger);
+}
+
+/* Merged identity cell (Users table, 2026-09-14) — email is the primary line, the id a smaller
+   muted/mono line beneath it; both keep their own copy button. */
+.identity-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.identity-id {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
 /* ============================================================
    Badges
    ============================================================ */
+/* Instrument-panel labels, not soft SaaS pills: a hairline border in the status's own color,
+   uppercase tracked monospace, square-ish corners — read as an engraved plate, not a chip. */
 .badge {
   display: inline-block;
-  font-size: 0.7rem;
-  padding: 0.15rem 0.55rem;
-  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-strong);
   background: var(--color-surface-muted);
   color: var(--color-text-muted);
   font-weight: 500;
@@ -562,6 +1008,7 @@ textarea {
 .badge.api-exposed {
   background: var(--color-success-bg);
   color: var(--color-success);
+  border-color: var(--color-success);
 }
 
 .badge.status-disabled,
@@ -569,16 +1016,19 @@ textarea {
 .badge.rls-off {
   background: var(--color-danger-bg);
   color: var(--color-danger);
+  border-color: var(--color-danger);
 }
 
 .badge.status-invited,
 .badge.status-info {
   background: var(--color-info-bg);
   color: var(--color-info);
+  border-color: var(--color-info);
 }
 
 .badge.exposure-danger {
   background: var(--color-danger);
+  border-color: var(--color-danger);
   color: #fff;
   font-weight: 600;
 }
@@ -586,6 +1036,7 @@ textarea {
 .badge.exposure-info {
   background: var(--color-info-bg);
   color: var(--color-info);
+  border-color: var(--color-info);
 }
 
 /* Invocation/run-history status (Functions, Scheduler) — previously every status string rendered
@@ -594,6 +1045,7 @@ textarea {
 .badge.status-success {
   background: var(--color-success-bg);
   color: var(--color-success);
+  border-color: var(--color-success);
 }
 
 .badge.status-error,
@@ -601,16 +1053,19 @@ textarea {
 .badge.status-unavailable {
   background: var(--color-danger-bg);
   color: var(--color-danger);
+  border-color: var(--color-danger);
 }
 
 .badge.status-timeout {
   background: var(--color-warning-bg);
   color: var(--color-warning);
+  border-color: var(--color-warning);
 }
 
 .badge.status-running {
   background: var(--color-pending-bg);
   color: var(--color-pending);
+  border-color: var(--color-pending);
 }
 
 /* ============================================================
@@ -624,8 +1079,8 @@ textarea {
 
 .banner-warning {
   background: var(--color-warning-bg);
-  border: 1px solid #e0c700;
-  color: #6b5600;
+  border: 1px solid var(--color-warning);
+  color: var(--color-warning);
 }
 
 .banner-danger {
@@ -637,7 +1092,7 @@ textarea {
 .secret-banner {
   padding: 0.75rem 1rem;
   background: var(--color-warning-bg);
-  border: 1px solid #e0c700;
+  border: 1px solid var(--color-warning);
   border-radius: var(--radius-sm);
   font-size: 0.85rem;
 }
@@ -661,7 +1116,7 @@ textarea {
 .secret-banner-close {
   background: transparent;
   border: 1px solid transparent;
-  color: #6b5600;
+  color: var(--color-warning);
 }
 
 .secret-banner-close:hover {
@@ -669,7 +1124,7 @@ textarea {
 }
 
 .secret-banner-note {
-  color: #6b5600;
+  color: var(--color-warning);
   margin: 0.2rem 0 0.5rem;
 }
 
@@ -702,37 +1157,45 @@ textarea {
    body.landing-page) — a visitor clicking "Sign in" from the marketing page should land
    somewhere that feels continuous with it, not a flat gray form (colorize pass, 2026-09-09).
    landing.css isn't loaded here, so the exact gradient recipe is intentionally duplicated. */
+/* The access panel stays the fixed dark graphite in both themes — same "physical panel, not
+   content" logic as the tab rail (see design-tokens comment): signing in is the airlock into
+   the control room, not a themed content page. */
 .auth-page {
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: radial-gradient(circle at 20% -10%, #2a2f6b 0%, #14162b 45%, #0b0c17 100%);
+  background: radial-gradient(circle at 50% -10%, #1a2a28 0%, #12151a 45%, #0a0c10 100%);
 }
 
 .auth-card {
-  background: var(--color-surface);
+  background: var(--color-chrome-bg-elevated);
+  border: 1px solid var(--color-chrome-border);
   padding: 2.5rem;
   border-radius: var(--radius);
-  box-shadow: 0 24px 60px rgba(8, 9, 20, 0.45);
+  box-shadow: var(--shadow-md);
   width: 100%;
   max-width: 360px;
+  color: var(--color-chrome-text);
 }
 
 .auth-card h1 {
   margin: 0 0 0.25rem;
-  font-size: 1.5rem;
+  font-size: 1.3rem;
+  letter-spacing: 0.01em;
 }
 
 .subtitle {
   margin: 0 0 var(--space-5);
-  color: var(--color-text-muted);
-  font-size: 0.9rem;
+  color: var(--color-chrome-text-muted);
+  font-size: 0.85rem;
+  font-family: var(--font-mono);
 }
 
 .error {
   background: var(--color-danger-bg);
   color: var(--color-danger);
+  border: 1px solid var(--color-danger);
   padding: 0.6rem 0.8rem;
   border-radius: var(--radius-sm);
   font-size: 0.9rem;
@@ -741,14 +1204,20 @@ textarea {
 
 .auth-card label {
   display: block;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-chrome-text-muted);
   margin-bottom: var(--space-4);
 }
 
 .auth-card input {
   display: block;
   width: 100%;
-  margin-top: 0.3rem;
+  margin-top: 0.4rem;
+  background: var(--color-chrome-bg);
+  border-color: var(--color-chrome-border);
+  color: var(--color-chrome-text);
 }
 
 /* ============================================================

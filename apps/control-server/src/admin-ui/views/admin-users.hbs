@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  {{> theme_init}}
   <title>Users — Personal BaaS Admin</title>
   <link rel="stylesheet" href="/admin/static/css/admin.css" />
   <link rel="stylesheet" href="/admin/static/css/admin-users.css" />
@@ -24,17 +25,10 @@
     <div class="admin-users-toolbar toolbar">
       <input id="search-input" type="search" placeholder="Search by email…" />
       <button id="search-btn" type="button" class="btn btn-outline" data-icon="search">Search</button>
+      <button type="button" id="show-bulk-create-btn" class="btn btn-primary" data-icon="add">Add users</button>
     </div>
 
     <div id="secret-banner" class="secret-banner" hidden></div>
-
-    <form id="create-user-form" class="inline-form">
-      <label class="field">Email <input id="new-user-email" type="email" required /></label>
-      <label class="field">Password (optional — leave blank to auto-generate) <input id="new-user-password" type="text" /></label>
-      <button type="submit" class="btn btn-primary" data-icon="save">Create</button>
-      <button type="button" id="cancel-create-btn" class="btn btn-outline" data-icon="close">Cancel</button>
-      <button type="button" id="show-bulk-create-btn" class="btn btn-outline" data-icon="add">Bulk create…</button>
-    </form>
 
     <form id="bulk-create-user-form" class="inline-form bulk-create-form" hidden>
       <label class="field bulk-create-field">
@@ -42,23 +36,41 @@
         <textarea id="bulk-user-input" rows="6" placeholder="alice@example.com&#10;bob@example.com,s3cret123"></textarea>
       </label>
       <div class="bulk-create-actions">
-        <button type="submit" class="btn btn-primary" data-icon="save">Create all</button>
+        <button type="submit" class="btn btn-primary" data-icon="save">Create</button>
         <button type="button" id="cancel-bulk-create-btn" class="btn btn-outline" data-icon="close">Cancel</button>
       </div>
     </form>
+
+    <div class="admin-users-filters toolbar">
+      <label class="field">Email contains <input id="filter-email" type="search" placeholder="Filter loaded rows…" /></label>
+      <label class="field">Status
+        <select id="filter-status">
+          <option value="">Any</option>
+          <option value="active">Active</option>
+          <option value="disabled">Disabled</option>
+        </select>
+      </label>
+      <label class="field">MFA
+        <select id="filter-mfa">
+          <option value="">Any</option>
+          <option value="enabled">Enabled</option>
+          <option value="disabled">Disabled</option>
+        </select>
+      </label>
+      <span class="filter-hint">Filters the <strong>loaded page</strong> only — not a server search.</span>
+    </div>
 
     <div class="table-wrap">
       <table class="table users-table">
         <thead>
           <tr>
-            <th>ID</th>
-            <th>Email</th>
+            <th>User</th>
             <th>Status</th>
             <th>Email verified</th>
             <th>MFA</th>
             <th>Created</th>
             <th>Last sign-in</th>
-            <th>Actions</th>
+            <th></th>
           </tr>
         </thead>
         <tbody id="users-tbody"></tbody>

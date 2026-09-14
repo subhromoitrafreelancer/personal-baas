@@ -1,6 +1,6 @@
 const projectsTableBody = document.getElementById('projects-table-body');
-const storageGrid = document.getElementById('storage-kpi-grid');
-const grid = document.getElementById('kpi-grid');
+const storageReadouts = document.getElementById('storage-readouts');
+const otherReadouts = document.getElementById('other-readouts');
 
 function escapeHtml(value) {
   return String(value).replace(
@@ -9,21 +9,21 @@ function escapeHtml(value) {
   );
 }
 
-function card(label, value, sub, subClass) {
+function readout(label, value, sub, subClass) {
   const div = document.createElement('div');
-  div.className = 'kpi-card';
+  div.className = 'instrument-cell';
   div.innerHTML = `
-    <span class="kpi-label">${label}</span>
-    <span class="kpi-value">${value}</span>
-    ${sub ? `<span class="kpi-sub${subClass ? ' ' + subClass : ''}">${sub}</span>` : ''}
+    <span class="instrument-label">${label}</span>
+    <span class="instrument-value" data-live>${value}</span>
+    ${sub ? `<span class="instrument-sub${subClass ? ' ' + subClass : ''}">${sub}</span>` : ''}
   `;
   return div;
 }
 
-function errorCard(label, message) {
+function errorReadout(label, message) {
   const div = document.createElement('div');
-  div.className = 'kpi-card kpi-error';
-  div.innerHTML = `<span class="kpi-label">${label}</span><span>Failed to load: ${message}</span>`;
+  div.className = 'instrument-cell instrument-error';
+  div.innerHTML = `<span class="instrument-label">${label}</span><span class="instrument-sub">Failed to load: ${escapeHtml(message)}</span>`;
   return div;
 }
 
@@ -41,17 +41,17 @@ function formatBytes(bytes) {
 }
 
 function projectRow(project) {
-  const warnings =
-    project.unprotectedTableCount > 0
-      ? `<span class="badge exposure-danger">${window.Icons.markup('warning', { size: 12 })} ${project.unprotectedTableCount} table(s) without RLS</span>`
-      : '';
+  const hasWarning = project.unprotectedTableCount > 0;
+  const status = hasWarning
+    ? `<span class="badge exposure-danger">${window.Icons.markup('warning', { size: 12 })} ${project.unprotectedTableCount} table(s) without RLS</span>`
+    : `<span class="badge status-active">${window.Icons.markup('check', { size: 12 })} nominal</span>`;
   return `
-    <tr>
+    <tr class="channel-row${hasWarning ? ' channel-row-danger' : ' channel-row-nominal'}">
       <td>${escapeHtml(project.name)} <span class="badge">${escapeHtml(project.slug)}</span></td>
-      <td>${project.tableCount}</td>
-      <td>${project.userCount}</td>
-      <td>${project.activeKeyCount} <span class="kpi-sub">(${project.publishableKeyCount} publishable · ${project.secretKeyCount} secret)</span></td>
-      <td>${warnings}</td>
+      <td data-kind="numeric">${project.tableCount}</td>
+      <td data-kind="numeric">${project.userCount}</td>
+      <td data-kind="numeric">${project.activeKeyCount} <span class="instrument-sub">(${project.publishableKeyCount} publishable · ${project.secretKeyCount} secret)</span></td>
+      <td>${status}</td>
     </tr>
   `;
 }
@@ -63,43 +63,48 @@ async function loadDashboardSummary() {
     projectsTableBody.innerHTML = summary.projects.map(projectRow).join('');
 
     const storage = summary.storage;
-    storageGrid.replaceChildren(
-      card('Buckets', storage.bucketCount),
-      card('Objects', storage.objectCount),
-      card('Storage used', formatBytes(storage.totalBytes)),
+    storageReadouts.replaceChildren(
+      readout('Buckets', storage.bucketCount),
+      readout('Objects', storage.objectCount),
+      readout('Storage used', formatBytes(storage.totalBytes)),
       storage.emptyBucketCount > 0
-        ? card('Empty buckets', storage.emptyBucketCount, `${storage.emptyBucketCount} bucket(s) have no objects`, 'kpi-warning')
-        : card('Empty buckets', 0),
+        ? readout(
+            'Empty buckets',
+            storage.emptyBucketCount,
+            `${storage.emptyBucketCount} bucket(s) have no objects`,
+            'instrument-warning',
+          )
+        : readout('Empty buckets', 0),
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     projectsTableBody.innerHTML = `<tr><td colspan="5">Failed to load: ${escapeHtml(message)}</td></tr>`;
-    storageGrid.replaceChildren(errorCard('Storage', message));
+    storageReadouts.replaceChildren(errorReadout('Storage', message));
   }
 }
 
-// Shared skeleton for a single KPI card that loads its own data: fetch, format via `formatter`,
-// fall back to an error card on failure. `formatter(data)` returns `{ value, sub, subClass? }`.
-async function loadCard(label, url, formatter) {
+// Shared skeleton for a single readout that loads its own data: fetch, format via `formatter`,
+// fall back to an error cell on failure. `formatter(data)` returns `{ value, sub, subClass? }`.
+async function loadReadout(label, url, formatter) {
   try {
     const data = await fetchJson(url);
     const { value, sub, subClass } = formatter(data);
-    return card(label, value, sub, subClass);
+    return readout(label, value, sub, subClass);
   } catch (err) {
-    return errorCard(label, err.message);
+    return errorReadout(label, err.message);
   }
 }
 
-function loadAuditCard() {
-  return loadCard('Audit events', '/admin/v1/audit?limit=1', ({ total, events }) => ({
+function loadAuditReadout() {
+  return loadReadout('Audit events', '/admin/v1/audit?limit=1', ({ total, events }) => ({
     value: total,
     sub: events[0] ? new Date(events[0].createdAt).toLocaleString() : 'No events yet',
   }));
 }
 
-function loadRealtimeCard() {
+function loadRealtimeReadout() {
   // This instance only — see realtime.gateway.ts/realtime.service.ts's own comments on why.
-  return loadCard(
+  return loadReadout(
     'Realtime connections',
     '/admin/v1/realtime/stats',
     ({ activeConnections, activeSubscriptions }) => ({
@@ -109,8 +114,33 @@ function loadRealtimeCard() {
   );
 }
 
+async function refresh() {
+  await loadDashboardSummary();
+  const cells = await Promise.all([loadAuditReadout(), loadRealtimeReadout()]);
+  otherReadouts.replaceChildren(...cells);
+}
+
+// Live instrumentation, not a one-shot page load: values re-poll on an interval so the
+// direction contract's signature interaction (a value-tick on change) has something real to
+// show. Paused while the tab is hidden so it doesn't spend cycles on a background tab.
+const REFRESH_MS = 45000;
+let refreshTimer = null;
+
+function scheduleRefresh() {
+  clearInterval(refreshTimer);
+  refreshTimer = setInterval(refresh, REFRESH_MS);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    clearInterval(refreshTimer);
+  } else {
+    refresh();
+    scheduleRefresh();
+  }
+});
+
 (async () => {
-  loadDashboardSummary();
-  const cards = await Promise.all([loadAuditCard(), loadRealtimeCard()]);
-  grid.replaceChildren(...cards);
+  await refresh();
+  scheduleRefresh();
 })();

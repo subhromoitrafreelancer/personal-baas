@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  {{> theme_init}}
   <title>Dashboard — Personal BaaS Admin</title>
   <link rel="stylesheet" href="/admin/static/css/admin.css" />
   <link rel="stylesheet" href="/admin/static/css/dashboard.css" />
@@ -17,16 +18,16 @@
       </div>
     </div>
 
-    <h2>Projects</h2>
-    <div id="projects-table-wrap" class="table-wrap">
-      <table class="table">
+    <h2>Project channels</h2>
+    <div id="projects-table-wrap" class="table-wrap channel-bank">
+      <table class="table channel-table">
         <thead>
           <tr>
             <th>Project</th>
             <th>Tables</th>
             <th>Users</th>
             <th>API keys</th>
-            <th>Warnings</th>
+            <th>Status</th>
           </tr>
         </thead>
         <tbody id="projects-table-body">
@@ -35,14 +36,14 @@
       </table>
     </div>
 
-    <h2>Storage</h2>
-    <div id="storage-kpi-grid" class="kpi-grid">
-      <div class="kpi-card skeleton"></div>
-    </div>
-
-    <h2>Other</h2>
-    <div id="kpi-grid" class="kpi-grid">
-      <div class="kpi-card skeleton"></div>
+    <h2>Instance readouts</h2>
+    <div class="instrument-strip">
+      <div id="storage-readouts" class="instrument-group">
+        <div class="instrument-cell skeleton"></div>
+      </div>
+      <div id="other-readouts" class="instrument-group">
+        <div class="instrument-cell skeleton"></div>
+      </div>
     </div>
   </main>
 

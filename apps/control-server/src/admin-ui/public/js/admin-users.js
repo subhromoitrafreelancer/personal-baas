@@ -2,10 +2,6 @@ const tbody = document.getElementById('users-tbody');
 const statusEl = document.getElementById('users-status');
 const searchInput = document.getElementById('search-input');
 const searchBtn = document.getElementById('search-btn');
-const createUserForm = document.getElementById('create-user-form');
-const cancelCreateBtn = document.getElementById('cancel-create-btn');
-const newUserEmail = document.getElementById('new-user-email');
-const newUserPassword = document.getElementById('new-user-password');
 const secretBanner = document.getElementById('secret-banner');
 const showBulkCreateBtn = document.getElementById('show-bulk-create-btn');
 const bulkCreateUserForm = document.getElementById('bulk-create-user-form');
@@ -15,6 +11,67 @@ const prevPageBtn = document.getElementById('prev-page-btn');
 const nextPageBtn = document.getElementById('next-page-btn');
 const pageInfo = document.getElementById('page-info');
 const projectSelect = document.getElementById('project-select');
+const filterEmail = document.getElementById('filter-email');
+const filterStatus = document.getElementById('filter-status');
+const filterMfa = document.getElementById('filter-mfa');
+
+// Single shared row-actions menu (admin.css's .actions-menu) — one element, repositioned per
+// click, rather than a dropdown built into every row (keeps the table itself compact and avoids
+// clipping inside .table-wrap's overflow-x:auto).
+const actionsMenu = document.createElement('div');
+actionsMenu.className = 'actions-menu';
+actionsMenu.hidden = true;
+document.body.appendChild(actionsMenu);
+let openActionsBtn = null;
+
+function closeActionsMenu() {
+  actionsMenu.hidden = true;
+  actionsMenu.innerHTML = '';
+  openActionsBtn = null;
+}
+
+function openActionsMenu(btn, items) {
+  if (openActionsBtn === btn) {
+    closeActionsMenu();
+    return;
+  }
+  actionsMenu.innerHTML = items
+    .map(
+      (item, i) =>
+        `<button type="button" data-index="${i}"${item.danger ? ' class="danger"' : ''}>${window.Icons.markup(item.icon, { size: 14 })} ${escapeHtml(item.label)}</button>`,
+    )
+    .join('');
+  actionsMenu.querySelectorAll('button').forEach((el, i) => {
+    el.addEventListener('click', () => {
+      closeActionsMenu();
+      items[i].onSelect();
+    });
+  });
+  actionsMenu.hidden = false;
+  openActionsBtn = btn;
+
+  const rect = btn.getBoundingClientRect();
+  const menuRect = actionsMenu.getBoundingClientRect();
+  let top = rect.bottom + 4;
+  if (top + menuRect.height > window.innerHeight) {
+    top = rect.top - menuRect.height - 4;
+  }
+  let left = rect.right - menuRect.width;
+  left = Math.max(8, Math.min(left, window.innerWidth - menuRect.width - 8));
+  actionsMenu.style.top = `${top}px`;
+  actionsMenu.style.left = `${left}px`;
+}
+
+document.addEventListener('click', (e) => {
+  if (!actionsMenu.hidden && !actionsMenu.contains(e.target) && e.target !== openActionsBtn) {
+    closeActionsMenu();
+  }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeActionsMenu();
+});
+window.addEventListener('scroll', closeActionsMenu, true);
+window.addEventListener('resize', closeActionsMenu);
 
 const LIMIT = 25;
 let offset = 0;
@@ -33,8 +90,8 @@ function hideSecret() {
   secretBanner.innerHTML = '';
 }
 
-// `message` is either a single line (existing single-user create/reset-token/temp-password
-// callers) or an array of lines (bulk create, one per successfully-created user).
+// `message` is either a single line (reset-token/temp-password/MFA-reset callers) or an array
+// of lines (bulk create, one per successfully-created user).
 function showSecret(message) {
   const lines = Array.isArray(message) ? message : [message];
   secretBanner.hidden = false;
@@ -56,22 +113,80 @@ async function apiFetch(url, options) {
   return response;
 }
 
+async function setStatus(user, status) {
+  const res = await apiFetch(`/admin/v1/users/${user.id}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  if (!res) return;
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    showToast(body.message ?? 'Failed to update status', 'error');
+    return;
+  }
+  showToast(`${user.email} ${status === 'disabled' ? 'disabled' : 'enabled'}`, 'success');
+  loadUsers();
+}
+
+async function resetToken(user) {
+  const res = await apiFetch(`/admin/v1/users/${user.id}/reset-token`, { method: 'POST' });
+  if (!res) return;
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    showToast(body.message ?? 'Failed to generate reset token', 'error');
+    return;
+  }
+  const body = await res.json();
+  showSecret(
+    `Reset token for ${user.email} (expires ${new Date(body.expiresAt).toLocaleString()}): ${body.token}`,
+  );
+}
+
+async function tempPassword(user) {
+  const res = await apiFetch(`/admin/v1/users/${user.id}/temporary-password`, { method: 'POST' });
+  if (!res) return;
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    showToast(body.message ?? 'Failed to set temporary password', 'error');
+    return;
+  }
+  const body = await res.json();
+  showSecret(`Temporary password for ${user.email}: ${body.temporaryPassword}`);
+}
+
+async function resetMfa(user) {
+  if (!window.confirm(`Reset MFA for ${user.email}? They will need to re-enroll.`)) return;
+  const res = await apiFetch(`/admin/v1/users/${user.id}/mfa`, { method: 'DELETE' });
+  if (!res) return;
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    showToast(body.message ?? 'Failed to reset MFA', 'error');
+    return;
+  }
+  showToast(`MFA reset for ${user.email}`, 'success');
+  loadUsers();
+}
+
 function renderRow(user) {
   const tr = document.createElement('tr');
+  tr.dataset.email = user.email.toLowerCase();
+  tr.dataset.status = user.status;
+  tr.dataset.mfa = user.mfaEnabled ? 'enabled' : 'disabled';
   const disableLabel = user.status === 'disabled' ? 'Enable' : 'Disable';
   const nextStatus = user.status === 'disabled' ? 'active' : 'disabled';
   tr.innerHTML = `
     <td>
-      <span class="copyable-cell">
-        ${escapeHtml(user.id)}
-        <button type="button" class="copy-btn" data-copy-value="${escapeHtml(user.id)}" aria-label="Copy" title="Copy">${window.Icons.markup('copy')}</button>
-      </span>
-    </td>
-    <td>
-      <span class="copyable-cell">
-        ${escapeHtml(user.email)}
-        <button type="button" class="copy-btn" data-copy-value="${escapeHtml(user.email)}" aria-label="Copy" title="Copy">${window.Icons.markup('copy')}</button>
-      </span>
+      <div class="identity-cell">
+        <span class="copyable-cell">
+          ${escapeHtml(user.email)}
+          <button type="button" class="copy-btn" data-copy-value="${escapeHtml(user.email)}" aria-label="Copy email" title="Copy email">${window.Icons.markup('copy')}</button>
+        </span>
+        <span class="copyable-cell identity-id">
+          ${escapeHtml(user.id)}
+          <button type="button" class="copy-btn" data-copy-value="${escapeHtml(user.id)}" aria-label="Copy ID" title="Copy ID">${window.Icons.markup('copy')}</button>
+        </span>
+      </div>
     </td>
     <td><span class="badge status-${escapeHtml(user.status)}">${escapeHtml(user.status)}</span></td>
     <td>${user.emailVerified ? 'Yes' : 'No'}</td>
@@ -79,74 +194,51 @@ function renderRow(user) {
     <td>${new Date(user.createdAt).toLocaleString()}</td>
     <td>${user.lastSignInAt ? new Date(user.lastSignInAt).toLocaleString() : '—'}</td>
     <td class="actions-cell">
-      <button type="button" class="btn btn-outline btn-sm" data-action="status" data-status="${nextStatus}">${disableLabel}</button>
-      <button type="button" class="btn btn-outline btn-sm" data-action="reset-token">${window.Icons.markup('external-link')} Reset link</button>
-      <button type="button" class="btn btn-outline btn-sm" data-action="temp-password">${window.Icons.markup('view')} Temp password</button>
-      ${user.mfaEnabled ? `<button type="button" class="btn btn-outline btn-sm" data-action="reset-mfa">${window.Icons.markup('warning')} Reset MFA</button>` : ''}
+      <button type="button" class="btn btn-outline btn-icon btn-sm" data-action="menu" aria-label="Actions for ${escapeHtml(user.email)}" title="Actions">${window.Icons.markup('more')}</button>
     </td>
   `;
 
-  tr.querySelector('[data-action="status"]').addEventListener('click', async (e) => {
-    const status = e.target.dataset.status;
-    const res = await apiFetch(`/admin/v1/users/${user.id}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    });
-    if (!res) return;
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      showToast(body.message ?? 'Failed to update status', 'error');
-      return;
+  tr.querySelector('[data-action="menu"]').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const items = [
+      {
+        icon: disableLabel === 'Enable' ? 'check' : 'close',
+        label: disableLabel,
+        onSelect: () => setStatus(user, nextStatus),
+      },
+      { icon: 'external-link', label: 'Reset link', onSelect: () => resetToken(user) },
+      { icon: 'view', label: 'Temp password', onSelect: () => tempPassword(user) },
+    ];
+    if (user.mfaEnabled) {
+      items.push({
+        icon: 'warning',
+        label: 'Reset MFA',
+        danger: true,
+        onSelect: () => resetMfa(user),
+      });
     }
-    showToast(`${user.email} ${status === 'disabled' ? 'disabled' : 'enabled'}`, 'success');
-    loadUsers();
+    openActionsMenu(e.currentTarget, items);
   });
-
-  tr.querySelector('[data-action="reset-token"]').addEventListener('click', async () => {
-    const res = await apiFetch(`/admin/v1/users/${user.id}/reset-token`, { method: 'POST' });
-    if (!res) return;
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      showToast(body.message ?? 'Failed to generate reset token', 'error');
-      return;
-    }
-    const body = await res.json();
-    showSecret(
-      `Reset token for ${user.email} (expires ${new Date(body.expiresAt).toLocaleString()}): ${body.token}`,
-    );
-  });
-
-  tr.querySelector('[data-action="temp-password"]').addEventListener('click', async () => {
-    const res = await apiFetch(`/admin/v1/users/${user.id}/temporary-password`, { method: 'POST' });
-    if (!res) return;
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      showToast(body.message ?? 'Failed to set temporary password', 'error');
-      return;
-    }
-    const body = await res.json();
-    showSecret(`Temporary password for ${user.email}: ${body.temporaryPassword}`);
-  });
-
-  const resetMfaBtn = tr.querySelector('[data-action="reset-mfa"]');
-  if (resetMfaBtn) {
-    resetMfaBtn.addEventListener('click', async () => {
-      if (!window.confirm(`Reset MFA for ${user.email}? They will need to re-enroll.`)) return;
-      const res = await apiFetch(`/admin/v1/users/${user.id}/mfa`, { method: 'DELETE' });
-      if (!res) return;
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        showToast(body.message ?? 'Failed to reset MFA', 'error');
-        return;
-      }
-      showToast(`MFA reset for ${user.email}`, 'success');
-      loadUsers();
-    });
-  }
 
   return tr;
 }
+
+function applyFilters() {
+  const email = filterEmail.value.trim().toLowerCase();
+  const status = filterStatus.value;
+  const mfa = filterMfa.value;
+  tbody.querySelectorAll('tr').forEach((tr) => {
+    const matches =
+      (!email || tr.dataset.email.includes(email)) &&
+      (!status || tr.dataset.status === status) &&
+      (!mfa || tr.dataset.mfa === mfa);
+    tr.hidden = !matches;
+  });
+}
+
+filterEmail.addEventListener('input', applyFilters);
+filterStatus.addEventListener('change', applyFilters);
+filterMfa.addEventListener('change', applyFilters);
 
 async function loadUsers() {
   statusEl.textContent = 'Loading…';
@@ -168,6 +260,7 @@ async function loadUsers() {
   for (const user of body.users) {
     tbody.appendChild(renderRow(user));
   }
+  applyFilters();
   statusEl.textContent = `${total} user(s)`;
   pageInfo.textContent = `${total === 0 ? 0 : offset + 1}–${Math.min(offset + LIMIT, total)} of ${total}`;
   prevPageBtn.disabled = offset === 0;
@@ -194,49 +287,17 @@ nextPageBtn.addEventListener('click', () => {
   loadUsers();
 });
 
-cancelCreateBtn.addEventListener('click', () => {
-  createUserForm.reset();
-});
-
-createUserForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const email = newUserEmail.value.trim();
-  const password = newUserPassword.value.trim() || undefined;
-
-  const res = await apiFetch('/admin/v1/users', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, projectId: currentProjectId }),
-  });
-  if (!res) return;
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    statusEl.textContent = body.message ?? 'Failed to create user';
-    showToast(body.message ?? 'Failed to create user', 'error');
-    return;
-  }
-
-  const body = await res.json();
-  showToast(`User "${body.user.email}" created`, 'success');
-  if (body.temporaryPassword) {
-    showSecret(`Created ${body.user.email} — temporary password: ${body.temporaryPassword}`);
-  }
-  newUserEmail.value = '';
-  newUserPassword.value = '';
-  offset = 0;
-  loadUsers();
-});
-
+// "Add users" is a real toggle: click again while the form is open to close it. Cancel is a
+// distinct explicit close that also discards whatever was typed.
 showBulkCreateBtn.addEventListener('click', () => {
-  createUserForm.hidden = true;
-  bulkCreateUserForm.hidden = false;
-  bulkUserInput.focus();
+  const opening = bulkCreateUserForm.hidden;
+  bulkCreateUserForm.hidden = !opening;
+  if (opening) bulkUserInput.focus();
 });
 
 cancelBulkCreateBtn.addEventListener('click', () => {
   bulkCreateUserForm.reset();
   bulkCreateUserForm.hidden = true;
-  createUserForm.hidden = false;
 });
 
 bulkCreateUserForm.addEventListener('submit', async (e) => {
@@ -284,7 +345,6 @@ bulkCreateUserForm.addEventListener('submit', async (e) => {
 
   bulkCreateUserForm.reset();
   bulkCreateUserForm.hidden = true;
-  createUserForm.hidden = false;
   offset = 0;
   loadUsers();
 });

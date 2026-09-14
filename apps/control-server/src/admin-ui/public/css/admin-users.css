@@ -2,6 +2,28 @@
   min-width: 220px;
 }
 
+.admin-users-toolbar .btn-primary {
+  margin-left: auto;
+}
+
+.admin-users-filters {
+  padding: 0.6rem var(--space-4);
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.admin-users-filters .field input,
+.admin-users-filters .field select {
+  min-width: 160px;
+}
+
+.filter-hint {
+  margin-left: auto;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
 .bulk-create-form {
   align-items: stretch;
   flex-direction: column;
