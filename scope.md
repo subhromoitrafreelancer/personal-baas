@@ -2893,7 +2893,9 @@ deliberately not used for this:
 3. Response shape — a strict field allowlist, reusing AuthUsersRepository.list() (the same
    repository/query Phase 3's admin endpoint already calls, just fronted by a different guard and
    pre-scoped to the token's own project_id instead of an admin-supplied one): id, email, status,
-   created_at, last_sign_in_at. Never password_hash, user_metadata, app_metadata, or anything from
+   createdAt, lastSignInAt — camelCase, matching PublicUser (auth-user.dto.ts)'s existing
+   convention for every other user-shaped response this API already returns, not the underlying
+   auth.users column names. Never password_hash, user_metadata, app_metadata, or anything from
    sessions/refresh_tokens/identities — this is a directory read, not an auth.users export.
 
 4. Query params mirror AdminUsersController.list()'s existing shape for consistency (same
@@ -2915,7 +2917,7 @@ deliberately not used for this:
 
 **Acceptance**: a service_role key minted for project A (via the existing `/admin/api-keys` flow,
 no new key-minting UI needed) can call `GET /users/v1/directory` and receive back only project
-A's users, each with exactly `{id, email, status, created_at, last_sign_in_at}` and nothing else;
+A's users, each with exactly `{id, email, status, createdAt, lastSignInAt}` and nothing else;
 the same request with `?status=active` returns only active rows; that same key cannot retrieve
 project B's users under any query parameter; a publishable (anon) key, an authenticated end-user's
 own JWT, or an admin session cookie alone (without a service_role Bearer token) all get 401 from
