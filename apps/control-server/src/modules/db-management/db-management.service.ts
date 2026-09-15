@@ -13,6 +13,7 @@ import {
   TABLE_DEPENDENT_VIEWS_QUERY,
   TABLE_OBJECT_COUNTS_QUERY,
   TABLE_OID_QUERY,
+  TABLE_OR_VIEW_OID_QUERY,
   TABLE_ROW_ESTIMATE_QUERY,
 } from './db-management.queries';
 import { ColumnDeletePreview, ForeignKeyRef, FunctionRef, FunctionSource, TableDeletePreview, ViewRef } from './db-management.types';
@@ -28,12 +29,52 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// `COMMENT ON` requires a different keyword per relkind — unlike DROP/ALTER TABLE, which accept
+// a view/materialized view/foreign table under the plain TABLE keyword in some contexts but not
+// this one (scope.md §37 point 4).
+function commentKeywordForRelkind(relkind: string): string {
+  switch (relkind) {
+    case 'v':
+      return 'VIEW';
+    case 'm':
+      return 'MATERIALIZED VIEW';
+    case 'f':
+      return 'FOREIGN TABLE';
+    default:
+      return 'TABLE';
+  }
+}
+
+// Joins separate Summary/Description form fields (scope.md §37 point 3) into the single comment
+// string PostgREST itself expects to split back apart: first line as `summary`, the rest —
+// separated by a blank line — as `description`. Both empty means "clear the comment" (null),
+// not an empty string.
+function joinComment(summary: string, description: string): string | null {
+  const trimmedSummary = summary.trim();
+  const trimmedDescription = description.trim();
+  if (!trimmedSummary && !trimmedDescription) return null;
+  if (!trimmedDescription) return trimmedSummary;
+  return `${trimmedSummary}\n\n${trimmedDescription}`;
+}
+
 @Injectable()
 export class DbManagementService {
   constructor(
     private readonly adminQuery: AdminQueryService,
     private readonly audit: AuthAuditService,
   ) {}
+
+  // COMMENT ON is a utility statement, not DML — Postgres's parser doesn't accept $N bind
+  // placeholders in it at all ("syntax error at or near $1"), so the comment text can't be
+  // parameterized the normal way. quote_nullable() (itself a plain, parameterizable SELECT) does
+  // the escaping server-side and also turns a null comment into the bare NULL keyword — the
+  // result is a Postgres-generated literal, safe to splice into the COMMENT ON text that follows.
+  private async quoteLiteral(value: string | null): Promise<string> {
+    const { rows } = await this.adminQuery.query<{ quoted: string }>('select quote_nullable($1) as quoted', [
+      value,
+    ]);
+    return rows[0].quoted;
+  }
 
   private async getTableOid(schema: string, table: string): Promise<string> {
     const { rows } = await this.adminQuery.query<{ oid: string }>(TABLE_OID_QUERY, [schema, table]);
@@ -212,5 +253,92 @@ export class DbManagementService {
       throw new NotFoundException('Function not found');
     }
     return rows[0];
+  }
+
+  // scope.md §37 point 4. No manual PostgREST reload call is needed here: the platform-wide
+  // baas_ddl_reload_pgrst event trigger (packages/database-bootstrap/sql/003_schema_reload_
+  // trigger.sql) already fires NOTIFY pgrst on every ddl_command_end, and COMMENT statements do
+  // fire that event.
+  async updateTableComment(
+    schema: string,
+    table: string,
+    summary: string,
+    description: string,
+    admin: AdminIdentity,
+  ): Promise<void> {
+    const { rows } = await this.adminQuery.query<{ oid: string; relkind: string }>(TABLE_OR_VIEW_OID_QUERY, [
+      schema,
+      table,
+    ]);
+    if (rows.length === 0) {
+      throw new NotFoundException(`"${schema}"."${table}" not found`);
+    }
+
+    const keyword = commentKeywordForRelkind(rows[0].relkind);
+    const literal = await this.quoteLiteral(joinComment(summary, description));
+    await this.adminQuery.query(`COMMENT ON ${keyword} ${quoteIdent(schema)}.${quoteIdent(table)} IS ${literal}`);
+
+    this.audit.record(null, 'admin.comment_updated', null, null, {
+      schema,
+      objectType: 'table',
+      name: table,
+      updatedBy: admin.email,
+    });
+  }
+
+  async updateColumnComment(
+    schema: string,
+    table: string,
+    column: string,
+    summary: string,
+    description: string,
+    admin: AdminIdentity,
+  ): Promise<void> {
+    const oid = await this.getTableOid(schema, table);
+    const columnExists = await this.adminQuery.query(COLUMN_EXISTS_QUERY, [oid, column]);
+    if (columnExists.rows.length === 0) {
+      throw new NotFoundException(`Column "${column}" not found on "${schema}"."${table}"`);
+    }
+
+    const literal = await this.quoteLiteral(joinComment(summary, description));
+    await this.adminQuery.query(
+      `COMMENT ON COLUMN ${quoteIdent(schema)}.${quoteIdent(table)}.${quoteIdent(column)} IS ${literal}`,
+    );
+
+    this.audit.record(null, 'admin.comment_updated', null, null, {
+      schema,
+      objectType: 'column',
+      name: table,
+      column,
+      updatedBy: admin.email,
+    });
+  }
+
+  async updateFunctionComment(
+    schema: string,
+    oid: string,
+    summary: string,
+    description: string,
+    admin: AdminIdentity,
+  ): Promise<void> {
+    const source = await this.getFunctionSource(schema, oid);
+
+    const literal = await this.quoteLiteral(joinComment(summary, description));
+    // pg_get_function_identity_arguments gives the parameter-type-only signature COMMENT ON
+    // FUNCTION requires to disambiguate an overload — plain proname isn't enough.
+    const { rows } = await this.adminQuery.query<{ identity_arguments: string }>(
+      `select pg_get_function_identity_arguments($1::oid) as identity_arguments`,
+      [oid],
+    );
+    await this.adminQuery.query(
+      `COMMENT ON FUNCTION ${quoteIdent(schema)}.${quoteIdent(source.name)}(${rows[0].identity_arguments}) IS ${literal}`,
+    );
+
+    this.audit.record(null, 'admin.comment_updated', null, null, {
+      schema,
+      objectType: 'function',
+      name: source.name,
+      updatedBy: admin.email,
+    });
   }
 }

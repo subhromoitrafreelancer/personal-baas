@@ -5,6 +5,7 @@ import { AdminQueryService } from '../admin-db/admin-query.service';
 import { AuthJwtService } from '../auth/auth-jwt.service';
 import { ProjectsService } from '../projects/projects.service';
 import {
+  COLUMN_COMMENTS_QUERY,
   COLUMNS_QUERY,
   CONSTRAINTS_QUERY,
   FOREIGN_KEYS_QUERY,
@@ -16,6 +17,16 @@ import {
 } from './db-explorer.queries';
 import { DatabaseObjectsResponse, FunctionInfo, SchemaInfo, TableInfo } from './db-explorer.types';
 
+// PostgREST's own OpenAPI generator treats a multi-line COMMENT ON's first line as `summary`
+// and the rest as `description` (scope.md §37) — this mirrors that split so both explorer pages
+// render comments the same way PostgREST's generated docs do.
+function splitComment(comment: string | null): { summary: string | null; description: string | null } {
+  if (!comment) return { summary: null, description: null };
+  const [firstLine, ...rest] = comment.split('\n');
+  const description = rest.join('\n').trim();
+  return { summary: firstLine.trim() || null, description: description || null };
+}
+
 interface SchemaRow {
   schema: string;
 }
@@ -26,6 +37,7 @@ interface TableRow {
   kind: string;
   rls_enabled: boolean;
   rls_forced: boolean;
+  comment: string | null;
 }
 
 interface ColumnRow {
@@ -36,6 +48,13 @@ interface ColumnRow {
   nullable: boolean;
   default: string | null;
   position: number;
+}
+
+interface ColumnCommentRow {
+  schema: string;
+  table: string;
+  name: string;
+  comment: string | null;
 }
 
 interface ConstraintRow {
@@ -81,6 +100,7 @@ interface FunctionRow {
   arguments: string;
   return_type: string;
   language: string;
+  comment: string | null;
 }
 
 @Injectable()
@@ -129,18 +149,36 @@ export class DbExplorerService {
   }
 
   async getDatabaseObjects(): Promise<DatabaseObjectsResponse> {
-    const [schemas, tables, columns, constraints, foreignKeys, indexes, policies, functions, projectRows] =
-      await Promise.all([
-        this.adminQuery.query<SchemaRow>(SCHEMAS_QUERY),
-        this.adminQuery.query<TableRow>(TABLES_QUERY),
-        this.adminQuery.query<ColumnRow>(COLUMNS_QUERY),
-        this.adminQuery.query<ConstraintRow>(CONSTRAINTS_QUERY),
-        this.adminQuery.query<ForeignKeyRow>(FOREIGN_KEYS_QUERY),
-        this.adminQuery.query<IndexRow>(INDEXES_QUERY),
-        this.adminQuery.query<PolicyRow>(POLICIES_QUERY),
-        this.adminQuery.query<FunctionRow>(FUNCTIONS_QUERY),
-        this.projects.list(),
-      ]);
+    const [
+      schemas,
+      tables,
+      columns,
+      columnComments,
+      constraints,
+      foreignKeys,
+      indexes,
+      policies,
+      functions,
+      projectRows,
+    ] = await Promise.all([
+      this.adminQuery.query<SchemaRow>(SCHEMAS_QUERY),
+      this.adminQuery.query<TableRow>(TABLES_QUERY),
+      this.adminQuery.query<ColumnRow>(COLUMNS_QUERY),
+      this.adminQuery.query<ColumnCommentRow>(COLUMN_COMMENTS_QUERY),
+      this.adminQuery.query<ConstraintRow>(CONSTRAINTS_QUERY),
+      this.adminQuery.query<ForeignKeyRow>(FOREIGN_KEYS_QUERY),
+      this.adminQuery.query<IndexRow>(INDEXES_QUERY),
+      this.adminQuery.query<PolicyRow>(POLICIES_QUERY),
+      this.adminQuery.query<FunctionRow>(FUNCTIONS_QUERY),
+      this.projects.list(),
+    ]);
+
+    const columnCommentKey = (schema: string, table: string, column: string) =>
+      `${schema}.${table}.${column}`;
+    const columnCommentsByKey = new Map<string, string | null>();
+    for (const row of columnComments.rows) {
+      columnCommentsByKey.set(columnCommentKey(row.schema, row.table, row.name), row.comment);
+    }
 
     // A table is API-exposed if it lives in *any* project's schema (scope.md §23) — not just
     // the literal 'api' schema, which was the only one that existed before Phase 9 and is now
@@ -165,16 +203,19 @@ export class DbExplorerService {
         foreignKeys: [],
         indexes: [],
         policies: [],
+        ...splitComment(row.comment),
       });
     }
 
     for (const row of columns.rows) {
+      const comment = columnCommentsByKey.get(columnCommentKey(row.schema, row.table, row.name)) ?? null;
       tablesByKey.get(tableKey(row.schema, row.table))?.columns.push({
         name: row.name,
         dataType: row.data_type,
         nullable: row.nullable,
         default: row.default,
         position: row.position,
+        ...splitComment(comment),
       });
     }
 
@@ -225,6 +266,7 @@ export class DbExplorerService {
         arguments: row.arguments,
         returnType: row.return_type,
         language: row.language,
+        ...splitComment(row.comment),
       });
       functionsBySchema.set(row.schema, list);
     }

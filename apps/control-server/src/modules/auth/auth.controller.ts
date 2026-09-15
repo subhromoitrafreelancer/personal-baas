@@ -21,31 +21,33 @@ import { SelfServiceService } from './self-service.service';
 import { SignupService } from './signup.service';
 import { RequestWithApiKeyProject, RequestWithUser } from './auth.types';
 
-const signupBodySchema = z.object({
+// Exported for openapi-docs.service.ts (scope.md §38) to derive the public OpenAPI spec from —
+// the same schemas that actually validate these requests, not a hand-typed duplicate.
+export const signupBodySchema = z.object({
   email: z.string().email(),
   password: z.string().min(8, 'Password must be at least 8 characters'),
 });
 
-const loginBodySchema = z.object({
+export const loginBodySchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
 });
 
-const tokenBodySchema = z.object({
+export const tokenBodySchema = z.object({
   refreshToken: z.string().min(1),
 });
 
-const changePasswordBodySchema = z.object({
+export const changePasswordBodySchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: z.string().min(8, 'Password must be at least 8 characters'),
 });
 
-const passwordResetBodySchema = z.object({
+export const passwordResetBodySchema = z.object({
   token: z.string().min(1),
   newPassword: z.string().min(8, 'Password must be at least 8 characters'),
 });
 
-const passwordResetRequestBodySchema = z.object({
+export const passwordResetRequestBodySchema = z.object({
   email: z.string().email(),
 });
 

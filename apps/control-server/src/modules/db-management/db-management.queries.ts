@@ -9,6 +9,19 @@ export const TABLE_OID_QUERY = `
   where n.nspname = $1 and c.relname = $2 and c.relkind in ('r', 'p')
 `;
 
+// Broader than TABLE_OID_QUERY above (relkind 'r'/'p' only, since delete-table is genuinely
+// table-only) — comment editing (scope.md §37) applies to anything Database Explorer lists as a
+// "table" row, which includes views/materialized views/foreign tables too (db-explorer.queries.ts
+// TABLES_QUERY's own relkind set). relkind is returned alongside the oid because `COMMENT ON`
+// requires a different keyword per object type (TABLE/VIEW/MATERIALIZED VIEW/FOREIGN TABLE) —
+// see commentKeywordForRelkind() in db-management.service.ts.
+export const TABLE_OR_VIEW_OID_QUERY = `
+  select c.oid::text as oid, c.relkind as relkind
+  from pg_catalog.pg_class c
+  join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = $1 and c.relname = $2 and c.relkind in ('r', 'v', 'm', 'p', 'f')
+`;
+
 // reltuples is a planner estimate (updated by ANALYZE/autovacuum), not a live COUNT(*) — deliberate,
 // since a full table scan just to populate a warning dialog would be its own footgun on a large table.
 export const TABLE_ROW_ESTIMATE_QUERY = `

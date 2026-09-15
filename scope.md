@@ -2926,6 +2926,178 @@ revocation elsewhere.
 
 ---
 
+# 37. Schema Object Documentation (Comments)
+
+Phase 23. Originating need: "Supabase-quality" per-project API docs. PostgREST already reads
+`COMMENT ON SCHEMA/TABLE/VIEW/COLUMN/FUNCTION` and maps them into the `description` (and, for a
+multi-line comment, `summary` from the first line) fields of the OpenAPI document it generates at
+its own root endpoint — confirmed against the PostgREST docs, not assumed. But personal-baas's own
+UI never reads or writes those comments anywhere: `db-explorer.service.ts`'s `TABLES_QUERY`/
+`COLUMNS_QUERY`/`FUNCTIONS_QUERY` never select `obj_description()`/`col_description()`, so neither
+the Database Explorer nor the API Explorer's snippet cards show a single comment, and there is no
+admin-console affordance to set one — today that's exclusively a hand-written `COMMENT ON ...` in
+the SQL Editor. This phase closes both halves: surface existing comments in both explorer pages,
+and let an admin author them from the UI instead of raw SQL.
+
+Three scope questions were asked and resolved: (1) schema/project-level comments (`COMMENT ON
+SCHEMA`) are **out of scope** for this phase — table/view/column/function only, a project-level
+description is a separate, later follow-up if wanted; (2) function **comments** get the same edit
+affordance as tables/views/columns — Phase 15's read-only rule (§29) was specifically about
+function *source* (`pg_get_functiondef` output, no edit/save controls at all, function authoring
+stays the SQL Editor's job) and does not extend to comment metadata, so this doesn't reopen that
+boundary; (3) the edit form uses **separate Summary and Description fields**, joined with a blank
+line into one `COMMENT ON ... IS '<summary>\n\n<description>'` on save — matching PostgREST's own
+first-line-is-summary convention exactly, rather than a single freeform textarea where the admin
+has to manage that convention by hand.
+
+```text
+1. Query changes (apps/control-server/src/modules/db-explorer/db-explorer.queries.ts):
+   - TABLES_QUERY gains `obj_description(c.oid, 'pg_class') as comment` — `c.oid` is already
+     selected via the join, so this is a one-line addition.
+   - FUNCTIONS_QUERY gains `obj_description(p.oid, 'pg_proc') as comment` — same, `p.oid` is
+     already selected.
+   - COLUMNS_QUERY is NOT rewritten from `information_schema.columns` to `pg_catalog` (the
+     rewrite needed to get a table oid into the same query is a real behavior-change risk to an
+     existing, working query with no upside). Instead, a new `COLUMN_COMMENTS_QUERY` joins
+     `pg_attribute`/`pg_class`/`pg_namespace` purely to select `col_description(c.oid, a.attnum)
+     as comment` keyed by `(schema, table, name)`, run as one more `Promise.all` entry in
+     `getDatabaseObjects()` and merged into the existing per-column objects by that key — the
+     same "separate query, merge by key" shape `CONSTRAINTS_QUERY`/`INDEXES_QUERY`/
+     `POLICIES_QUERY` already use for their own per-table data.
+
+2. Types (db-explorer.types.ts): `ColumnInfo`, `TableInfo`, `FunctionInfo` each gain
+   `summary: string | null` and `description: string | null` — split server-side from the raw
+   catalog comment (first line vs. the rest, trimmed) once in `db-explorer.service.ts`, so both
+   consumers (Database Explorer's own page and the API Explorer's snippet-card renderer, which
+   both already consume `GET /admin/v1/database/objects`) render the same split without
+   duplicating the parsing client-side.
+
+3. Display:
+   - Database Explorer: each table/column/function row gets the summary shown inline (bold,
+     next to the name) and the description shown beneath it in muted text, when present; nothing
+     rendered when the comment is null — no "No description" placeholder clutter.
+   - API Explorer (`api-explorer.js`): `renderTableCard`/`renderFunctionCard` prepend the same
+     summary/description block above the existing cURL/fetch snippet blocks — this is the actual
+     "Supabase-quality docs" payoff, since a developer browsing available endpoints now sees real
+     authored documentation next to the request examples, not just inferred types.
+
+4. Editing — new endpoints on the existing `DbManagementController` (`admin/v1/database/...`,
+   already `AdminSessionGuard`-protected, already the home for Phase 15's delete actions — comment
+   editing is metadata, not structural DDL, so it fits the same "narrow, audited exception to an
+   otherwise read-only explorer" pattern Phase 15 already established, not a new boundary):
+   - `PATCH :schema/tables/:table/comment` — covers both tables and views (`TableInfo` already
+     unifies them via its `kind` field; no separate `/views/` path needed).
+   - `PATCH :schema/tables/:table/columns/:column/comment`
+   - `PATCH :schema/functions/:oid/comment` — keyed by oid like Phase 15's own
+     `:schema/functions/:oid/source`, since function names can be overloaded.
+   Body: `{ summary: string, description: string }` (zod-validated, both may be empty strings).
+   `DbManagementService` gains `updateComment(...)`, following the exact pattern its
+   `deleteTable`/`deleteColumn` methods already use: verify the object still exists in the catalog
+   first (reusing `getTableOid`/`COLUMN_EXISTS_QUERY`-style existence checks), quote identifiers
+   with the module's own `quoteIdent()` helper (already private to this file — no cross-module
+   export needed, since both the delete actions and this new write live in the same service), and
+   execute `COMMENT ON {TABLE|COLUMN|FUNCTION} ... IS $1` via `AdminQueryService` with the joined
+   summary+description as a bind **parameter**, never spliced. An empty summary and description
+   together execute `COMMENT ON ... IS NULL` (removes the comment entirely) rather than storing an
+   empty string — matches standard Postgres `COMMENT ON` semantics.
+   No manual PostgREST reload call is needed: `packages/database-bootstrap/sql/003_schema_reload_
+   trigger.sql`'s `baas_ddl_reload_pgrst` event trigger already fires `NOTIFY pgrst, 'reload
+   schema'` on every `ddl_command_end`, and `COMMENT` statements do fire that event (confirmed
+   against PostgREST's own schema-cache-reload documentation) — the existing infrastructure from
+   Phase 0 already covers this without any new plumbing.
+
+5. Admin UI: an edit (pencil) icon next to each table/column/function name in Database Explorer,
+   same icon set Phase 15's delete affordance already uses, opening a small inline form (Summary
+   + Description) — no typed-name confirmation (unlike table deletion): this is non-destructive
+   metadata, not data loss, so a plain Save is enough.
+
+6. Audit: `admin.comment_updated` via the existing `AuthAuditService.record()`, metadata
+   `{ schema, objectType: 'table' | 'column' | 'function', name, column?, updatedBy }` — matches
+   `db-management.service.ts`'s own `admin.table_deleted`/`admin.column_deleted` convention
+   exactly (same module, same `admin.*` prefix — this extends db-management, it isn't a new
+   subsystem, so it doesn't get its own prefix the way vault.*/email.*/ai.* etc. do).
+```
+
+**Acceptance**: setting a two-line comment on a table through the new edit form makes it appear,
+correctly split into summary/description, in the Database Explorer, in the API Explorer's card for
+that table, and in PostgREST's own raw `openapi.json` for that project's schema within moments —
+no manual reload step; the same holds for a column and for a function; clearing a comment (saving
+both fields empty) removes it from all three surfaces; an object that never had a comment shows no
+description anywhere in either explorer page; Phase 15's function-source viewer remains strictly
+read-only for the function body — only the comment gets an edit affordance.
+
+---
+
+# 38. Public Integration API OpenAPI Spec
+
+Phase 24. Originating need: the per-project Data API gets a real, generated OpenAPI document for
+free from PostgREST (proxied at `/admin/v1/database/openapi?schema=...`, §17 Phase 2), but
+control-server's own hand-built public integration surface — `/auth/v1/*` (signup, login, logout,
+token refresh, current-user, change-password, password-reset), `/users/v1/directory` (§36, Phase
+22), and the public object routes under `/storage/v1/*` — has never had any generated
+documentation at all. A downstream developer integrating against this platform today has to read
+the source or this scope document itself to know these routes exist and what they accept.
+
+One scope question was asked and resolved: this spec covers the **public integration surface
+only** — `/auth/v1/*`, `/users/v1/*`, `/storage/v1/*` (public object routes; not
+`storage-admin.controller.ts`) — and is served **unauthenticated**, matching PostgREST's own
+`openapi.json` (also public) so external integrators can actually fetch it without first standing
+up an admin session. `/admin/v1/*` (the internal platform-operator console API) is deliberately
+**not** included — it's a separate concern for a later phase if ever needed, not something
+outside integrators consume.
+
+```text
+1. Approach: `@asteasolutions/zod-to-openapi`, not hand-written `@nestjs/swagger` decorators.
+   Every in-scope controller already validates request bodies/queries with zod schemas
+   (`createUserBodySchema`-style objects, `paginationQuerySchema`, the Phase 22 `statusQuerySchema`,
+   etc.) — deriving the OpenAPI document directly from those same schemas (via the library's
+   `extendZodWithOpenApi` + per-schema `.openapi(...)` metadata) keeps validation and
+   documentation as one source of truth. Hand-written `@ApiProperty()`-style decorators on a
+   second, parallel DTO layer would drift from the real zod validation the moment one changes
+   without the other — every other validation surface in this codebase is zod-first, so this
+   should be too. Compatible with the pinned `zod@^3.24.1`.
+
+2. New module — `apps/control-server/src/modules/openapi-docs/`:
+   - `openapi-docs.service.ts` — builds an `OpenAPIRegistry`, registers each in-scope route's
+     zod request/response schemas plus its path/method/tags, generates the document once via
+     `OpenApiGeneratorV3` and caches it in memory (these route shapes are static — unlike
+     PostgREST's own catalog-driven spec, there's no schema-cache-reload equivalent needed here,
+     so no per-request regeneration).
+   - `openapi-docs.controller.ts` — `GET /openapi.json`, no guard (public, matching point above).
+   - `openapi-docs.module.ts` — no other module needs this one; it just reads the zod schemas
+     already exported from `auth/`, `user-directory/`, and `storage/`'s controller files (adding
+     `export` to any that are currently unexported at the top of those files, no logic changes).
+
+3. Route wiring: `app.module.ts` registers `OpenApiDocsModule`. `infrastructure/proxy/Caddyfile`
+   needs a new top-level `handle /openapi.json { reverse_proxy control-server:3000 }` block (a
+   root-level path, not a `/prefix/*` — falls through to the existing 404 catch-all otherwise,
+   the same reasoning Phase 22's own `/users/*` block needed).
+
+4. Admin UI: a link to `/openapi.json` on the API Explorer page (`/admin/api`), next to the
+   existing per-project "Open raw OpenAPI in new tab" link — labeled distinctly (e.g. "Platform
+   API (auth, users, storage)" vs. the existing per-project one) so the two specs, which document
+   different things, aren't confused for each other. No new Swagger UI / Redoc viewer is built —
+   the raw JSON plus a link mirrors the UX this app already ships for the per-project spec
+   (`openRawOpenapiLink` in `api-explorer.js`), rather than adding a new rendering dependency and
+   its own CSP considerations for a first cut.
+
+5. Excluded from this spec, explicitly: `/functions/*` invocation (each function's request/
+   response shape is developer-defined and opaque to control-server, not a fixed schema to
+   document) and `/realtime/*` (a WebSocket upgrade, not an OpenAPI-representable HTTP operation)
+   — both are noted in the document's top-level `info.description` as existing but
+   separately-documented, rather than forced into paths that don't fit the format.
+```
+
+**Acceptance**: `curl http://localhost:8000/openapi.json` with no `Authorization` header returns a
+valid OpenAPI 3.x document; it describes every `/auth/v1/*` route, `/users/v1/directory`, and the
+public `/storage/v1/*` object routes, each with request/response shapes that match their real zod
+schemas (not hand-typed duplicates that can drift); running the document through an OpenAPI 3.x
+validator reports no schema violations; the API Explorer page shows a working link to it, clearly
+distinguished from the existing per-project OpenAPI link; `/admin/v1/*` routes do not appear
+anywhere in the document.
+
+---
+
 [9]: https://min.io/docs/minio/linux/index.html "MinIO Object Storage Documentation"
 
 [1]: https://supabase.com/docs/guides/api?utm_source=chatgpt.com "Data REST API - Supabase Docs"

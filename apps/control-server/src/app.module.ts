@@ -20,6 +20,7 @@ import { HealthModule } from './modules/health/health.module';
 import { HostingModule } from './modules/hosting/hosting.module';
 import { LandingModule } from './modules/landing/landing.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
+import { OpenapiDocsModule } from './modules/openapi-docs/openapi-docs.module';
 import { PdfModule } from './modules/pdf/pdf.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { RateLimitModule } from './modules/rate-limit/rate-limit.module';
@@ -77,6 +78,7 @@ import { VaultModule } from './modules/vault/vault.module';
     SchedulerModule,
     DashboardSummaryModule,
     RealtimeModule,
+    OpenapiDocsModule,
   ],
 })
 export class AppModule {}

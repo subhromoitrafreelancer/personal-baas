@@ -4,6 +4,8 @@ export interface ColumnInfo {
   nullable: boolean;
   default: string | null;
   position: number;
+  summary: string | null;
+  description: string | null;
 }
 
 export interface ConstraintInfo {
@@ -43,6 +45,8 @@ export interface TableInfo {
   foreignKeys: ForeignKeyInfo[];
   indexes: IndexInfo[];
   policies: PolicyInfo[];
+  summary: string | null;
+  description: string | null;
 }
 
 export interface FunctionInfo {
@@ -51,6 +55,8 @@ export interface FunctionInfo {
   arguments: string;
   returnType: string;
   language: string;
+  summary: string | null;
+  description: string | null;
 }
 
 export interface SchemaInfo {

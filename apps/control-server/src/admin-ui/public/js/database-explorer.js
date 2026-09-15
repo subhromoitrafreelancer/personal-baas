@@ -217,6 +217,64 @@ async function openDeleteTableModal(schema, table) {
   });
 }
 
+// Edit-comment modal (scope.md §37 point 5) — shared by tables, columns, and functions, which
+// differ only in which PATCH .../comment URL they call and the label shown. Summary/Description
+// are separate fields (resolved question, §37): joined with a blank line server-side into the
+// single comment string PostgREST itself expects.
+function openEditCommentModal(label, patchUrl, current, onSaved) {
+  openModal(`Edit description — ${label}`);
+  modalBody.innerHTML = `
+    <div class="field">
+      <label for="comment-summary">Summary</label>
+      <input type="text" id="comment-summary" autocomplete="off" maxlength="500" value="${escapeHtml(current.summary ?? '')}" />
+    </div>
+    <div class="field">
+      <label for="comment-description">Description</label>
+      <textarea id="comment-description" rows="4" maxlength="4000">${escapeHtml(current.description ?? '')}</textarea>
+    </div>
+  `;
+
+  const cancelBtn = footerButton('Cancel', 'btn btn-outline');
+  cancelBtn.addEventListener('click', closeModal);
+
+  const saveBtn = footerButton('Save', 'btn btn-primary');
+  saveBtn.addEventListener('click', async () => {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving…';
+    const summary = document.getElementById('comment-summary').value;
+    const description = document.getElementById('comment-description').value;
+    const res = await apiFetch(patchUrl, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ summary, description }),
+    });
+    if (!res) return;
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      showToast(errBody.message || 'Failed to save description', 'error');
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save';
+      return;
+    }
+    showToast('Description saved', 'success');
+    closeModal();
+    onSaved();
+  });
+
+  modalFooter.appendChild(cancelBtn);
+  modalFooter.appendChild(saveBtn);
+}
+
+function commentHtml(entity) {
+  if (!entity.summary && !entity.description) return '';
+  return `
+    <div class="object-comment">
+      ${entity.summary ? `<div class="object-comment-summary">${escapeHtml(entity.summary)}</div>` : ''}
+      ${entity.description ? `<div class="object-comment-description">${escapeHtml(entity.description)}</div>` : ''}
+    </div>
+  `;
+}
+
 // Read-only source viewer (scope.md §29 point 1) — SQL Editor already owns function authoring,
 // this never offers an edit/save control.
 async function openFunctionSourceModal(schema, oid, name) {
@@ -278,11 +336,14 @@ function renderColumnsSection(columns, schemaName, tableName) {
     for (const col of columns.slice(shown, shown + COLUMNS_PAGE_SIZE)) {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td><span class="copyable-cell">${escapeHtml(col.name)}${copyButton(col.name)}</span></td>
+        <td><span class="copyable-cell">${escapeHtml(col.name)}${copyButton(col.name)}</span>${commentHtml(col)}</td>
         <td>${escapeHtml(col.dataType)}</td>
         <td>${col.nullable ? 'YES' : 'NO'}</td>
         <td>${col.default ? escapeHtml(col.default) : ''}</td>
-        <td><button type="button" class="icon-action-btn delete-column-btn" data-schema="${escapeHtml(schemaName)}" data-table="${escapeHtml(tableName)}" data-column="${escapeHtml(col.name)}" aria-label="Delete column" title="Delete column">${window.Icons.markup('delete', { size: 12 })}</button></td>
+        <td>
+          <button type="button" class="icon-action-btn edit-column-comment-btn" data-schema="${escapeHtml(schemaName)}" data-table="${escapeHtml(tableName)}" data-column="${escapeHtml(col.name)}" data-summary="${escapeHtml(col.summary ?? '')}" data-description="${escapeHtml(col.description ?? '')}" aria-label="Edit description" title="Edit description">${window.Icons.markup('edit', { size: 12 })}</button>
+          <button type="button" class="icon-action-btn delete-column-btn" data-schema="${escapeHtml(schemaName)}" data-table="${escapeHtml(tableName)}" data-column="${escapeHtml(col.name)}" aria-label="Delete column" title="Delete column">${window.Icons.markup('delete', { size: 12 })}</button>
+        </td>
       `;
       tbody.appendChild(tr);
     }
@@ -435,6 +496,7 @@ function renderTable(table, schemaName, expanded) {
     ${table.apiExposed ? '<span class="badge api-exposed">API exposed</span>' : ''}
     <span class="badge ${table.rlsEnabled ? 'rls-on' : 'rls-off'}">${table.rlsEnabled ? 'RLS enabled' : 'RLS disabled'}</span>
     ${exposureWarning(table)}
+    <button type="button" class="icon-action-btn edit-table-comment-btn" data-schema="${escapeHtml(schemaName)}" data-table="${escapeHtml(table.name)}" data-summary="${escapeHtml(table.summary ?? '')}" data-description="${escapeHtml(table.description ?? '')}" aria-label="Edit description" title="Edit description">${window.Icons.markup('edit', { size: 14 })}</button>
     ${
       canDelete
         ? `<button type="button" class="icon-action-btn delete-table-btn" data-schema="${escapeHtml(schemaName)}" data-table="${escapeHtml(table.name)}" aria-label="Delete table" title="Delete table">${window.Icons.markup('delete', { size: 14 })}</button>`
@@ -446,6 +508,12 @@ function renderTable(table, schemaName, expanded) {
   const details = document.createElement('div');
   details.className = 'table-details';
   details.hidden = !expanded;
+  const commentEl = commentHtml(table);
+  if (commentEl) {
+    const commentWrap = document.createElement('div');
+    commentWrap.innerHTML = commentEl;
+    details.appendChild(commentWrap.firstElementChild);
+  }
   details.appendChild(renderColumnsSection(table.columns, schemaName, table.name));
 
   const keyCount = (table.primaryKey ? 1 : 0) + table.uniqueConstraints.length + table.foreignKeys.length;
@@ -462,7 +530,13 @@ function renderTable(table, schemaName, expanded) {
     header.setAttribute('aria-expanded', String(next));
   };
   header.addEventListener('click', (event) => {
-    if (event.target.closest('.copy-btn') || event.target.closest('.delete-table-btn')) return;
+    if (
+      event.target.closest('.copy-btn') ||
+      event.target.closest('.delete-table-btn') ||
+      event.target.closest('.edit-table-comment-btn')
+    ) {
+      return;
+    }
     toggle();
   });
   header.addEventListener('keydown', (event) => {
@@ -496,8 +570,13 @@ function renderSchema(schema) {
     functionsBlock.className = 'functions-block';
     functionsBlock.innerHTML = `<h4>Functions</h4>${schema.functions
       .map(
-        (fn) =>
-          `<button type="button" class="function-item" data-schema="${escapeHtml(schema.name)}" data-oid="${escapeHtml(fn.oid)}" data-name="${escapeHtml(fn.name)}">${window.Icons.markup('view', { size: 12 })} ${escapeHtml(fn.name)}(${escapeHtml(fn.arguments)}) &rarr; ${escapeHtml(fn.returnType)}</button>`,
+        (fn) => `
+          <div class="function-row">
+            <button type="button" class="function-item" data-schema="${escapeHtml(schema.name)}" data-oid="${escapeHtml(fn.oid)}" data-name="${escapeHtml(fn.name)}">${window.Icons.markup('view', { size: 12 })} ${escapeHtml(fn.name)}(${escapeHtml(fn.arguments)}) &rarr; ${escapeHtml(fn.returnType)}</button>
+            <button type="button" class="icon-action-btn edit-function-comment-btn" data-schema="${escapeHtml(schema.name)}" data-oid="${escapeHtml(fn.oid)}" data-name="${escapeHtml(fn.name)}" data-summary="${escapeHtml(fn.summary ?? '')}" data-description="${escapeHtml(fn.description ?? '')}" aria-label="Edit description" title="Edit description">${window.Icons.markup('edit', { size: 12 })}</button>
+            ${commentHtml(fn)}
+          </div>
+        `,
       )
       .join('')}`;
     block.appendChild(functionsBlock);
@@ -584,6 +663,39 @@ container.addEventListener('click', (event) => {
   const deleteTableBtn = event.target.closest('.delete-table-btn');
   if (deleteTableBtn) {
     openDeleteTableModal(deleteTableBtn.dataset.schema, deleteTableBtn.dataset.table);
+    return;
+  }
+  const editTableCommentBtn = event.target.closest('.edit-table-comment-btn');
+  if (editTableCommentBtn) {
+    const { schema, table, summary, description } = editTableCommentBtn.dataset;
+    openEditCommentModal(
+      `${schema}.${table}`,
+      `/admin/v1/database/${encodeURIComponent(schema)}/tables/${encodeURIComponent(table)}/comment`,
+      { summary, description },
+      loadObjects,
+    );
+    return;
+  }
+  const editColumnCommentBtn = event.target.closest('.edit-column-comment-btn');
+  if (editColumnCommentBtn) {
+    const { schema, table, column, summary, description } = editColumnCommentBtn.dataset;
+    openEditCommentModal(
+      `${schema}.${table}.${column}`,
+      `/admin/v1/database/${encodeURIComponent(schema)}/tables/${encodeURIComponent(table)}/columns/${encodeURIComponent(column)}/comment`,
+      { summary, description },
+      loadObjects,
+    );
+    return;
+  }
+  const editFunctionCommentBtn = event.target.closest('.edit-function-comment-btn');
+  if (editFunctionCommentBtn) {
+    const { schema, oid, name, summary, description } = editFunctionCommentBtn.dataset;
+    openEditCommentModal(
+      `${schema}.${name}()`,
+      `/admin/v1/database/${encodeURIComponent(schema)}/functions/${encodeURIComponent(oid)}/comment`,
+      { summary, description },
+      loadObjects,
+    );
     return;
   }
   const functionItem = event.target.closest('.function-item');

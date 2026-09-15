@@ -120,6 +120,20 @@ function functionSnippet(fn) {
   );
 }
 
+// Comments authored via the Database Explorer's edit-description action (scope.md §37) — shown
+// unconditionally above the collapsible snippet body, not behind the click-to-expand toggle,
+// since this is the actual documentation payoff: a developer scanning available endpoints should
+// see it without expanding every card.
+function commentHtml(entity) {
+  if (!entity.summary && !entity.description) return '';
+  return `
+    <div class="api-object-comment">
+      ${entity.summary ? `<div class="api-object-comment-summary">${escapeHtml(entity.summary)}</div>` : ''}
+      ${entity.description ? `<div class="api-object-comment-description">${escapeHtml(entity.description)}</div>` : ''}
+    </div>
+  `;
+}
+
 function renderTableCard(table) {
   const card = document.createElement('div');
   card.className = 'api-object-card';
@@ -138,6 +152,8 @@ function renderTableCard(table) {
   });
 
   card.appendChild(header);
+  const comment = commentHtml(table);
+  if (comment) card.insertAdjacentHTML('beforeend', comment);
   card.appendChild(body);
   return card;
 }
@@ -160,6 +176,8 @@ function renderFunctionCard(fn) {
   });
 
   card.appendChild(header);
+  const comment = commentHtml(fn);
+  if (comment) card.insertAdjacentHTML('beforeend', comment);
   card.appendChild(body);
   return card;
 }

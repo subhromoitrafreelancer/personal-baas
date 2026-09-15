@@ -30,6 +30,25 @@
   padding: var(--space-4);
 }
 
+/* Authored via Database Explorer's edit-description action (scope.md §37) — shown unconditionally
+   above the collapsible snippet body, not behind the click-to-expand toggle. */
+.api-object-comment {
+  padding: 0.6rem 0.9rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.api-object-comment-summary {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.api-object-comment-description {
+  color: var(--color-text-muted);
+  margin-top: 0.15rem;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+}
+
 .snippet-block {
   margin-bottom: var(--space-4);
 }

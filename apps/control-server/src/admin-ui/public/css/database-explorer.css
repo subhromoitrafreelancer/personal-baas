@@ -113,14 +113,51 @@
   flex-shrink: 0;
 }
 
+.icon-action-btn + .icon-action-btn {
+  margin-left: 0.3rem;
+}
+
 .icon-action-btn:hover {
   background: var(--color-danger-bg);
   color: var(--color-danger);
   border-color: var(--color-danger);
 }
 
-.delete-table-btn {
+/* Edit-comment buttons (scope.md §37) reuse .icon-action-btn's sizing but not its danger hover
+   colors — this is a benign metadata edit, not a destructive action. */
+.edit-table-comment-btn:hover,
+.edit-column-comment-btn:hover,
+.edit-function-comment-btn:hover {
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+/* Pushed to the far right of the header's badge row; edit-table-comment-btn is always rendered
+   before delete-table-btn in markup (delete-table-btn is conditional — views/materialized views/
+   foreign tables get no delete action at all, scope.md §29), so only the first one needs the
+   auto margin — a second auto margin on delete-table-btn would push it away from, not next to,
+   the edit button. */
+.edit-table-comment-btn {
   margin-left: auto;
+}
+
+/* scope.md §37 point 3/5 — summary bold, description muted, mirroring PostgREST's own
+   first-line-is-summary/rest-is-description OpenAPI convention. */
+.object-comment {
+  margin: 0.3rem 0 0.6rem;
+  font-family: var(--font-body, inherit);
+}
+
+.object-comment-summary {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.object-comment-description {
+  color: var(--color-text-muted);
+  margin-top: 0.15rem;
+  white-space: pre-wrap;
 }
 
 .table-details {
@@ -246,11 +283,19 @@
   letter-spacing: 0.03em;
 }
 
+.function-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
 .function-item {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: 0.3rem 0.4rem;
   border: none;
   background: transparent;
@@ -265,6 +310,12 @@
 .function-item:hover {
   background: var(--color-surface-muted);
   color: var(--color-accent);
+}
+
+.function-row .object-comment {
+  flex-basis: 100%;
+  margin: 0 0 0.4rem 0.4rem;
+  font-size: 0.8rem;
 }
 
 /* Delete-table/column and function-source modal content (Phase 15, scope.md §29). */

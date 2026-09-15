@@ -5,7 +5,8 @@ import { AuthUsersRepository } from '../auth/auth-users.repository';
 import { ServiceRoleBearerGuard } from '../auth/service-role-bearer.guard';
 import { RequestWithServiceKey } from '../storage/storage-access.guard';
 
-const statusQuerySchema = z.enum(['active', 'disabled', 'invited']).optional();
+// Exported for openapi-docs.service.ts (scope.md §38).
+export const statusQuerySchema = z.enum(['active', 'disabled', 'invited']).optional();
 
 // GET /users/v1/directory (scope.md §36, Phase 22) — the narrowest read that lets a downstream
 // project's own server-side code (a Function, or its own backend) look up its own project's

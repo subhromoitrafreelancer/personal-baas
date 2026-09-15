@@ -27,7 +27,7 @@ The three personal-baas images must already exist locally — see [Getting the i
 
 ## Getting the images
 
-The compose overlay references three images by tag — `personal-baas-control-server:0.7.1`,
+The compose overlay references three images by tag — `personal-baas-control-server:0.7.2`,
 `personal-baas-function-runner:0.3.0`, `personal-baas-postgres:0.3.0` by default (each image
 versions independently; control-server currently releases ahead of the other two). They are
 **not** on Docker Hub; you must build or load them yourself. Everything else (PostgREST, MinIO,
@@ -159,7 +159,7 @@ Create your first table in the admin console at `/admin/database`, then mint API
 
 | Variable | Meaning |
 | --- | --- |
-| `BAAS_CONTROL_SERVER_IMAGE` | control-server image tag (default `personal-baas-control-server:0.7.1`) |
+| `BAAS_CONTROL_SERVER_IMAGE` | control-server image tag (default `personal-baas-control-server:0.7.2`) |
 | `BAAS_FUNCTION_RUNNER_IMAGE` | function-runner image tag (default `personal-baas-function-runner:0.3.0`) |
 | `BAAS_POSTGRES_IMAGE` | postgres bootstrap image tag (default `personal-baas-postgres:0.3.0`) |
 | `BAAS_NETWORK_NAME` | Docker network your app joins (default `{compose-project}-baas-net`) |

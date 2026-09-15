@@ -8,6 +8,7 @@
 #   /functions/*  -> control-server (Phase 12 Functions invocation, public)
 #   /realtime/*   -> control-server (Phase 8 WebSocket gateway, upgrade handled transparently)
 #   /users/*      -> control-server (Phase 22 service-role project user directory)
+#   /openapi.json -> control-server (Phase 24 public integration API OpenAPI spec)
 #   /admin/*      -> control-server (admin API + admin UI pages)
 #   /health*      -> control-server (liveness/readiness, also used by container healthchecks)
 {
@@ -60,6 +61,13 @@
 	# Service-role project user directory (Phase 22, scope.md §36) -- server-to-server read only,
 	# guarded by ServiceRoleBearerGuard; no browser/publishable-key traffic ever hits this.
 	handle /users/* {
+		reverse_proxy control-server:3000
+	}
+
+	# Public integration API OpenAPI spec (Phase 24, scope.md §38) -- unauthenticated, mirroring
+	# PostgREST's own public openapi.json. A root-level path, not a /prefix/* -- needs its own
+	# explicit handle or it falls through to the 404 catch-all below.
+	handle /openapi.json {
 		reverse_proxy control-server:3000
 	}
 

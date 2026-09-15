@@ -13,13 +13,13 @@ recreate the containers.
    ```
 2. **Get the new images.** Either rebuild from a newer monorepo checkout:
    ```bash
-   ./scripts/build-local-images.sh /path/to/personal-baas-monorepo 0.7.1 0.3.0
+   ./scripts/build-local-images.sh /path/to/personal-baas-monorepo 0.7.2 0.3.0
    ```
    or load the new release's tarballs (`docker load -i ...`) and update the `BAAS_*_IMAGE`
    tags in `.env` to match.
 3. **Point `.env` at the new tags** (unless your tarballs/builds reused the same tags):
    ```env
-   BAAS_CONTROL_SERVER_IMAGE=personal-baas-control-server:0.7.1
+   BAAS_CONTROL_SERVER_IMAGE=personal-baas-control-server:0.7.2
    BAAS_FUNCTION_RUNNER_IMAGE=personal-baas-function-runner:0.3.0
    BAAS_POSTGRES_IMAGE=personal-baas-postgres:0.3.0
    ```
