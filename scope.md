@@ -2854,6 +2854,76 @@ end-to-end.
 
 ---
 
+# 36. Service-Role Project User Directory
+
+Phase 22. Originating need: a downstream project built on this platform (yyu-ui, an NPD workflow
+app) has its own app-level "employee" table whose primary key is a foreign key straight into that
+project's `auth.users.id` — linking a new employee today means an admin creates the platform user
+via the admin console, then hand-copies its uuid and email into the app's own screen, because
+nothing server-side in that app can read its own project's user list back. This phase closes that
+gap with the narrowest read that does it, rather than the two paths already available and
+deliberately not used for this:
+
+```text
+1. Why not the two paths that already exist. `GET /admin/v1/users` (§13's route list; Phase 3's
+   "Administrator user management" item, §17) is guarded by
+   AdminSessionGuard — it accepts only the platform admin's own httpOnly browser session cookie,
+   which a server-side integration (a Function, a downstream app's own backend) has no way to
+   hold or mint on demand without literally storing a platform admin's login credentials
+   somewhere, granting whoever holds that secret every admin capability across every project on
+   the instance, not just a read of one project's users. PostgREST is the other existing read
+   path for a service_role key (§23: service_role already bypasses RLS on /rest/v1/* within
+   whatever schemas PostgREST is configured to expose) — but `auth` is deliberately never one of
+   those schemas (it holds password_hash and session/token tables), so there is no
+   `/rest/v1/users` to bypass RLS on in the first place. Both gaps are correct as they stand;
+   neither should be loosened to fix this.
+
+2. New endpoint: GET /users/v1/directory — deliberately not under /admin/v1 (that prefix means
+   "requires AdminSessionGuard" everywhere else in this codebase; reusing it here for a
+   service-role-callable route would be a misleading precedent). Guarded by a new
+   ServiceRoleBearerGuard: verifies the Bearer token the same way ApiKeyBearerGuard already does
+   (signature check, then revocation check against platform.api_keys), then requires its role to
+   satisfy the existing isServiceRoleRole() shape check (storage-access.guard.ts point 15 already
+   has this predicate for 'service_role' / 'service_role_<slug>' — export and reuse it rather than
+   writing a third copy). project_id is read from the verified token's own claim, exactly like
+   /ai/v1/complete (§35 point 5a) resolves its project from the caller's JWT rather than a
+   caller-supplied id — a service_role key for project A must never be able to list project B's
+   users by passing a different id anywhere.
+
+3. Response shape — a strict field allowlist, reusing AuthUsersRepository.list() (the same
+   repository/query Phase 3's admin endpoint already calls, just fronted by a different guard and
+   pre-scoped to the token's own project_id instead of an admin-supplied one): id, email, status,
+   created_at, last_sign_in_at. Never password_hash, user_metadata, app_metadata, or anything from
+   sessions/refresh_tokens/identities — this is a directory read, not an auth.users export.
+
+4. Query params mirror AdminUsersController.list()'s existing shape for consistency (same
+   pagination.dto, same search param), since nothing here needs new pagination/search semantics:
+   ?search=, ?limit=, ?offset=, plus ?status=active|disabled|invited (omit to get all three, with
+   status visible on each row — filtering is the caller's choice, not this endpoint's).
+
+5. Read-only, on purpose. No create/disable/reset-password action is added here even though
+   service_role already has equivalent power via other routes elsewhere on this platform — this
+   phase's whole scope is "let a trusted server-side caller read its own project's directory,"
+   full stop. Any future write-via-service_role need is a separate, separately-reviewed phase.
+
+6. Audit: not logged. Every other service_role-authenticated action on this platform (a plain
+   PostgREST read via /rest/v1, an attachments-bridge-style /storage/v1/object GET) is likewise
+   unaudited — routine reads don't get an auth.audit_events row anywhere else in this codebase,
+   and a user-directory read is no different in kind. Revisit only if a real need for a read-audit
+   trail shows up elsewhere first.
+```
+
+**Acceptance**: a service_role key minted for project A (via the existing `/admin/api-keys` flow,
+no new key-minting UI needed) can call `GET /users/v1/directory` and receive back only project
+A's users, each with exactly `{id, email, status, created_at, last_sign_in_at}` and nothing else;
+the same request with `?status=active` returns only active rows; that same key cannot retrieve
+project B's users under any query parameter; a publishable (anon) key, an authenticated end-user's
+own JWT, or an admin session cookie alone (without a service_role Bearer token) all get 401 from
+this route; a revoked service_role key gets 401 the same way `ApiKeyBearerGuard` already rejects
+revocation elsewhere.
+
+---
+
 [9]: https://min.io/docs/minio/linux/index.html "MinIO Object Storage Documentation"
 
 [1]: https://supabase.com/docs/guides/api?utm_source=chatgpt.com "Data REST API - Supabase Docs"

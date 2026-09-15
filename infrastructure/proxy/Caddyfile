@@ -7,6 +7,7 @@
 #   /sites/*      -> control-server (Phase 11 static site hosting, public)
 #   /functions/*  -> control-server (Phase 12 Functions invocation, public)
 #   /realtime/*   -> control-server (Phase 8 WebSocket gateway, upgrade handled transparently)
+#   /users/*      -> control-server (Phase 22 service-role project user directory)
 #   /admin/*      -> control-server (admin API + admin UI pages)
 #   /health*      -> control-server (liveness/readiness, also used by container healthchecks)
 {
@@ -53,6 +54,12 @@
 	# /realtime/v1, so the request must reach control-server unmodified. reverse_proxy forwards
 	# the Connection: Upgrade/Upgrade: websocket handshake automatically, no extra directive.
 	handle /realtime/* {
+		reverse_proxy control-server:3000
+	}
+
+	# Service-role project user directory (Phase 22, scope.md §36) -- server-to-server read only,
+	# guarded by ServiceRoleBearerGuard; no browser/publishable-key traffic ever hits this.
+	handle /users/* {
 		reverse_proxy control-server:3000
 	}
 

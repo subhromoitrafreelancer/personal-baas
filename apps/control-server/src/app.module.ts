@@ -28,6 +28,7 @@ import { SchedulerModule } from './modules/scheduler/scheduler.module';
 import { SqlConsoleModule } from './modules/sql-console/sql-console.module';
 import { SqlHistoryModule } from './modules/sql-history/sql-history.module';
 import { StorageModule } from './modules/storage/storage.module';
+import { UserDirectoryModule } from './modules/user-directory/user-directory.module';
 import { VaultModule } from './modules/vault/vault.module';
 
 @Module({
@@ -64,6 +65,7 @@ import { VaultModule } from './modules/vault/vault.module';
     ApiExplorerModule,
     AuthModule,
     AdminUsersModule,
+    UserDirectoryModule,
     AuditModule,
     ApiKeysModule,
     StorageModule,

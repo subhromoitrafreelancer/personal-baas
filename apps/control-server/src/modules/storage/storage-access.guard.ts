@@ -10,8 +10,9 @@ export interface RequestWithServiceKey extends Request {
 
 // `service_role` for the seeded default project, `service_role_<slug>` for every other project
 // (scope.md §23 point 2) — the only two shapes a real service_role name can take. No other role
-// name produced anywhere on this platform ever starts with this prefix.
-function isServiceRole(role: string): boolean {
+// name produced anywhere on this platform ever starts with this prefix. Exported for reuse by
+// ServiceRoleBearerGuard (scope.md §36 point 2) rather than writing a third copy.
+export function isServiceRoleRole(role: string): boolean {
   return role === 'service_role' || role.startsWith('service_role_');
 }
 
@@ -51,7 +52,7 @@ export class StorageAccessGuard implements CanActivate {
     }
 
     const apiKeyClaims = await this.jwt.verifyApiKeyToken(token);
-    if (apiKeyClaims && isServiceRole(apiKeyClaims.role)) {
+    if (apiKeyClaims && isServiceRoleRole(apiKeyClaims.role)) {
       const row = await this.apiKeysRepo.findById(apiKeyClaims.kid);
       if (!row || row.revoked_at) {
         throw new UnauthorizedException('API key has been revoked');

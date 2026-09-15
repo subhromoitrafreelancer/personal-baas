@@ -20,6 +20,7 @@ import { MfaService } from './mfa/mfa.service';
 import { PasswordResetService } from './password-reset.service';
 import { RefreshService } from './refresh.service';
 import { SelfServiceService } from './self-service.service';
+import { ServiceRoleBearerGuard } from './service-role-bearer.guard';
 import { SignupService } from './signup.service';
 
 @Module({
@@ -38,6 +39,10 @@ import { SignupService } from './signup.service';
     // circular import, since ApiKeysModule already imports AuthModule.
     ApiKeysRepository,
     ApiKeyBearerGuard,
+    // Guards GET /users/v1/directory (scope.md §36 Phase 22) — provided here (not in the new
+    // user-directory module) so it can reuse this module's own ApiKeysRepository/AuthJwtService
+    // instances directly, same reasoning as ApiKeyBearerGuard above.
+    ServiceRoleBearerGuard,
     SignupService,
     LoginService,
     RefreshService,
@@ -59,6 +64,7 @@ import { SignupService } from './signup.service';
     AuthAuditModule,
     MfaService,
     MfaFactorsRepository,
+    ServiceRoleBearerGuard,
   ],
 })
 export class AuthModule {}
