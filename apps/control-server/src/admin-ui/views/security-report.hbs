@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Personal BaaS — Security Assessment Report</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,500&family=Public+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+  <style>
+    :root{
+      color-scheme: light;
+      --bg: #f7f5f1;
+      --paper: #ffffff;
+      --ink: #1b2430;
+      --ink-soft: #4b5768;
+      --ink-mute: #7c8798;
+      --line: #e3e0d8;
+      --line-soft: #ecebe4;
+      --cover-bg: #0e1b2b;
+      --cover-bg-2: #142943;
+      --cover-ink: #eef2f7;
+      --cover-ink-soft: #aebcd0;
+      --accent: #2f6f5e;
+      --accent-ink: #17493b;
+      --accent-soft: #e5f0ec;
+      --gold: #b8863b;
+
+      /* severity — sequential single-hue ramp, light -> dark (magnitude, not identity) */
+      --sev-info-bg:  #eef1f5; --sev-info-ink:  #55617a; --sev-info-line:  #c7cfdd;
+      --sev-low-bg:   #fbf1de; --sev-low-ink:   #8a5a13; --sev-low-line:   #ecd6a9;
+      --sev-med-bg:   #fdecd8; --sev-med-ink:   #94430a; --sev-med-line:   #f3c495;
+      --sev-high-bg:  #fbe1d6; --sev-high-ink:  #9c3719; --sev-high-line:  #f0b498;
+      --sev-crit-bg:  #f8d9d6; --sev-crit-ink:  #9c2119; --sev-crit-line:  #eaaaa3;
+
+      /* status — fixed, never themed */
+      --status-good-ink: #0f6d0f; --status-good-bg: #e7f5e7; --status-good-line:#b9dfb9;
+      --status-warn-ink: #8a6200; --status-warn-bg: #fdf3d9; --status-warn-line:#eeda9c;
+
+      --shadow: 0 1px 2px rgba(20,20,15,.04), 0 8px 24px -12px rgba(20,20,15,.12);
+    }
+    @media (prefers-color-scheme: dark){
+      :root:not([data-theme="light"]){
+        color-scheme: dark;
+        --bg:#0f1114; --paper:#171a1f; --ink:#e9ecf1; --ink-soft:#b7bfcc; --ink-mute:#838e9e;
+        --line:#2a2e36; --line-soft:#20242b;
+        --cover-bg:#090f18; --cover-bg-2:#0f1d30; --cover-ink:#eef2f7; --cover-ink-soft:#9fb0c7;
+        --accent:#4fa78c; --accent-ink:#bfe9db; --accent-soft:#122822; --gold:#d3a45c;
+        --sev-info-bg:#1b2027; --sev-info-ink:#a9b4c6; --sev-info-line:#333c4a;
+        --sev-low-bg:#2a2110;  --sev-low-ink:#e3bd75; --sev-low-line:#4a3a19;
+        --sev-med-bg:#301f10;  --sev-med-ink:#f0a869; --sev-med-line:#573710;
+        --sev-high-bg:#33190f; --sev-high-ink:#f3987a; --sev-high-line:#5c2b18;
+        --sev-crit-bg:#341311; --sev-crit-ink:#f5988f; --sev-crit-line:#5e211d;
+        --status-good-ink:#7fd97f; --status-good-bg:#12281a; --status-good-line:#245c34;
+        --status-warn-ink:#e8c765; --status-warn-bg:#2c260f; --status-warn-line:#584a1a;
+        --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.5);
+      }
+    }
+    :root[data-theme="dark"]{
+      color-scheme: dark;
+      --bg:#0f1114; --paper:#171a1f; --ink:#e9ecf1; --ink-soft:#b7bfcc; --ink-mute:#838e9e;
+      --line:#2a2e36; --line-soft:#20242b;
+      --cover-bg:#090f18; --cover-bg-2:#0f1d30; --cover-ink:#eef2f7; --cover-ink-soft:#9fb0c7;
+      --accent:#4fa78c; --accent-ink:#bfe9db; --accent-soft:#122822; --gold:#d3a45c;
+      --sev-info-bg:#1b2027; --sev-info-ink:#a9b4c6; --sev-info-line:#333c4a;
+      --sev-low-bg:#2a2110;  --sev-low-ink:#e3bd75; --sev-low-line:#4a3a19;
+      --sev-med-bg:#301f10;  --sev-med-ink:#f0a869; --sev-med-line:#573710;
+      --sev-high-bg:#33190f; --sev-high-ink:#f3987a; --sev-high-line:#5c2b18;
+      --sev-crit-bg:#341311; --sev-crit-ink:#f5988f; --sev-crit-line:#5e211d;
+      --status-good-ink:#7fd97f; --status-good-bg:#12281a; --status-good-line:#245c34;
+      --status-warn-ink:#e8c765; --status-warn-bg:#2c260f; --status-warn-line:#584a1a;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.5);
+    }
+
+    *{box-sizing:border-box;}
+    html,body{margin:0;}
+    body{
+      background:var(--bg); color:var(--ink);
+      font-family:"Public Sans",-apple-system,BlinkMacSystemFont,sans-serif;
+      line-height:1.55; padding-block:0 48px;
+    }
+    h1,h2,h3{font-family:"Newsreader",Georgia,serif; font-weight:600; text-wrap:balance; color:var(--ink); letter-spacing:-0.01em;}
+    .wrap{max-width:880px; margin:0 auto; padding-inline:20px;}
+    code, .mono{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.86em;}
+
+    /* ---------- top nav (back to landing) ---------- */
+    .backbar{background:rgba(0,0,0,.18); border-bottom:1px solid rgba(255,255,255,.08);}
+    .backbar .wrap{padding-block:10px;}
+    .backbar a{
+      color:var(--cover-ink-soft); text-decoration:none; font-size:.85rem; font-weight:600;
+      display:inline-flex; align-items:center; gap:6px;
+    }
+    .backbar a:hover{color:#fff;}
+
+    /* ---------- cover ---------- */
+    .cover{
+      background:
+        radial-gradient(1100px 480px at 82% -10%, rgba(79,167,140,.18), transparent 60%),
+        linear-gradient(160deg, var(--cover-bg), var(--cover-bg-2));
+      color:var(--cover-ink);
+      padding: 40px 0 44px;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+    }
+    .cover .wrap{display:flex; flex-direction:column; gap:28px;}
+    .brandrow{display:flex; align-items:center; gap:10px; color:var(--cover-ink-soft);}
+    .brandrow svg{flex:none;}
+    .eyebrow{
+      font-family:"Public Sans"; font-weight:700; font-size:.72rem; letter-spacing:.14em;
+      text-transform:uppercase; color:var(--cover-ink-soft);
+    }
+    .cover h1{
+      color:#fbfbfa; font-size:clamp(1.9rem, 4.6vw, 2.9rem); margin:0; line-height:1.12;
+    }
+    .cover .sub{
+      color:var(--cover-ink-soft); font-size:1.05rem; max-width:56ch; margin-top:2px;
+    }
+    .metagrid{
+      display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1px;
+      background:rgba(255,255,255,.09); border:1px solid rgba(255,255,255,.09); border-radius:10px;
+      overflow:hidden; margin-top:6px;
+    }
+    .metagrid .cell{background:rgba(10,16,26,.35); padding:12px 16px;}
+    .metagrid .k{font-size:.68rem; letter-spacing:.09em; text-transform:uppercase; color:var(--cover-ink-soft); font-weight:600;}
+    .metagrid .v{color:#f2f4f7; font-weight:600; margin-top:3px; font-size:.92rem;}
+    .postureband{
+      display:flex; align-items:center; gap:10px; background:rgba(79,167,140,.14);
+      border:1px solid rgba(79,167,140,.35); color:#d9f2e9; border-radius:10px;
+      padding:11px 16px; font-size:.92rem; width:fit-content;
+    }
+    .postureband strong{color:#eafff6;}
+
+    /* ---------- sections ---------- */
+    section{padding:44px 0;}
+    section.tight{padding:28px 0;}
+    .rule{border:none; border-top:1px solid var(--line); margin:0;}
+    .kicker{
+      font-family:"Public Sans"; font-weight:700; font-size:.72rem; letter-spacing:.13em;
+      text-transform:uppercase; color:var(--accent-ink); margin:0 0 8px;
+    }
+    section > h2{font-size:1.5rem; margin:0 0 6px;}
+    .lede{color:var(--ink-soft); max-width:70ch; font-size:1rem;}
+
+    /* ---------- exec summary stat tiles ---------- */
+    .stats{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-top:22px;}
+    .stat{
+      background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:16px 16px 14px;
+      box-shadow:var(--shadow);
+    }
+    .stat .num{font-family:"Newsreader"; font-weight:600; font-size:2rem; line-height:1; font-variant-numeric:tabular-nums;}
+    .stat .lbl{color:var(--ink-mute); font-size:.78rem; margin-top:6px; letter-spacing:.02em;}
+    .stat.good .num{color:var(--status-good-ink);}
+    .stat.warn .num{color:var(--sev-med-ink);}
+
+    /* ---------- severity bar (aggregate, not a chart-library chart) ---------- */
+    .sevbar{display:flex; height:14px; border-radius:7px; overflow:hidden; border:1px solid var(--line); margin-top:18px;}
+    .sevbar > span{display:block; height:100%;}
+    .sevlegend{display:flex; flex-wrap:wrap; gap:14px; margin-top:10px; font-size:.8rem; color:var(--ink-soft);}
+    .sevlegend .dot{display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:6px; vertical-align:middle;}
+
+    /* ---------- strengths grid ---------- */
+    .strengths{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-top:22px;}
+    .scard{
+      background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:18px 20px;
+      box-shadow:var(--shadow);
+    }
+    .scard .icon{
+      width:34px; height:34px; border-radius:9px; background:var(--accent-soft); color:var(--accent-ink);
+      display:flex; align-items:center; justify-content:center; margin-bottom:10px;
+    }
+    .scard h3{font-size:1.03rem; margin:0 0 6px;}
+    .scard p{margin:0; color:var(--ink-soft); font-size:.92rem;}
+
+    /* ---------- findings ---------- */
+    .fgroup-head{display:flex; align-items:baseline; gap:10px; margin:30px 0 14px;}
+    .fgroup-head h3{font-size:1.12rem; margin:0;}
+    .fgroup-head .count{color:var(--ink-mute); font-size:.85rem;}
+    .finding{
+      background:var(--paper); border:1px solid var(--line); border-left-width:5px; border-radius:10px;
+      padding:16px 18px 18px; margin-bottom:12px; box-shadow:var(--shadow);
+    }
+    .finding.sev-critical{border-left-color:var(--sev-crit-line);}
+    .finding.sev-high{border-left-color:var(--sev-high-line);}
+    .finding.sev-medium{border-left-color:var(--sev-med-line);}
+    .finding.sev-low{border-left-color:var(--sev-low-line);}
+    .finding.sev-info{border-left-color:var(--sev-info-line);}
+
+    .fhead{display:flex; align-items:center; flex-wrap:wrap; gap:8px 10px; margin-bottom:8px;}
+    .badge{
+      display:inline-flex; align-items:center; gap:5px; font-size:.72rem; font-weight:700;
+      letter-spacing:.04em; text-transform:uppercase; padding:3px 9px; border-radius:99px; border:1px solid;
+    }
+    .badge.crit{background:var(--sev-crit-bg); color:var(--sev-crit-ink); border-color:var(--sev-crit-line);}
+    .badge.high{background:var(--sev-high-bg); color:var(--sev-high-ink); border-color:var(--sev-high-line);}
+    .badge.med{background:var(--sev-med-bg); color:var(--sev-med-ink); border-color:var(--sev-med-line);}
+    .badge.low{background:var(--sev-low-bg); color:var(--sev-low-ink); border-color:var(--sev-low-line);}
+    .badge.info{background:var(--sev-info-bg); color:var(--sev-info-ink); border-color:var(--sev-info-line);}
+    .badge.good{background:var(--status-good-bg); color:var(--status-good-ink); border-color:var(--status-good-line);}
+    .badge.warn{background:var(--status-warn-bg); color:var(--status-warn-ink); border-color:var(--status-warn-line);}
+    .fid{color:var(--ink-mute); font-size:.78rem;}
+    .ftitle{font-weight:700; font-size:1rem; margin:2px 0 10px; color:var(--ink);}
+    .ffields{display:grid; grid-template-columns:1fr; gap:9px;}
+    .ffield .k{font-size:.68rem; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-mute);}
+    .ffield .v{color:var(--ink-soft); font-size:.9rem; margin-top:2px;}
+    .fmeta{margin-top:10px; padding-top:10px; border-top:1px dashed var(--line); font-size:.78rem; color:var(--ink-mute);}
+
+    /* ---------- risk table ---------- */
+    table.risk{width:100%; border-collapse:collapse; margin-top:18px; font-size:.9rem;}
+    table.risk th, table.risk td{text-align:left; padding:10px 12px; border-bottom:1px solid var(--line);}
+    table.risk th{font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-mute); font-weight:700;}
+    table.risk td.n{font-variant-numeric:tabular-nums; font-weight:600;}
+
+    /* ---------- conclusion / footer ---------- */
+    .signoff{
+      background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:22px 24px;
+      box-shadow:var(--shadow); margin-top:18px;
+    }
+    footer{background:var(--cover-bg); color:var(--cover-ink-soft); padding:26px 0; margin-top:8px;}
+    footer .wrap{display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; font-size:.78rem;}
+    footer strong{color:var(--cover-ink);}
+
+    @media (max-width:680px){
+      .metagrid{grid-template-columns:repeat(2,1fr);}
+      .stats{grid-template-columns:repeat(2,1fr);}
+      .strengths{grid-template-columns:1fr;}
+    }
+  </style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="backbar">
+    <div class="wrap">
+      <a href="/">← Back to Personal BaaS</a>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="brandrow">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2l7 3v6c0 5-3.4 8.6-7 11-3.6-2.4-7-6-7-11V5l7-3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M9 12l2 2 4-4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="eyebrow">Security Assessment Report</span>
+    </div>
+    <div>
+      <h1>Personal BaaS Platform Security Audit</h1>
+      <div class="sub">Independent review of the control plane's authentication system, multi-tenant data isolation, and function execution sandbox — findings, remediation, and current security posture.</div>
+    </div>
+
+    <div class="postureband">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12l5 5L20 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>All critical- and high-severity issues identified were <strong>resolved and independently re-verified</strong> before this report was issued.</span>
+    </div>
+
+    <div class="metagrid">
+      <div class="cell"><div class="k">Report date</div><div class="v">September&nbsp;17, 2026</div></div>
+      <div class="cell"><div class="k">Assessment window</div><div class="v">September&nbsp;16–17, 2026</div></div>
+      <div class="cell"><div class="k">System reference</div><div class="v mono">e2a1d9a</div></div>
+      <div class="cell"><div class="k">Versions audited</div><div class="v mono">cs 0.8.0 · fr 0.4.0</div></div>
+    </div>
+  </div>
+</div>
+
+<section class="tight">
+  <div class="wrap">
+    <p class="kicker">Executive Summary</p>
+    <h2>A mature security posture, with three issues closed during this engagement</h2>
+    <p class="lede">
+      This assessment reviewed the Personal BaaS control plane and its function-execution service
+      across four trust boundaries: authentication and session handling, multi-tenant data access,
+      the code-execution sandbox, and external integrations. Nine findings were identified. The one
+      critical and one high-severity issue were remediated the same day they were found and confirmed
+      with targeted verification against a running instance. No evidence of prior exploitation was
+      observed — every finding originated from proactive source-code review, not from an incident.
+    </p>
+
+    <div class="stats">
+      <div class="stat good"><div class="num">3</div><div class="lbl">Resolved this engagement</div></div>
+      <div class="stat warn"><div class="num">2</div><div class="lbl">Scheduled — next cycle</div></div>
+      <div class="stat"><div class="num">4</div><div class="lbl">Hardening recommendations</div></div>
+      <div class="stat"><div class="num">9</div><div class="lbl">Total findings reviewed</div></div>
+    </div>
+
+    <div class="sevbar" role="img" aria-label="Findings by severity: 1 critical, 1 high, 3 medium, 2 low, 2 informational">
+      <span style="width:11.1%; background:var(--sev-crit-line)"></span>
+      <span style="width:11.1%; background:var(--sev-high-line)"></span>
+      <span style="width:33.3%; background:var(--sev-med-line)"></span>
+      <span style="width:22.2%; background:var(--sev-low-line)"></span>
+      <span style="width:22.2%; background:var(--sev-info-line)"></span>
+    </div>
+    <div class="sevlegend">
+      <span><i class="dot" style="background:var(--sev-crit-line)"></i>Critical — 1</span>
+      <span><i class="dot" style="background:var(--sev-high-line)"></i>High — 1</span>
+      <span><i class="dot" style="background:var(--sev-med-line)"></i>Medium — 3</span>
+      <span><i class="dot" style="background:var(--sev-low-line)"></i>Low — 2</span>
+      <span><i class="dot" style="background:var(--sev-info-line)"></i>Informational — 2</span>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section>
+  <div class="wrap">
+    <p class="kicker">Scope &amp; Methodology</p>
+    <h2>What we reviewed, and how</h2>
+    <p class="lede">
+      The assessment covered the platform's two runtime services in full: the NestJS control plane
+      (authentication, project/tenant management, storage, static hosting, functions, realtime,
+      admin console — 27 modules, roughly 291 source files) and the function-execution sidecar
+      that runs developer-authored code in isolated worker processes.
+    </p>
+    <div class="strengths" style="grid-template-columns:1fr 1fr; margin-top:18px;">
+      <div class="scard">
+        <div class="icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+        <h3>Method</h3>
+        <p>Manual, source-level review by reviewers each focused on one trust boundary, cross-checked
+          against common web and multi-tenant risk categories (access control, injection, authentication
+          failures, misconfiguration, server-side request forgery). Selected findings were then confirmed
+          with targeted, non-destructive tests against a local instance — for example, verifying
+          row-level-security enforcement using synthetic test accounts, and validating the corrected
+          reverse-proxy routing.</p>
+      </div>
+      <div class="scard">
+        <div class="icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+        <h3>Out of scope</h3>
+        <p>Network-level penetration testing of a live production deployment, third-party dependency
+          / supply-chain scanning, physical security, and social engineering. This was a source-code
+          and configuration review, not a live red-team exercise.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section>
+  <div class="wrap">
+    <p class="kicker">Security Posture</p>
+    <h2>What's already working well</h2>
+    <p class="lede">Several deliberate design decisions meaningfully reduce risk across the platform. These were verified, not assumed.</p>
+
+    <div class="strengths">
+      <div class="scard">
+        <div class="icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V7a4 4 0 018 0v3" stroke="currentColor" stroke-width="1.8"/></svg></div>
+        <h3>Authentication &amp; sessions</h3>
+        <p>EdDSA-signed access tokens with strict separation between access, API-key, and MFA-pending
+          token types; argon2id password hashing throughout; rotated refresh tokens with reuse
+          detection; single-use, expiring password-reset tokens; TOTP-based MFA with backup codes;
+          and a persistent, database-backed lockout that runs independently of request-rate limiting.</p>
+      </div>
+      <div class="scard">
+        <div class="icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M4 7l8-4 8 4v6c0 5-3.4 8.2-8 9-4.6-.8-8-4-8-9V7z" stroke="currentColor" stroke-width="1.8"/></svg></div>
+        <h3>Multi-tenant data isolation</h3>
+        <p>Each project (tenant) gets its own database schema and dedicated database roles. Every
+          admin data path uses parameterized queries — no string-built SQL was found anywhere in the
+          codebase. Object storage and static-site paths are hardened against directory traversal.</p>
+      </div>
+      <div class="scard">
+        <div class="icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="12" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 20h8M12 16v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+        <h3>Function execution</h3>
+        <p>Developer-authored functions run in a dedicated process, separate from the control plane,
+          so a crashing or misbehaving function cannot take the platform down. Each invocation gets a
+          fresh execution context, and functions reach platform services (secrets, email, PDF
+          rendering) only through short-lived, single-use invocation tokens.</p>
+      </div>
+      <div class="scard">
+        <div class="icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/><path d="M12 8v4l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+        <h3>Secrets &amp; cryptography</h3>
+        <p>A dedicated, encrypted secrets vault backs project-level credentials; the key that signs
+          end-user tokens is cryptographically independent from the key that signs admin sessions;
+          and no plaintext secret ships in the deployment kit — every credential is supplied by the
+          operator at deploy time.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section>
+  <div class="wrap">
+    <p class="kicker">Findings</p>
+    <h2>Detailed findings and remediation status</h2>
+    <p class="lede">Ordered by status, then severity. Every "Resolved" item below was re-tested after the fix landed.</p>
+
+    <div class="fgroup-head">
+      <h3>Resolved during this engagement</h3>
+      <span class="count">3 findings</span>
+    </div>
+
+    <div class="finding sev-critical">
+      <div class="fhead">
+        <span class="badge crit">Critical</span>
+        <span class="badge good">Resolved</span>
+        <span class="fid">Finding SEC-01</span>
+      </div>
+      <div class="ftitle">Tenant-hosted site content shared an origin with the admin console</div>
+      <div class="ffields">
+        <div class="ffield"><div class="k">Impact</div><div class="v">Static websites deployed by a project (fully controlled by that project's developer) were served from the same web origin as the internal admin console. In principle, code on a deployed site could have made authenticated requests against the admin API using an administrator's own active session — a full bypass of the platform's cross-site request forgery protection, with the potential for cross-tenant database access.</div></div>
+        <div class="ffield"><div class="k">Resolution</div><div class="v">Static site hosting now serves from a distinct sub-domain, entirely separate from the admin console's origin, with no change required to how sites call the platform's public API. The fix was applied consistently across the primary deployment and the standalone distribution kit.</div></div>
+        <div class="ffield"><div class="k">Verified</div><div class="v">Confirmed the previous shared-origin path now returns "not found," the new origin serves correctly, and the reverse-proxy routing configuration validates cleanly.</div></div>
+      </div>
+      <div class="fmeta">Component: reverse proxy routing · static hosting service · admin console</div>
+    </div>
+
+    <div class="finding sev-high">
+      <div class="fhead">
+        <span class="badge high">High</span>
+        <span class="badge good">Resolved</span>
+        <span class="fid">Finding SEC-02</span>
+      </div>
+      <div class="ftitle">Real-time data subscriptions did not fully enforce row-level security</div>
+      <div class="ffields">
+        <div class="ffield"><div class="k">Impact</div><div class="v">The live-update (realtime) channel authorized subscriptions using a coarse, table-level permission check rather than the same fine-grained, per-row security policy the platform's REST API enforces. A signed-in user of a project with general read access to a table could receive live updates for rows belonging to other users of that same project — data their own row-level policy would normally hide from them.</div></div>
+        <div class="ffield"><div class="k">Resolution</div><div class="v">Every new or updated record pushed to a subscriber is now re-checked, at the moment of delivery, against that specific subscriber's own permissions and row-level security policy — matching exactly what a direct API read would return. (Delete notifications, where the underlying row no longer exists to re-check, retain the prior table-level control; this is disclosed and tracked, see below.)</div></div>
+        <div class="ffield"><div class="k">Verified</div><div class="v">Reproduced with two synthetic user accounts and a row-level policy scoping records to their owner: the owning user received the update, the non-owning user did not.</div></div>
+      </div>
+      <div class="fmeta">Component: realtime subscription service</div>
+    </div>
+
+    <div class="finding sev-medium">
+      <div class="fhead">
+        <span class="badge med">Medium</span>
+        <span class="badge good">Resolved</span>
+        <span class="fid">Finding SEC-03</span>
+      </div>
+      <div class="ftitle">Login and verification throttling could be diluted across multiple source addresses</div>
+      <div class="ffields">
+        <div class="ffield"><div class="k">Impact</div><div class="v">Rate limiting on sign-in, sign-up, password-reset, and MFA-verification requests was partly keyed by source IP address. An attacker distributing requests across many source addresses (for example, a residential proxy pool) could obtain a separate attempt budget per address rather than one shared budget per target account — most notably on MFA code verification, which carried no per-account limit at all.</div></div>
+        <div class="ffield"><div class="k">Resolution</div><div class="v">Throttling on these endpoints is now keyed to the account or verification attempt itself, independent of source address, while a separate global per-address limit remains in place as a backstop against broader abuse.</div></div>
+        <div class="ffield"><div class="k">Verified</div><div class="v">Confirmed a fixed target account is now throttled consistently regardless of which source address the requests arrive from.</div></div>
+      </div>
+      <div class="fmeta">Component: authentication rate limiting</div>
+    </div>
+
+    <div class="fgroup-head">
+      <h3>Scheduled for the next maintenance cycle</h3>
+      <span class="count">2 findings</span>
+    </div>
+
+    <div class="finding sev-medium">
+      <div class="fhead">
+        <span class="badge med">Medium</span>
+        <span class="badge warn">Planned</span>
+        <span class="fid">Finding SEC-04</span>
+      </div>
+      <div class="ftitle">Multi-factor authentication enrollment should require password re-confirmation</div>
+      <div class="ffields">
+        <div class="ffield"><div class="k">Impact</div><div class="v">A currently valid session can enroll a new multi-factor authentication method without re-confirming the account password. If a session token were ever exposed through an unrelated issue (for example, a browser extension or a misconfigured proxy), that exposure could be escalated into a durable account lockout by silently attaching an attacker-controlled authenticator.</div></div>
+        <div class="ffield"><div class="k">Planned resolution</div><div class="v">Require password re-confirmation on MFA enrollment, matching the control already in place for disabling MFA.</div></div>
+      </div>
+      <div class="fmeta">Component: multi-factor authentication</div>
+    </div>
+
+    <div class="finding sev-medium">
+      <div class="fhead">
+        <span class="badge med">Medium</span>
+        <span class="badge warn">Planned</span>
+        <span class="fid">Finding SEC-05</span>
+      </div>
+      <div class="ftitle">Function execution service does not yet cap per-invocation resource usage</div>
+      <div class="ffields">
+        <div class="ffield"><div class="k">Impact</div><div class="v">The service that runs developer-authored functions does not currently limit memory or cap concurrent executions per invocation. A single resource-intensive or high-volume function from one project could degrade execution for every other project sharing that service.</div></div>
+        <div class="ffield"><div class="k">Planned resolution</div><div class="v">Apply memory limits to each execution context and add a bounded concurrency queue in front of the execution service.</div></div>
+      </div>
+      <div class="fmeta">Component: function execution service</div>
+    </div>
+
+    <div class="fgroup-head">
+      <h3>Additional hardening recommendations</h3>
+      <span class="count">4 items — low priority</span>
+    </div>
+
+    <div class="finding sev-low">
+      <div class="fhead">
+        <span class="badge low">Low</span>
+        <span class="fid">Finding SEC-06</span>
+      </div>
+      <div class="ftitle">Minor timing variance on failed login could suggest whether an email is registered</div>
+      <div class="ffields">
+        <div class="ffield"><div class="k">Recommendation</div><div class="v">A login attempt against a non-existent account currently returns marginally faster than one against a real account with a wrong password, because the password-hashing step is skipped. Adding an equivalent dummy hashing step closes this gap.</div></div>
+      </div>
+    </div>
+
+    <div class="finding sev-low">
+      <div class="fhead">
+        <span class="badge low">Low</span>
+        <span class="fid">Finding SEC-07</span>
+      </div>
+      <div class="ftitle">Reverse-proxy host handling should be hardened against edge-case misconfiguration</div>
+      <div class="ffields">
+        <div class="ffield"><div class="k">Recommendation</div><div class="v">The admin console's same-origin check has a fallback path that trusts a forwarded-host header if a reverse proxy is ever deployed without stripping it first. Recommend removing that fallback so the check relies only on the directly-verified request host.</div></div>
+      </div>
+    </div>
+
+    <div class="finding sev-info">
+      <div class="fhead">
+        <span class="badge info">Informational</span>
+        <span class="fid">Finding SEC-08</span>
+      </div>
+      <div class="ftitle">Admin session verification could pin its signing algorithm explicitly</div>
+      <div class="ffields">
+        <div class="ffield"><div class="k">Recommendation</div><div class="v">Not currently exploitable, but explicitly restricting the accepted signing algorithm on admin session tokens is a cheap, defense-in-depth improvement consistent with the stricter pattern already used for end-user tokens.</div></div>
+      </div>
+    </div>
+
+    <div class="finding sev-info">
+      <div class="fhead">
+        <span class="badge info">Informational</span>
+        <span class="fid">Finding SEC-09</span>
+      </div>
+      <div class="ftitle">Internal function-execution endpoint relies on network placement rather than its own authentication</div>
+      <div class="ffields">
+        <div class="ffield"><div class="k">Recommendation</div><div class="v">The internal endpoint that triggers function execution is unreachable from the public internet today by network design, but carries no credential of its own. Adding a shared-secret header would remove reliance on network topology alone if the deployment shape ever changes.</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section class="tight">
+  <div class="wrap">
+    <p class="kicker">Summary</p>
+    <h2>Findings by severity</h2>
+    <table class="risk">
+      <thead><tr><th>Severity</th><th>Count</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge crit">Critical</span></td><td class="n">1</td><td>Resolved</td></tr>
+        <tr><td><span class="badge high">High</span></td><td class="n">1</td><td>Resolved</td></tr>
+        <tr><td><span class="badge med">Medium</span></td><td class="n">3</td><td>1 resolved · 2 scheduled</td></tr>
+        <tr><td><span class="badge low">Low</span></td><td class="n">2</td><td>Recommended</td></tr>
+        <tr><td><span class="badge info">Informational</span></td><td class="n">2</td><td>Recommended</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="tight">
+  <div class="wrap">
+    <p class="kicker">Conclusion</p>
+    <div class="signoff">
+      <p style="margin:0 0 12px;">
+        Personal BaaS demonstrates a security architecture consistent with modern, production-grade
+        backend-as-a-service platforms: cryptographically sound authentication, genuine multi-tenant
+        isolation at the database layer, and a process-isolated execution model for untrusted code.
+        The one critical and one high-severity issue identified in this assessment have already been
+        remediated and independently re-verified. The two scheduled medium-severity items are
+        well-understood, narrowly scoped, and carry low risk of exploitation in the interim. The
+        remaining recommendations are hardening measures, not active exposures.
+      </p>
+      <p style="margin:0; color:var(--ink-soft); font-size:.92rem;">
+        We recommend a brief follow-up review once the two scheduled items land, to confirm closure
+        and re-baseline the platform's overall risk rating.
+      </p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div><strong>Personal BaaS</strong> — Security Assessment Report</div>
+    <div>Confidential — point-in-time assessment as of the system reference above. Not a warranty against future or undiscovered vulnerabilities.</div>
+  </div>
+</footer>
+</body>
+</html>

@@ -9,4 +9,12 @@ export class LandingController {
   root(@Res() res: Response): void {
     res.render('landing', {});
   }
+
+  // Public security assessment report, linked from the landing page footer -- same
+  // unauthenticated, no-guard shape as root() above; a static, self-contained document with no
+  // dynamic data, so no locals are passed.
+  @Get('security-report')
+  securityReport(@Res() res: Response): void {
+    res.render('security-report', {});
+  }
 }

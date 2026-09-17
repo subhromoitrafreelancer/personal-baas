@@ -71,6 +71,28 @@ body.landing-page {
   border-color: var(--color-accent-hover);
 }
 
+.landing-cta-row {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+/* .btn-outline's default colors (admin.css) come from the light admin-console surface tokens,
+   which don't apply on this page's fixed dark hero — same reasoning as .btn-primary's override
+   above, restyled as a ghost button against the dark background instead. */
+.landing-hero .btn-outline {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.22);
+  color: var(--color-chrome-text);
+  box-shadow: none;
+}
+
+.landing-hero .btn-outline:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.36);
+}
+
 .landing-features {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

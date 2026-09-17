@@ -31,6 +31,7 @@ configs:
       #   /realtime/*   -> control-server (WebSocket gateway, upgrade handled transparently)
       #   /users/*      -> control-server (service-role project user directory)
       #   /openapi.json -> control-server (public integration API OpenAPI spec)
+      #   /security-report -> control-server (public security assessment report, linked from landing)
       #   /admin/*      -> control-server (admin API + admin UI pages)
       #   /health*      -> control-server (liveness/readiness, also used by container healthchecks)
       #
@@ -90,6 +91,12 @@ configs:
       	# public openapi.json. A root-level path, not a /prefix/* -- needs its own explicit
       	# handle or it falls through to the 404 catch-all below.
       	handle /openapi.json {
+      		reverse_proxy control-server:3000
+      	}
+
+      	# Public security assessment report, linked from the landing page -- same shape as
+      	# /openapi.json above: a root-level path, not a /prefix/*, needs its own explicit handle.
+      	handle /security-report {
       		reverse_proxy control-server:3000
       	}
 
