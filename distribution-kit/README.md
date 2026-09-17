@@ -27,8 +27,8 @@ The three personal-baas images must already exist locally — see [Getting the i
 
 ## Getting the images
 
-The compose overlay references three images by tag — `personal-baas-control-server:0.7.2`,
-`personal-baas-function-runner:0.3.0`, `personal-baas-postgres:0.3.0` by default (each image
+The compose overlay references three images by tag — `personal-baas-control-server:0.8.0`,
+`personal-baas-function-runner:0.4.0`, `personal-baas-postgres:0.4.0` by default (each image
 versions independently; control-server currently releases ahead of the other two). They are
 **not** on Docker Hub; you must build or load them yourself. Everything else (PostgREST, MinIO,
 Caddy, busybox) is pulled from Docker Hub automatically.
@@ -159,9 +159,10 @@ Create your first table in the admin console at `/admin/database`, then mint API
 
 | Variable | Meaning |
 | --- | --- |
-| `BAAS_CONTROL_SERVER_IMAGE` | control-server image tag (default `personal-baas-control-server:0.7.2`) |
-| `BAAS_FUNCTION_RUNNER_IMAGE` | function-runner image tag (default `personal-baas-function-runner:0.3.0`) |
-| `BAAS_POSTGRES_IMAGE` | postgres bootstrap image tag (default `personal-baas-postgres:0.3.0`) |
+| `BAAS_CONTROL_SERVER_IMAGE` | control-server image tag (default `personal-baas-control-server:0.8.0`) |
+| `BAAS_FUNCTION_RUNNER_IMAGE` | function-runner image tag (default `personal-baas-function-runner:0.4.0`) |
+| `BAAS_POSTGRES_IMAGE` | postgres bootstrap image tag (default `personal-baas-postgres:0.4.0`) |
+| `SITES_PUBLIC_URL` | public base URL for deployed static sites — a separate origin from `/admin/*` (default `http://sites.localhost:8000`), see [TLS](#tls) |
 | `BAAS_NETWORK_NAME` | Docker network your app joins (default `{compose-project}-baas-net`) |
 | `CONTROL_SERVER_HOST_PORT` | host port for direct control-server access (default `3000`) |
 | `POSTGRES_USER/PASSWORD/DB` | Postgres superuser bootstrap (container init only) |
@@ -173,6 +174,9 @@ Create your first table in the admin console at `/admin/database`, then mint API
 | `AUTH_JWT_PUBLIC_KEY_BASE64` | matching public key (PEM, base64) |
 | `AUTH_JWT_PUBLIC_KEY_JWK` | same public key as a JWK — consumed by PostgREST's `PGRST_JWT_SECRET` |
 | `VAULT_MASTER_KEY_BASE64` | Secrets Vault master key — losing it makes stored secrets permanently undecryptable |
+| `RATE_LIMIT_GLOBAL_MAX/WINDOW_MS` | global request-rate limit (default 300 per 60000ms) |
+| `RATE_LIMIT_AUTH_MAX/WINDOW_MS` | stricter limit on login/signup/password-reset/mfa-verify (default 10 per 60000ms) |
+| `LOGIN_LOCKOUT_THRESHOLD/WINDOW_MINUTES` | persistent, DB-backed login lockout independent of the rate limit above (default 10 per 15min) |
 | `AUTH_ACCESS_TOKEN_TTL_SECONDS` | app-user access token lifetime (default 900) |
 | `AUTH_REFRESH_TOKEN_TTL_DAYS` | app-user refresh token lifetime (default 30) |
 | `MINIO_ROOT_USER/PASSWORD` | MinIO credentials, held only by control-server |
@@ -193,6 +197,9 @@ shouldn't be touched.
 Postgres, MinIO, PostgREST, and function-runner publish **no** host ports — they're only
 reachable inside the Docker network. To back up the database, see `upgrade.md`.
 
+The same three Caddy ports also answer for `sites.<PUBLIC_DOMAIN>` (see [TLS](#tls)) — Caddy
+multiplexes both hostnames on `8000`/`80`/`443`, no separate port needed.
+
 ## TLS
 
 - **Default (`PUBLIC_DOMAIN=localhost`)** — Caddy serves HTTPS with a self-signed cert from its
@@ -203,6 +210,18 @@ reachable inside the Docker network. To back up the database, see `upgrade.md`.
   cert/key into the `caddy` service and change the `:443` site block's address line in the
   `caddy_file` config embedded at the top of `docker-compose.personal-baas.yml` to
   `tls /path/to/cert.pem /path/to/key.pem`.
+
+### Static site hosting's separate origin
+
+Deployed static sites (`/sites/*`) are served from `sites.<PUBLIC_DOMAIN>`, not `<PUBLIC_DOMAIN>`
+itself — tenant-uploaded site content must never share an origin with `/admin/*`, since same-origin
+JS could otherwise issue authenticated `fetch()` calls against the admin API using the admin's own
+session cookie. `sites.localhost` works out of the box for local dev (no `/etc/hosts` edit
+needed). For a real deployment, point one extra DNS record at the same host —
+`sites.<PUBLIC_DOMAIN>` alongside `<PUBLIC_DOMAIN>` itself — and Caddy auto-issues it its own
+Let's Encrypt certificate the same way, no wildcard cert required. Set `SITES_PUBLIC_URL` in
+`.env` to match (see [Configuration reference](#configuration-reference)) so the admin console's
+"view live site" link points at the right host.
 
 ## Admin console after first boot
 

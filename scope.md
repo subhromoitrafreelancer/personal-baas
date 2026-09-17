@@ -3098,6 +3098,115 @@ anywhere in the document.
 
 ---
 
+# 39. Security Audit Remediation
+
+Phase 25. Originating need: a source-level security audit of `apps/` (control-server +
+function-runner), run 2026-09-16, found five trust-boundary issues. Three are fixed as part of
+this phase; two are recorded here and deliberately deferred to a later cycle so they aren't lost.
+
+```text
+Fixed:
+
+1. CRITICAL — tenant-hosted sites shared an origin with /admin/*, defeating CSRF protection.
+   `/sites/<slug>/*` (tenant-uploaded static site content, deployed via the admin console) was
+   served on the exact same host:port as `/admin/*` (the old shared Caddyfile `(routes)` block
+   proxied both to control-server:3000). same-origin.middleware.ts's CSRF guard trusts a browser's
+   `Sec-Fetch-Site: same-origin` header, which is true for same-origin JS by definition — and the
+   admin console's own Hosting page (hosting.js) builds a "view live site" link from
+   `window.location.origin` and opens it in a new tab, so an admin routinely loaded
+   tenant-controlled JS in a tab sharing an origin, and therefore the httpOnly/SameSite=Strict
+   admin session cookie, with the entire admin API. That JS could `fetch('/admin/v1/...')`
+   same-origin, cookie attached, and read the JSON response — full cross-tenant database
+   read/write via the SQL console, from any tenant's uploaded site content.
+
+   Fix: sites now serve from a separate origin, `sites.<PUBLIC_DOMAIN>` (its own Caddy host block,
+   `infrastructure/proxy/Caddyfile`), instead of a path prefix on the main domain. No CORS changes
+   were needed for the platform's public API surface — PostgREST defaults to permissive CORS, and
+   `/auth`, `/storage`, `/functions` already set `cors({ origin: true })` in `main.ts` — so a
+   deployed site can still call all four public API prefixes from its new origin with no server
+   config change. The old `<main-domain>/sites/*` path now 404s; no compatibility redirect was
+   added on purpose, since serving anything tenant-controlled there (even a redirect body) would
+   keep the same-origin risk alive for old links. New env var `SITES_PUBLIC_URL`
+   (`apps/control-server/src/config/env.schema.ts`) lets control-server build the admin console's
+   live-site link server-side (`hosting-admin.controller.ts`, `hosting.js`) instead of deriving it
+   from the admin page's own origin, which was the assumption that made the old link a
+   vulnerability in the first place.
+
+2. HIGH — realtime WebSocket subscriptions bypassed row-level security. `realtime.service.ts`'s
+   `subscribe()` only checked `has_table_privilege` against the caller's shared per-project role
+   (`realtime.queries.ts`) — a one-time, table-level, shared-role grant check that says nothing
+   about whether a specific subscriber's own RLS policies would let them see a specific changed
+   row. `dispatch()` then broadcast the full row from every NOTIFY (produced by
+   `platform.notify_realtime_change()`, §22) to every subscriber matching the table, regardless.
+   Any signed-in user with table-level SELECT on, say, a `messages` or `orders` table received
+   every other user's rows in real time — exactly the rows a direct `/rest/v1/...` SELECT would
+   have hidden via RLS.
+
+   Fix: `RealtimeService.dispatch()` now re-verifies visibility for `INSERT`/`UPDATE` events by
+   opening a short, always-rolled-back transaction under the specific subscriber's own project
+   role and JWT claims (`SET LOCAL ROLE`, `request.jwt.claims` — the same context PostgREST itself
+   sets per request) and asking Postgres whether the exact changed row is still visible under that
+   role's RLS policies. `DELETE` is explicitly excluded from this re-check and left as before
+   (table-grant + optional client filter only) — by dispatch time the deleted row no longer
+   exists, so there's nothing left to re-query against; this is a disclosed, intentional residual
+   gap (see `realtime.types.ts`'s updated comment), not an oversight. Subscribers who need `DELETE`
+   events scoped to their own rows should keep narrowing with an explicit
+   `filterColumn=eq.filterValue`, same as documented before this fix. This required granting
+   `baas_admin` (the role `PG_POOL` connects as) membership in every project's
+   anon/authenticated/service_role roles so it can `SET ROLE` to them — new migration
+   `1785800000000_grant-project-roles-to-baas-admin.ts` backfills existing projects;
+   `projects.repository.ts`'s `provisionAndInsert()` grants it for new ones going forward. This
+   grants no privilege over project data baas_admin didn't already have via the SQL console
+   (BYPASSRLS, CREATEROLE) — see that migration's own comment.
+
+4. MEDIUM — the auth throttle's per-IP+email key let a distributed attacker multiply their
+   effective attempt budget. `app-throttler.guard.ts`'s tracker key was `${ip}:${email}`, which
+   gives every distinct source IP its own separate budget against the same target account — an
+   attacker with N source IPs (residential proxy pool, botnet) got N times the intended attempt
+   budget. Investigating this also surfaced that `/auth/v1/mfa/verify` has no `email` field in its
+   body at all, so it fell through to pure per-IP tracking with zero account-level binding — a
+   distributed attacker got unlimited TOTP-code guesses against one captured `mfaToken` by
+   rotating source IPs.
+
+   Fix: the tracker now keys by `email` alone when the body carries one, or by `mfaToken` alone
+   for MFA verify, falling back to IP only when neither is present — never combined with IP. This
+   still keeps different legitimate users behind one shared IP (office NAT, mobile carrier) from
+   sharing a budget (they have different emails), while closing the multi-IP bypass on both login/
+   signup/password-reset and MFA verify. The existing global per-IP throttle
+   (`RATE_LIMIT_GLOBAL_MAX`) remains the backstop against one IP hitting many different targets.
+
+Deferred to a later cycle:
+
+3. MEDIUM — MFA enrollment doesn't require re-authentication. `mfa.controller.ts`/`mfa.service.ts`
+   let `enroll` add a new TOTP factor from a live access token alone, with no password
+   re-confirmation (unlike `selfDisable`, which requires one). A leaked access token (XSS, log
+   leak, proxy misconfig) lets an attacker plant their own TOTP factor on a victim's account with
+   no unverified factor yet, turning a transient token leak into durable account lockout that only
+   an admin can undo. Planned fix: require password re-confirmation on `enroll`, the same way
+   `selfDisable` already does.
+
+5. MEDIUM — function-runner has no resource limits or concurrency cap on worker threads.
+   `apps/function-runner/src/main.ts` spawns an unbounded `Worker` per invocation with no
+   `resourceLimits` and no in-flight concurrency cap; only a 60s wall-clock timeout exists today.
+   One tenant deploying a memory-hungry or highly concurrent function can exhaust the shared
+   function-runner process, denying execution to every other tenant's functions until it restarts.
+   Planned fix: pass `resourceLimits` to the `Worker` constructor and add a bounded concurrency
+   queue in `main.ts`'s request handler.
+```
+
+**Acceptance**: a static site deployed to a project is reachable at
+`http://sites.localhost:8000/sites/<slug>/` (dev) but `http://localhost:8000/sites/<slug>/` 404s;
+a `<script>` on a deployed site that `fetch()`s `/admin/v1/...` fails (cross-origin, no admin
+session cookie attached) even when an admin is logged in in another tab; the admin console's
+Hosting page live-site link points at the configured `SITES_PUBLIC_URL`. Two end-users in one
+project, each with an RLS policy scoping a table to their own rows, each hold an open realtime
+subscription to that table with no filter; inserting a row owned by user A delivers it only to
+user A's subscriber, not user B's. Hitting `/auth/v1/login` with a fixed target email from two
+different source IPs past the configured limit throttles the second IP too, instead of granting it
+a fresh budget; the same holds for `/auth/v1/mfa/verify` with a fixed `mfaToken`.
+
+---
+
 [9]: https://min.io/docs/minio/linux/index.html "MinIO Object Storage Documentation"
 
 [1]: https://supabase.com/docs/guides/api?utm_source=chatgpt.com "Data REST API - Supabase Docs"

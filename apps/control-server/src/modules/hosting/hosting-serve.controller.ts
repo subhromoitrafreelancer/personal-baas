@@ -5,9 +5,14 @@ import { normalizeSitePath } from './hosting-path.util';
 import { HostingService } from './hosting.service';
 
 // Public static site serving (Phase 11, scope.md §25) -- deliberately no guard: a browser loads
-// this with no token, same as any static host. Path-based routing (not subdomain) means a
-// deployed site calling this same deployment's /rest/v1/*, /auth/v1/*, /storage/v1/*,
-// /functions/v1/* needs no CORS configuration at all -- same-origin by construction.
+// this with no token, same as any static host. Reached only via the sites.<domain> Caddy host
+// (Phase 25, scope.md §39 -- deliberately a *different* origin from /admin/* and everything else,
+// since deployed site content is tenant-controlled, not platform-controlled). The route path
+// itself is unchanged from Phase 11 (Caddy switches on Host, not path, to reach this controller),
+// so a deployed site calling this deployment's /rest/v1/*, /auth/v1/*, /storage/v1/*,
+// /functions/v1/* crosses origins and relies on their CORS configuration (PostgREST's own
+// permissive default, and `cors({ origin: true })` in main.ts for the other three) rather than
+// same-origin-by-construction as before.
 @Controller('sites')
 export class HostingServeController {
   constructor(

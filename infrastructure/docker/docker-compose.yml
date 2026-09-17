@@ -126,6 +126,11 @@ services:
       RATE_LIMIT_AUTH_WINDOW_MS: ${RATE_LIMIT_AUTH_WINDOW_MS:-60000}
       LOGIN_LOCKOUT_THRESHOLD: ${LOGIN_LOCKOUT_THRESHOLD:-10}
       LOGIN_LOCKOUT_WINDOW_MINUTES: ${LOGIN_LOCKOUT_WINDOW_MINUTES:-15}
+      # Security remediation (Phase 25, scope.md §39) -- must match the sites.<PUBLIC_DOMAIN> host
+      # the caddy service below now serves static site hosting from (a separate origin from
+      # /admin/*). Only used to build the admin console's "view live site" link; not itself a
+      # routing config (Caddy owns that).
+      SITES_PUBLIC_URL: ${SITES_PUBLIC_URL:-http://sites.localhost:8000}
     ports:
       - '3000:3000'
     volumes:

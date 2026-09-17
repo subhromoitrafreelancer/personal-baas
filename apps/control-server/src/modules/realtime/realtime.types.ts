@@ -39,12 +39,15 @@ export type IncomingRealtimeMessage = z.infer<typeof incomingRealtimeMessageSche
 
 // A validated, active subscription: schema is always the caller's own resolved project schema
 // (never client-supplied — there's exactly one valid schema per project, so accepting one from
-// the client would only ever be useful for requesting someone else's), and the grant check below
-// is deliberately coarse (has_table_privilege against the caller's shared role, not a per-row RLS
-// re-evaluation) — a subscriber whose role can SELECT the table but whose RLS policy would
-// exclude a specific changed row still receives that row's NOTIFY unless its own filterColumn/
-// filterValue narrows it out. Mitigate the same way the Phase 7a todo-app's own RLS does: subscribe
-// with `user_id=eq.<uuid>`.
+// the client would only ever be useful for requesting someone else's). subscribe()'s
+// has_table_privilege check is deliberately coarse (a one-time, shared-role grant check, not a
+// per-row RLS re-evaluation) — it only proves the subscriber's role can SELECT the table at all.
+// Per-row RLS is now re-verified at delivery time instead, in RealtimeService.dispatch() /
+// isVisibleToSubscriber() (Phase 25 security remediation, scope.md §39), for INSERT/UPDATE only —
+// DELETE still relies solely on this grant check plus filterColumn/filterValue, since the row is
+// already gone by the time a NOTIFY reaches dispatch() and there's nothing left to re-query
+// against. Subscribers who need DELETE events scoped to their own rows should still narrow with
+// an explicit filter, e.g. `user_id=eq.<uuid>`, same as the Phase 7a todo-app's own RLS does.
 export interface Subscription {
   id: string;
   client: RealtimeClient;

@@ -35,3 +35,16 @@ $$;
 grant anon to authenticator;
 grant authenticated to authenticator;
 grant service_role to authenticator;
+
+-- Security remediation (Phase 25, scope.md §39): RealtimeService's per-subscriber RLS re-check
+-- needs to SET ROLE to a subscriber's own project role from its baas_admin-authenticated pool
+-- connection. baas_admin gets this automatically for every project role it creates itself
+-- (provisionAndInsert, PG16 grants the creator ADMIN OPTION), but the default project reuses
+-- these three platform-global roles verbatim (scope.md §23) -- they're created above by this
+-- same bootstrap script (run as the Postgres superuser), so only the superuser, not baas_admin
+-- itself later, can grant them. An existing install upgrading past this point (where this
+-- bootstrap script won't re-run) needs the equivalent one-time manual step -- see
+-- 1785800000000_grant-project-roles-to-baas-admin.ts's comment.
+grant anon to baas_admin;
+grant authenticated to baas_admin;
+grant service_role to baas_admin;

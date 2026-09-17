@@ -9,8 +9,10 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MulterErrorFilter } from '../../common/multer-error.filter';
+import { EnvConfig } from '../../config/env.schema';
 import { AdminSessionGuard } from '../admin-auth/admin-session.guard';
 import { ProjectsService } from '../projects/projects.service';
 import { HOSTING_MAX_DEPLOY_BYTES } from './hosting-upload-limit';
@@ -26,6 +28,7 @@ export class HostingAdminController {
   constructor(
     private readonly hosting: HostingService,
     private readonly projects: ProjectsService,
+    private readonly config: ConfigService<EnvConfig, true>,
   ) {}
 
   private async resolveProjectId(projectId?: string): Promise<string> {
@@ -35,7 +38,11 @@ export class HostingAdminController {
 
   @Get()
   async stats(@Query('projectId') projectId?: string) {
-    return this.hosting.getStats(await this.resolveProjectId(projectId));
+    const stats = await this.hosting.getStats(await this.resolveProjectId(projectId));
+    // Security remediation (Phase 25, scope.md §39) -- the admin console builds the "view live
+    // site" link from this server-configured base URL instead of its own `window.location.origin`,
+    // since sites now live on a deliberately different origin than /admin/*.
+    return { ...stats, siteBaseUrl: this.config.get('SITES_PUBLIC_URL', { infer: true }) };
   }
 
   @Post('deploy')

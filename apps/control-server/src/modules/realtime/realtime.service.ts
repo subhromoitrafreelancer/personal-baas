@@ -178,9 +178,86 @@ export class RealtimeService {
       if (subscription.client.readyState !== WebSocket.OPEN) {
         continue;
       }
-      subscription.client.send(
-        `{"type":"event","id":${JSON.stringify(subscription.id)},"table":${tableJson},"operation":${operationJson},"record":${recordJson}}`,
+
+      const send = (): void => {
+        subscription.client.send(
+          `{"type":"event","id":${JSON.stringify(subscription.id)},"table":${tableJson},"operation":${operationJson},"record":${recordJson}}`,
+        );
+      };
+
+      // Security remediation (Phase 25, scope.md §39): the table-level has_table_privilege check
+      // in subscribe() is a one-time, shared-role grant check — it says nothing about whether
+      // THIS subscriber's own row-level security policies would let them see THIS particular row.
+      // For INSERT/UPDATE the changed row still exists, so it's re-verified live, under the
+      // subscriber's own role + JWT claims, exactly as PostgREST would evaluate a direct SELECT.
+      // DELETE is excluded on purpose: by dispatch time the row is already gone, so there's
+      // nothing left to re-query against — a disclosed residual gap (scope.md §39), not an
+      // oversight. Subscribers who need DELETE events restricted to their own rows should narrow
+      // with an explicit filterColumn/filterValue, same as before this fix.
+      if (payload.operation === 'DELETE') {
+        send();
+        continue;
+      }
+
+      this.isVisibleToSubscriber(subscription, payload.record)
+        .then((visible) => {
+          if (visible && subscription.client.readyState === WebSocket.OPEN) {
+            send();
+          }
+        })
+        .catch((err) => {
+          this.logger.error(
+            `RLS re-check threw for subscription '${subscription.id}': ${(err as Error).message}`,
+          );
+        });
+    }
+  }
+
+  // Re-runs the row-visibility check a direct PostgREST SELECT would perform for this specific
+  // subscriber, by opening a short transaction under their own project role and JWT claims and
+  // asking Postgres itself (RLS included) whether the exact changed row is visible to it. Always
+  // rolled back — this never writes, and never reuses a session across subscribers/events.
+  private async isVisibleToSubscriber(
+    subscription: Subscription,
+    record: Record<string, unknown>,
+  ): Promise<boolean> {
+    const role = subscription.client.claims.role;
+    // Server-issued JWT content, not attacker-supplied per request, but SET ROLE can't bind this
+    // as a query parameter — the identifier check is defense-in-depth against a malformed claim
+    // ever reaching raw SQL text.
+    if (!IDENTIFIER_RE.test(role)) {
+      this.logger.error(`Refusing RLS re-check for non-identifier role '${role}'`);
+      return false;
+    }
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL ROLE "${role}"`);
+      // Same convention PostgREST itself uses so RLS policies built on the auth.uid() helper
+      // (auth.uid() reads request.jwt.claims ->> 'sub') see exactly what they'd see for a real
+      // request from this subscriber.
+      await client.query('SELECT set_config($1, $2, true)', [
+        'request.jwt.claims',
+        JSON.stringify(subscription.client.claims),
+      ]);
+      const { rows } = await client.query<{ visible: boolean }>(
+        `SELECT EXISTS (
+           SELECT 1 FROM "${subscription.schema}"."${subscription.table}" t
+           WHERE to_jsonb(t) = $1::jsonb
+         ) AS visible`,
+        [JSON.stringify(record)],
       );
+      return rows[0]?.visible ?? false;
+    } catch (err) {
+      this.logger.error(
+        `RLS re-check query failed for '${subscription.schema}.${subscription.table}': ${(err as Error).message}`,
+      );
+      // Fail closed: a broken check must never leak a row, only under-deliver one.
+      return false;
+    } finally {
+      await client.query('ROLLBACK').catch(() => undefined);
+      client.release();
     }
   }
 

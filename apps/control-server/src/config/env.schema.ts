@@ -119,6 +119,12 @@ export const envSchema = z.object({
     .int()
     .positive()
     .default(20 * 1024 * 1024),
+  // Security remediation (Phase 25, scope.md §39) -- the public base URL for the sites.<domain>
+  // Caddy host that now serves tenant-uploaded static sites on an origin separate from /admin/*.
+  // control-server needs this to build the admin console's "view live site" link server-side
+  // (hosting-admin.controller.ts) instead of guessing it from the admin page's own origin, which
+  // is exactly the assumption that made the old same-origin link a vulnerability.
+  SITES_PUBLIC_URL: z.string().url().default('http://sites.localhost:8000'),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

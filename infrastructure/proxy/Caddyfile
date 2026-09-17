@@ -4,13 +4,16 @@
 #   /rest/v1/*    -> PostgREST (prefix stripped; PostgREST itself has no /rest/v1 prefix)
 #   /auth/*       -> control-server (application auth API)
 #   /storage/v1/* -> control-server (Phase 7 object storage API)
-#   /sites/*      -> control-server (Phase 11 static site hosting, public)
 #   /functions/*  -> control-server (Phase 12 Functions invocation, public)
 #   /realtime/*   -> control-server (Phase 8 WebSocket gateway, upgrade handled transparently)
 #   /users/*      -> control-server (Phase 22 service-role project user directory)
 #   /openapi.json -> control-server (Phase 24 public integration API OpenAPI spec)
 #   /admin/*      -> control-server (admin API + admin UI pages)
 #   /health*      -> control-server (liveness/readiness, also used by container healthchecks)
+#
+# Static site hosting (Phase 11, scope.md §25; moved to its own origin in Phase 25's security
+# remediation, scope.md §39) is deliberately NOT in this shared block — see the sites-routes
+# snippet and its own site blocks below, on a separate `sites.<domain>` host.
 {
 	admin off
 }
@@ -34,13 +37,6 @@
 	}
 
 	handle /storage/* {
-		reverse_proxy control-server:3000
-	}
-
-	# Public static site hosting (Phase 11, scope.md §25) -- path-based, same-origin with the
-	# routes above, which is what lets a deployed site call /rest/v1/*, /auth/v1/*, /storage/v1/*
-	# with no CORS configuration at all.
-	handle /sites/* {
 		reverse_proxy control-server:3000
 	}
 
@@ -85,8 +81,34 @@
 	}
 }
 
+# Static site hosting (Phase 11, scope.md §25), deliberately on its own host (Phase 25, scope.md
+# §39 -- a security-audit fix). A deployed site's HTML/JS is tenant-controlled, not
+# platform-controlled, so it must never share an origin with /admin/* -- same-origin JS can read
+# and act on anything /admin/* can (including issuing authenticated fetches with the admin's own
+# session cookie attached), which defeats sameOriginGuard's CSRF check entirely, no matter how
+# that JS got there. Putting sites on a distinct origin (not just a distinct path) means a
+# deployed site's own same-origin fetch()/XHR calls are genuinely cross-origin from /admin/*'s
+# perspective, and same-origin only with respect to this platform's own public API surface
+# (/rest/v1/*, /auth/v1/*, /storage/v1/*, /functions/v1/*) via CORS -- PostgREST defaults to
+# permissive CORS and control-server's own /auth, /storage, /functions already set
+# `cors({ origin: true })` (main.ts), so no CORS configuration change was needed for this split.
+(sites-routes) {
+	encode gzip
+	handle {
+		reverse_proxy control-server:3000
+	}
+}
+
 :8000 {
 	import routes
+}
+
+# ".localhost" is a reserved, non-delegable TLD (RFC 6761) with no real public-suffix entry, so
+# it fails the same public-DNS-eligibility check "localhost" itself fails below -- Caddy issues
+# this an internally-trusted cert automatically too, same no-internet-dependency behavior, no
+# extra config needed for the default PUBLIC_DOMAIN=localhost dev case.
+sites.{$PUBLIC_DOMAIN:localhost}:8000 {
+	import sites-routes
 }
 
 # HTTPS entry point. PUBLIC_DOMAIN defaults to "localhost", which Caddy recognizes as not a
@@ -99,4 +121,12 @@
 # directive pointing at files mounted into the container (see README's TLS section).
 {$PUBLIC_DOMAIN:localhost}:443 {
 	import routes
+}
+
+# Real-deployment counterpart of the sites.*:8000 block above -- requires one extra DNS record
+# (sites.<PUBLIC_DOMAIN> -> this same host) beyond the main domain's own; Caddy then auto-issues
+# this hostname its own Let's Encrypt certificate via the same HTTP-01/on-demand flow as the main
+# domain, no wildcard cert required.
+sites.{$PUBLIC_DOMAIN:localhost}:443 {
+	import sites-routes
 }

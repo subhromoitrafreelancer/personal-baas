@@ -9,6 +9,10 @@ const deployFile = document.getElementById('deploy-file');
 
 let currentProjectId = null;
 let currentProjectSlug = null;
+// Security remediation (Phase 25, scope.md §39) -- server-configured, not window.location.origin:
+// sites now live on a deliberately different origin from /admin/*, filled in once loadStats()'s
+// response arrives.
+let siteBaseUrl = null;
 
 function formatBytes(bytes) {
   if (bytes === 0) return '0 B';
@@ -27,7 +31,12 @@ async function apiFetch(url, options) {
 }
 
 function updateLiveLink() {
-  const url = `${window.location.origin}/sites/${encodeURIComponent(currentProjectSlug)}/`;
+  if (!siteBaseUrl || !currentProjectSlug) {
+    liveLinkEl.href = '#';
+    liveLinkEl.innerHTML = '—';
+    return;
+  }
+  const url = `${siteBaseUrl}/sites/${encodeURIComponent(currentProjectSlug)}/`;
   liveLinkEl.href = url;
   liveLinkEl.innerHTML = `${window.Icons.markup('external-link')} ${url}`;
 }
@@ -44,6 +53,8 @@ async function loadStats() {
   fileCountEl.textContent = String(stats.fileCount);
   totalBytesEl.textContent = formatBytes(stats.totalBytes);
   lastDeployedEl.textContent = stats.lastDeployedAt ? new Date(stats.lastDeployedAt).toLocaleString() : 'Never';
+  siteBaseUrl = stats.siteBaseUrl;
+  updateLiveLink();
   hostingStatus.textContent = '';
 }
 

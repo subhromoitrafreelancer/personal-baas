@@ -132,6 +132,15 @@ export class ProjectsRepository {
       await client.query(
         `GRANT "${names.anonRole}", "${names.authenticatedRole}", "${names.serviceRoleRole}" TO authenticator`,
       );
+      // Also to baas_admin (security remediation, Phase 25 scope.md §39): RealtimeService needs
+      // to `SET ROLE` to a subscriber's own project role plus their JWT claims before re-checking
+      // RLS visibility for a changed row, and baas_admin (PG_POOL's connecting role) can only
+      // switch to a role it's a member of. This grants no new privilege to project data beyond
+      // what baas_admin already has as the unrestricted SQL-console role -- the file's own
+      // BYPASSRLS comment further down makes the same "baas_admin already has this" point.
+      await client.query(
+        `GRANT "${names.anonRole}", "${names.authenticatedRole}", "${names.serviceRoleRole}" TO baas_admin`,
+      );
       // Schemas created with CREATE SCHEMA get no implicit PUBLIC grant in Postgres — USAGE on
       // a schema is a prerequisite for any table-level grant or schema-qualified function call
       // to mean anything, and is not itself row/table access (scope.md §9: "anon: No access
