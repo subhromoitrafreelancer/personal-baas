@@ -1,0 +1,374 @@
+digraph erd {
+  rankdir=LR;
+  graph [fontname="Helvetica", fontsize=22, label="personal-baas — Database ER Diagram\n(PostgreSQL, per-schema clusters, platform.projects is the multi-tenancy root)", labelloc=t, labeljust=c, pad=0.4, nodesep=0.35, ranksep=0.9, splines=spline, compound=true];
+  node [fontname="Helvetica", fontsize=11];
+  edge [fontname="Helvetica", fontsize=9, color="#7f8c8d", penwidth=1.1];
+  subgraph "cluster_platform" {
+    label="platform schema"; style="rounded,filled"; color="#E67E22"; fillcolor="#FCF3E7"; fontname="Helvetica-Bold"; fontsize=14; margin=16;
+  "platform_projects" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#FCF3E7">
+<TR><TD COLSPAN="2" BGCOLOR="#E67E22"><FONT COLOR="white"><B>platform.projects</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="slug">slug<FONT POINT-SIZE="9" COLOR="#555555"> uq</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="name">name</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="schema_name">schema_name<FONT POINT-SIZE="9" COLOR="#555555"> uq</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="anon_role">anon_role</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="authenticated_role">authenticated_role</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="service_role_role">service_role_role</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="mfa_required">mfa_required</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">bool</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="created_at">created_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="updated_at">updated_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  "platform_platform_admins" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#FCF3E7">
+<TR><TD COLSPAN="2" BGCOLOR="#E67E22"><FONT COLOR="white"><B>platform.platform_admins</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="email">email<FONT POINT-SIZE="9" COLOR="#555555"> uq</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="password_hash">password_hash</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="created_at">created_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="last_login_at">last_login_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  "platform_admin_sql_history" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#FCF3E7">
+<TR><TD COLSPAN="2" BGCOLOR="#E67E22"><FONT COLOR="white"><B>platform.admin_sql_history</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="admin_id"><I>admin_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk?</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="admin_email">admin_email</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="mode">mode</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="sql">sql</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="success">success</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">bool</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="statement_count">statement_count</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">int</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="duration_ms">duration_ms</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">int</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="executed_at">executed_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  "platform_api_keys" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#FCF3E7">
+<TR><TD COLSPAN="2" BGCOLOR="#E67E22"><FONT COLOR="white"><B>platform.api_keys</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="project_id"><I>project_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="name">name</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="kind">kind<FONT POINT-SIZE="9" COLOR="#555555"> publishable|secret</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="created_by">created_by</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="revoked_at">revoked_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="created_at">created_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  "platform_settings" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#FCF3E7">
+<TR><TD COLSPAN="2" BGCOLOR="#E67E22"><FONT COLOR="white"><B>platform.settings</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="key"><B><U>key</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="value">value</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">jsonb</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="updated_at">updated_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  }
+  subgraph "cluster_auth" {
+    label="auth schema"; style="rounded,filled"; color="#2E86C1"; fillcolor="#EAF2FB"; fontname="Helvetica-Bold"; fontsize=14; margin=16;
+  "auth_users" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#EAF2FB">
+<TR><TD COLSPAN="2" BGCOLOR="#2E86C1"><FONT COLOR="white"><B>auth.users</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="project_id"><I>project_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="email">email<FONT POINT-SIZE="9" COLOR="#555555"> uq/proj</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="password_hash">password_hash</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="status">status<FONT POINT-SIZE="9" COLOR="#555555"> active|disabled|invited</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="email_verified">email_verified</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">bool</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="role">role</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="user_metadata">user_metadata</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">jsonb</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="app_metadata">app_metadata</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">jsonb</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="last_sign_in_at">last_sign_in_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="password_changed_at">password_changed_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="created_at">created_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  "auth_identities" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#EAF2FB">
+<TR><TD COLSPAN="2" BGCOLOR="#2E86C1"><FONT COLOR="white"><B>auth.identities</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="user_id"><I>user_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="provider">provider<FONT POINT-SIZE="9" COLOR="#555555"> uq w/provider_user_id</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="provider_user_id">provider_user_id</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="created_at">created_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  "auth_sessions" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#EAF2FB">
+<TR><TD COLSPAN="2" BGCOLOR="#2E86C1"><FONT COLOR="white"><B>auth.sessions</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="user_id"><I>user_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="expires_at">expires_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="revoked_at">revoked_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="ip_address">ip_address</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">inet</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="user_agent">user_agent</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="created_at">created_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  "auth_refresh_tokens" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#EAF2FB">
+<TR><TD COLSPAN="2" BGCOLOR="#2E86C1"><FONT COLOR="white"><B>auth.refresh_tokens</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="session_id"><I>session_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="token_hash">token_hash<FONT POINT-SIZE="9" COLOR="#555555"> uq</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="family_id">family_id</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="parent_token_id"><I>parent_token_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk (self)</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="issued_at">issued_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="expires_at">expires_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="consumed_at">consumed_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="revoked_at">revoked_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  "auth_password_reset_tokens" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#EAF2FB">
+<TR><TD COLSPAN="2" BGCOLOR="#2E86C1"><FONT COLOR="white"><B>auth.password_reset_tokens</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="user_id"><I>user_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="token_hash">token_hash<FONT POINT-SIZE="9" COLOR="#555555"> uq</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="expires_at">expires_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="used_at">used_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="created_at">created_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  "auth_audit_events" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#EAF2FB">
+<TR><TD COLSPAN="2" BGCOLOR="#2E86C1"><FONT COLOR="white"><B>auth.audit_events</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="user_id"><I>user_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk?</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="event_type">event_type</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="ip_address">ip_address</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">inet</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="metadata">metadata</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">jsonb</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="created_at">created_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  "auth_mfa_factors" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#EAF2FB">
+<TR><TD COLSPAN="2" BGCOLOR="#2E86C1"><FONT COLOR="white"><B>auth.mfa_factors</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="user_id"><I>user_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk, uq</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="type">type<FONT POINT-SIZE="9" COLOR="#555555"> totp</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="secret_nonce">secret_nonce</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">bytea</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="secret_ciphertext">secret_ciphertext</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">bytea</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="verified">verified</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">bool</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="verified_at">verified_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="created_at">created_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  "auth_mfa_backup_codes" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#EAF2FB">
+<TR><TD COLSPAN="2" BGCOLOR="#2E86C1"><FONT COLOR="white"><B>auth.mfa_backup_codes</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="user_id"><I>user_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="code_hash">code_hash</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="used_at">used_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="created_at">created_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  }
+  subgraph "cluster_storage" {
+    label="storage schema"; style="rounded,filled"; color="#229954"; fillcolor="#EAFAF1"; fontname="Helvetica-Bold"; fontsize=14; margin=16;
+  "storage_buckets" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#EAFAF1">
+<TR><TD COLSPAN="2" BGCOLOR="#229954"><FONT COLOR="white"><B>storage.buckets</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="project_id"><I>project_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="name">name<FONT POINT-SIZE="9" COLOR="#555555"> uq/proj</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="public">public</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">bool</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="size_limit_bytes">size_limit_bytes</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">bigint</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="created_at">created_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  "storage_objects" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#EAFAF1">
+<TR><TD COLSPAN="2" BGCOLOR="#229954"><FONT COLOR="white"><B>storage.objects</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="bucket_id"><I>bucket_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="path">path<FONT POINT-SIZE="9" COLOR="#555555"> uq/bucket</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="owner"><I>owner</I><FONT POINT-SIZE="9" COLOR="#555555"> fk? (auth.users)</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="size">size</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">bigint</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="content_type">content_type</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="created_at">created_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  }
+  subgraph "cluster_hosting" {
+    label="hosting schema"; style="rounded,filled"; color="#8E44AD"; fillcolor="#F5EEF8"; fontname="Helvetica-Bold"; fontsize=14; margin=16;
+  "hosting_sites" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#F5EEF8">
+<TR><TD COLSPAN="2" BGCOLOR="#8E44AD"><FONT COLOR="white"><B>hosting.sites</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="project_id"><I>project_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk, uq</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="created_at">created_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="updated_at">updated_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  "hosting_site_files" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#F5EEF8">
+<TR><TD COLSPAN="2" BGCOLOR="#8E44AD"><FONT COLOR="white"><B>hosting.site_files</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="site_id"><I>site_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="path">path<FONT POINT-SIZE="9" COLOR="#555555"> uq/site</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="size">size</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">bigint</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="content_type">content_type</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="deployed_at">deployed_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  }
+  subgraph "cluster_functions" {
+    label="functions schema"; style="rounded,filled"; color="#C0392B"; fillcolor="#FDEDEC"; fontname="Helvetica-Bold"; fontsize=14; margin=16;
+  "functions_functions" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#FDEDEC">
+<TR><TD COLSPAN="2" BGCOLOR="#C0392B"><FONT COLOR="white"><B>functions.functions</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="project_id"><I>project_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="name">name<FONT POINT-SIZE="9" COLOR="#555555"> uq/proj</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="code">code</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="timeout_ms">timeout_ms</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">int</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="created_at">created_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="updated_at">updated_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  "functions_invocations" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#FDEDEC">
+<TR><TD COLSPAN="2" BGCOLOR="#C0392B"><FONT COLOR="white"><B>functions.invocations</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="function_id"><I>function_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="status">status</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="duration_ms">duration_ms</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">int</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="error">error</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="invoked_at">invoked_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  }
+  subgraph "cluster_scheduler" {
+    label="scheduler schema"; style="rounded,filled"; color="#B7950B"; fillcolor="#FEF9E7"; fontname="Helvetica-Bold"; fontsize=14; margin=16;
+  "scheduler_scheduled_jobs" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#FEF9E7">
+<TR><TD COLSPAN="2" BGCOLOR="#B7950B"><FONT COLOR="white"><B>scheduler.scheduled_jobs</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="project_id"><I>project_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="function_id"><I>function_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="name">name<FONT POINT-SIZE="9" COLOR="#555555"> uq/proj</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="cron_expression">cron_expression</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="enabled">enabled</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">bool</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="next_run_at">next_run_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="last_run_at">last_run_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="last_status">last_status</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="created_at">created_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  "scheduler_job_runs" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#FEF9E7">
+<TR><TD COLSPAN="2" BGCOLOR="#B7950B"><FONT COLOR="white"><B>scheduler.job_runs</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="job_id"><I>job_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="started_at">started_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="finished_at">finished_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="status">status</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="error">error</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+</TABLE>>];
+
+  }
+  subgraph "cluster_vault" {
+    label="vault schema"; style="rounded,filled"; color="#455A64"; fillcolor="#ECEFF1"; fontname="Helvetica-Bold"; fontsize=14; margin=16;
+  "vault_secrets" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#ECEFF1">
+<TR><TD COLSPAN="2" BGCOLOR="#455A64"><FONT COLOR="white"><B>vault.secrets</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="project_id"><I>project_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="name">name<FONT POINT-SIZE="9" COLOR="#555555"> uq/proj</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="nonce">nonce</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">bytea</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="ciphertext">ciphertext</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">bytea</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="created_at">created_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="updated_at">updated_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  }
+  subgraph "cluster_email" {
+    label="email schema"; style="rounded,filled"; color="#17A589"; fillcolor="#E8F8F5"; fontname="Helvetica-Bold"; fontsize=14; margin=16;
+  "email_provider_configs" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#E8F8F5">
+<TR><TD COLSPAN="2" BGCOLOR="#17A589"><FONT COLOR="white"><B>email.provider_configs</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="project_id"><I>project_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk, uq</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="provider">provider<FONT POINT-SIZE="9" COLOR="#555555"> resend|smtp</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="from_address">from_address</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="smtp_host">smtp_host</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="smtp_port">smtp_port</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">int</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="enabled">enabled</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">bool</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="created_at">created_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  "email_sent_messages" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#E8F8F5">
+<TR><TD COLSPAN="2" BGCOLOR="#17A589"><FONT COLOR="white"><B>email.sent_messages</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="project_id"><I>project_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="to_address">to_address</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="subject">subject</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="provider">provider</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="status">status<FONT POINT-SIZE="9" COLOR="#555555"> sent|failed</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="created_at">created_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  }
+  subgraph "cluster_pdf" {
+    label="pdf schema"; style="rounded,filled"; color="#CB4335"; fillcolor="#FDF2F0"; fontname="Helvetica-Bold"; fontsize=14; margin=16;
+  "pdf_provider_configs" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#FDF2F0">
+<TR><TD COLSPAN="2" BGCOLOR="#CB4335"><FONT COLOR="white"><B>pdf.provider_configs</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="project_id"><I>project_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk, uq</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="api_url">api_url</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="auth_header">auth_header</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="response_mode">response_mode<FONT POINT-SIZE="9" COLOR="#555555"> binary|json_url|json_base64</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="enabled">enabled</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">bool</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="created_at">created_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  "pdf_render_requests" [shape=plain, label=<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#FDF2F0">
+<TR><TD COLSPAN="2" BGCOLOR="#CB4335"><FONT COLOR="white"><B>pdf.render_requests</B></FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="id"><B><U>id</U></B></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="project_id"><I>project_id</I><FONT POINT-SIZE="9" COLOR="#555555"> fk</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">uuid</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="status">status<FONT POINT-SIZE="9" COLOR="#555555"> success|failed</FONT></TD><TD ALIGN="LEFT"><FONT COLOR="#666666">text</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="duration_ms">duration_ms</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">int</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="output_bytes">output_bytes</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">int</FONT></TD></TR>
+<TR><TD ALIGN="LEFT" PORT="created_at">created_at</TD><TD ALIGN="LEFT"><FONT COLOR="#666666">timestamptz</FONT></TD></TR>
+</TABLE>>];
+
+  }
+  subgraph "cluster_notes" {
+    label="developer-managed (not fixed by migrations)"; style="rounded,dashed"; color="#909497"; fontname="Helvetica-Bold"; fontsize=14; margin=16;
+    "api_dev" [shape=box, style="rounded,filled", fillcolor="#F4F6F6", color="#909497", fontsize=11, label="api / api_<slug> schema\n(one per project, exposed via PostgREST)\ntables + RLS policies defined by the developer\nin the SQL console"];
+    "private_dev" [shape=box, style="rounded,filled", fillcolor="#F4F6F6", color="#909497", fontsize=11, label="private schema\nbootstrap-only, never exposed via PostgREST"];
+  }
+  "api_dev" -> "platform_projects" [style=dashed, color="#909497", label="schema_name", arrowhead=none];
+  "platform_api_keys":"project_id" -> "platform_projects":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=solid, headclip=true, tailclip=true];
+  "platform_admin_sql_history":"admin_id" -> "platform_platform_admins":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=dashed, headclip=true, tailclip=true];
+  "auth_users":"project_id" -> "platform_projects":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=solid, headclip=true, tailclip=true];
+  "auth_identities":"user_id" -> "auth_users":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=solid, headclip=true, tailclip=true];
+  "auth_sessions":"user_id" -> "auth_users":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=solid, headclip=true, tailclip=true];
+  "auth_refresh_tokens":"session_id" -> "auth_sessions":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=solid, headclip=true, tailclip=true];
+  "auth_refresh_tokens":"parent_token_id" -> "auth_refresh_tokens":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=dashed, headclip=true, tailclip=true];
+  "auth_password_reset_tokens":"user_id" -> "auth_users":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=solid, headclip=true, tailclip=true];
+  "auth_audit_events":"user_id" -> "auth_users":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=dashed, headclip=true, tailclip=true];
+  "auth_mfa_factors":"user_id" -> "auth_users":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=solid, headclip=true, tailclip=true];
+  "auth_mfa_backup_codes":"user_id" -> "auth_users":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=solid, headclip=true, tailclip=true];
+  "storage_buckets":"project_id" -> "platform_projects":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=solid, headclip=true, tailclip=true];
+  "storage_objects":"bucket_id" -> "storage_buckets":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=solid, headclip=true, tailclip=true];
+  "storage_objects":"owner" -> "auth_users":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=dashed, headclip=true, tailclip=true];
+  "hosting_sites":"project_id" -> "platform_projects":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=solid, headclip=true, tailclip=true];
+  "hosting_site_files":"site_id" -> "hosting_sites":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=solid, headclip=true, tailclip=true];
+  "functions_functions":"project_id" -> "platform_projects":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=solid, headclip=true, tailclip=true];
+  "functions_invocations":"function_id" -> "functions_functions":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=solid, headclip=true, tailclip=true];
+  "vault_secrets":"project_id" -> "platform_projects":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=solid, headclip=true, tailclip=true];
+  "scheduler_scheduled_jobs":"project_id" -> "platform_projects":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=solid, headclip=true, tailclip=true];
+  "scheduler_scheduled_jobs":"function_id" -> "functions_functions":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=solid, headclip=true, tailclip=true];
+  "scheduler_job_runs":"job_id" -> "scheduler_scheduled_jobs":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=solid, headclip=true, tailclip=true];
+  "email_provider_configs":"project_id" -> "platform_projects":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=solid, headclip=true, tailclip=true];
+  "email_sent_messages":"project_id" -> "platform_projects":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=solid, headclip=true, tailclip=true];
+  "pdf_provider_configs":"project_id" -> "platform_projects":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=solid, headclip=true, tailclip=true];
+  "pdf_render_requests":"project_id" -> "platform_projects":"id" [dir=both, arrowtail=crow, arrowhead=tee, style=solid, headclip=true, tailclip=true];
+}

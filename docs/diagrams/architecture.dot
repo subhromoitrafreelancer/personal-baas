@@ -1,0 +1,100 @@
+digraph architecture {
+  rankdir=TB;
+  graph [fontname="Helvetica", fontsize=22, label="personal-baas — System Architecture\nself-hosted BaaS: Docker Compose stack, single public entry point via Caddy", labelloc=t, labeljust=c, pad=0.5, nodesep=0.45, ranksep=0.75, compound=true, splines=spline];
+  node [fontname="Helvetica", fontsize=11, shape=box, style="rounded,filled"];
+  edge [fontname="Helvetica", fontsize=9.5, color="#5d6d7e"];
+  subgraph cluster_clients {
+    label="Clients"; style="rounded,filled"; color="#7f8c8d"; fillcolor="#F8F9F9"; fontsize=15; fontname="Helvetica-Bold";
+    browser [label="Browser app\n(examples/todo-app — fetch)\n(examples/ats-app — React + @personal-baas/client-sdk)", fillcolor="#EBF5FB", color="#2E86C1"];
+    admin_browser [label="Platform admin\n(browser, server-rendered\nHandlebars admin console)", fillcolor="#EBF5FB", color="#2E86C1"];
+    svc_client [label="Service-role client\n(server-to-server: secret API key,\nuser-directory, functions mgmt)", fillcolor="#EBF5FB", color="#2E86C1"];
+  }
+  subgraph cluster_edge {
+    label="Edge — infrastructure/proxy/Caddyfile"; style="rounded,filled"; color="#B7950B"; fillcolor="#FEF9E7"; fontsize=15; fontname="Helvetica-Bold";
+    caddy_main [label="Caddy — main host\n:8000 (HTTP) / :443 (HTTPS, auto Let's Encrypt\nor internal CA for localhost)\nsingle public entry point", fillcolor="#FCF3CF", color="#B7950B"];
+    caddy_sites [label="Caddy — sites.<PUBLIC_DOMAIN>\nseparate origin for tenant-deployed\nstatic sites (CSRF/session isolation\nfrom /admin, Phase 25 fix)", fillcolor="#FCF3CF", color="#B7950B"];
+  }
+  subgraph cluster_app {
+    label="apps/control-server — NestJS control service (single process, port 3000)"; style="rounded,filled"; color="#1A5276"; fillcolor="#EBF5FB"; fontsize=15; fontname="Helvetica-Bold";
+    subgraph cluster_edge_guards {
+      label="Request pipeline (main.ts)"; style="rounded,dashed"; color="#1A5276"; fontsize=12;
+      guards [label="Helmet + CORS (auth/storage/functions)\n+ same-origin guard (/admin)\n+ rate-limit guard (global + /auth/v1/login,signup)\n+ JWT verify (RS256)", fillcolor="#D6EAF8", color="#1A5276", shape=note];
+    }
+    subgraph cluster_public_api {
+      label="Public BaaS API — modules/*"; style="rounded,filled"; color="#2471A3"; fillcolor="#D6EAF8"; fontsize=12.5; fontname="Helvetica-Bold";
+      mod_auth [label="auth\n/auth/v1/*\nsignup, login, refresh,\nMFA (TOTP + backup codes)"];
+      mod_apikeys [label="api-keys\npublishable / secret key\nissue + revoke"];
+      mod_storage [label="storage\n/storage/v1/*\nbuckets + objects (MinIO-backed)"];
+      mod_hosting [label="hosting\nstatic site deploy\n(served via sites.<domain>)"];
+      mod_functions [label="functions\n/functions/v1/*\ninvoke -> function-runner"];
+      mod_scheduler [label="scheduler\nin-process cron timer\n-> invokes functions"];
+      mod_email [label="email\ntransactional send\n(Resend / SMTP)"];
+      mod_pdf [label="pdf\nHTML -> PDF via configured\nexternal HTTP provider"];
+      mod_vault [label="vault\nencrypted per-project secrets\n(libsodium secretbox)"];
+      mod_realtime [label="realtime\n/realtime/v1 WebSocket gateway\nPostgres NOTIFY -> pushed changes"];
+      mod_userdir [label="user-directory\n/users/* (service-role only)\nproject user listing"];
+    }
+    subgraph cluster_admin_console {
+      label="Admin Console — modules/* (Handlebars UI + admin/v1 API)"; style="rounded,filled"; color="#7D3C98"; fillcolor="#F4ECF7"; fontsize=12.5; fontname="Helvetica-Bold";
+      mod_adminauth [label="admin-auth\nplatform admin login/session"];
+      mod_adminprojects [label="projects / admin-projects\ncreate/list projects,\nrewrites shared postgrest.conf"];
+      mod_adminusers [label="admin-users\nplatform admin accounts"];
+      mod_dbtools [label="sql-console + sql-history\ndb-explorer + db-management\nadmin-db (shared query service)"];
+      mod_apiexplorer [label="api-explorer + openapi-docs\nbrowse api/api_<slug>,\npublic /openapi.json"];
+      mod_dashboard [label="dashboard-summary + landing\noverview widgets, public landing"];
+    }
+    subgraph cluster_platform_svcs {
+      label="Cross-cutting / platform"; style="rounded,filled"; color="#616A6B"; fillcolor="#F2F3F4"; fontsize=12.5; fontname="Helvetica-Bold";
+      mod_database [label="database\nshared baas_admin\nPG connection pool"];
+      mod_audit [label="audit\nwrites auth.audit_events"];
+      mod_health [label="health + metrics\nliveness/readiness, /health*"];
+    }
+  }
+  subgraph cluster_sidecar {
+    label="apps/function-runner — sidecar process (port 3002, internal only)"; style="rounded,filled"; color="#943126"; fillcolor="#FDEDEC"; fontsize=13; fontname="Helvetica-Bold";
+    runner [label="POST /run\nfresh worker_thread per invocation\nesbuild TS/ESM -> CJS transpile\nfull Node API, no Postgres credential\nrestart: unless-stopped (crash isolation)", fillcolor="#FADBD8", color="#943126"];
+  }
+  subgraph cluster_data {
+    label="Data layer"; style="rounded,filled"; color="#1D8348"; fillcolor="#EAFAF1"; fontsize=15; fontname="Helvetica-Bold";
+    postgrest [label="PostgREST v12\nport 3001, stateless\nverifies app-user JWT (JWK, RS256)\nswitches Postgres role per JWT claim", fillcolor="#D5F5E3", color="#1D8348"];
+    subgraph cluster_pg {
+      label="PostgreSQL (single instance, pgdata volume)"; style="rounded,filled"; color="#186A3B"; fillcolor="#D4EFDF"; fontsize=12.5; fontname="Helvetica-Bold";
+      pg_tenant [label="api / api_<slug> schemas\n1 per project, developer-defined\ntables + RLS — the ONLY schemas\nPostgREST is allowed to see", fillcolor="#ABEBC6", color="#186A3B"];
+      pg_platform [label="platform + auth + private\n+ storage + hosting + functions\n+ vault + scheduler + email + pdf\ncontrol-server-owned metadata,\nnever exposed via PostgREST", fillcolor="#ABEBC6", color="#186A3B"];
+    }
+    minio [label="MinIO\nsingle bucket, object bytes only\nlogical \"buckets\" = key prefixes\nin storage.buckets metadata", fillcolor="#D5F5E3", color="#1D8348"];
+  }
+  browser -> caddy_main [label="HTTPS"];
+  admin_browser -> caddy_main [label="HTTPS /admin/*"];
+  svc_client -> caddy_main [label="HTTPS + secret key"];
+  browser -> caddy_sites [label="deployed tenant\nstatic site", style=dashed];
+  caddy_main -> guards [label="/, /auth/*, /storage/*,\n/functions/*, /realtime/*, /users/*,\n/openapi.json, /admin/*, /health*"];
+  caddy_main -> postgrest [label="/rest/v1/* (prefix stripped)"];
+  caddy_sites -> guards [label="tenant site content\n(isolated origin)"];
+  guards -> mod_auth;
+  guards -> mod_apikeys;
+  guards -> mod_storage;
+  guards -> mod_hosting;
+  guards -> mod_functions;
+  guards -> mod_realtime;
+  guards -> mod_userdir;
+  guards -> mod_adminauth;
+  guards -> mod_apiexplorer;
+  guards -> mod_dashboard;
+  mod_auth -> mod_audit [style=dotted, label="audit_events"];
+  mod_auth -> mod_database [style=dotted];
+  mod_adminprojects -> mod_database [style=dotted];
+  mod_dbtools -> mod_database [style=dotted];
+  mod_email -> mod_vault [label="reads provider secret", style=dotted];
+  mod_pdf -> mod_vault [label="reads provider secret", style=dotted];
+  mod_scheduler -> mod_functions [label="cron fires\ninvocation"];
+  mod_functions -> runner [label="POST /run\ncode + ctx (docker network only)"];
+  runner -> mod_vault [label="/internal/vault/resolve\nctx.secrets.get()", style=dashed, constraint=false];
+  runner -> postgrest [label="direct (one hop\nfewer than via Caddy)"];
+  mod_database -> pg_platform [label="baas_admin\n(schema admin, migrations,\nSQL console)"];
+  mod_storage -> minio [label="object bytes\n(control-server holds\nMinIO credentials)"];
+  mod_adminprojects -> postgrest [label="rewrites shared\npostgrest.conf on project\ncreate (needs manual\ndocker compose restart)", style=dashed];
+  postgrest -> pg_tenant [label="authenticator role,\nswitches to anon /\nauthenticated / service_role\nor per-project role"];
+  { rank=same; caddy_main; caddy_sites; }
+  { rank=same; postgrest; runner; }
+}
