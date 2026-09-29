@@ -38,7 +38,21 @@ export class AdminQueryService {
     // statement_timeout takes no bind parameters; the value is validated above, not user SQL.
     await client.query(`SET statement_timeout = ${statementTimeoutMs}`);
 
-    const result = fn(client).finally(() => client.release());
+    const result = fn(client).finally(async () => {
+      // A script may leave the connection mid-transaction (error after an explicit BEGIN) or
+      // with session-local state set via set_config(..., false) (e.g. search_path). Neither is
+      // undone by client.release() — pg returns the connection to the pool as-is — so the next
+      // borrower would inherit an aborted transaction or another session's schema. Reset both
+      // before releasing; DISCARD ALL is safe to run unconditionally (no-ops if there's nothing
+      // to discard) and also clears prepared statements, temp tables, and other session state.
+      try {
+        await client.query('ROLLBACK');
+        await client.query('DISCARD ALL');
+      } catch {
+        // Best-effort cleanup; if the connection is unusable, the pool will discard it anyway.
+      }
+      client.release();
+    });
 
     return { pid, result };
   }

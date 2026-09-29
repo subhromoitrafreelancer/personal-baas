@@ -56,12 +56,20 @@ export class SqlConsoleService {
 
     const { pid, result } = await this.adminQuery.withConnection(async (client) => {
       if (input.schemaName) {
-        // set_config (not a raw `SET search_path TO ...` string) so the schema name — client
-        // input — is bound as a parameter rather than interpolated into SQL text.
-        await client.query('SELECT set_config($1, $2, false)', [
-          'search_path',
-          `"${input.schemaName}", public`,
-        ]);
+        try {
+          // set_config (not a raw `SET search_path TO ...` string) so the schema name — client
+          // input — is bound as a parameter rather than interpolated into SQL text.
+          await client.query('SELECT set_config($1, $2, false)', [
+            'search_path',
+            `"${input.schemaName}", public`,
+          ]);
+        } catch (err) {
+          const pgErr = err as DatabaseError;
+          throw new SqlExecutionError(
+            { message: pgErr.message, statementIndex: 0, sql: spans[0].text.trim() },
+            [],
+          );
+        }
       }
       for (const span of spans) {
         const stmtStart = Date.now();

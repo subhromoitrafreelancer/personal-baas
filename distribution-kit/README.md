@@ -27,7 +27,7 @@ The three personal-baas images must already exist locally — see [Getting the i
 
 ## Getting the images
 
-The compose overlay references three images by tag — `personal-baas-control-server:0.8.0`,
+The compose overlay references three images by tag — `personal-baas-control-server:0.8.1`,
 `personal-baas-function-runner:0.4.0`, `personal-baas-postgres:0.4.0` by default (each image
 versions independently; control-server currently releases ahead of the other two). They are
 **not** on Docker Hub; you must build or load them yourself. Everything else (PostgREST, MinIO,
@@ -159,7 +159,7 @@ Create your first table in the admin console at `/admin/database`, then mint API
 
 | Variable | Meaning |
 | --- | --- |
-| `BAAS_CONTROL_SERVER_IMAGE` | control-server image tag (default `personal-baas-control-server:0.8.0`) |
+| `BAAS_CONTROL_SERVER_IMAGE` | control-server image tag (default `personal-baas-control-server:0.8.1`) |
 | `BAAS_FUNCTION_RUNNER_IMAGE` | function-runner image tag (default `personal-baas-function-runner:0.4.0`) |
 | `BAAS_POSTGRES_IMAGE` | postgres bootstrap image tag (default `personal-baas-postgres:0.4.0`) |
 | `SITES_PUBLIC_URL` | public base URL for deployed static sites — a separate origin from `/admin/*` (default `http://sites.localhost:8000`), see [TLS](#tls) |
@@ -244,3 +244,37 @@ yet. After the first admin is created you can blank them in `.env`; sign in stay
 ## Upgrading
 
 See [upgrade.md](./upgrade.md).
+
+## Releasing a new version (maintainer runbook)
+
+When cutting a new control-server (or function-runner/postgres) image, the version string is
+duplicated across several files — there's no single source of truth it's read from at build or
+run time, so each of these needs a manual edit:
+
+1. **`apps/control-server/package.json`** — bump `"version"`. Not read at runtime, but it's the
+   canonical version field for the package; keep it in sync.
+2. **`distribution-kit/scripts/build-local-images.sh`** — bump the `CONTROL_SERVER_TAG` (or
+   `OTHER_TAG`) default and the matching comment above it. Easy to miss: this is the tag Option
+   A in the README builds when a caller doesn't pass an explicit version argument, so if it's
+   left stale, a fresh `./scripts/build-local-images.sh /path/to/repo` silently builds the *old*
+   tag while every other default in the kit points at the new one.
+3. **`distribution-kit/.env.example`** — bump `BAAS_CONTROL_SERVER_IMAGE` (and/or the other two).
+4. **`distribution-kit/docker-compose.personal-baas.yml`** — bump the `${BAAS_CONTROL_SERVER_IMAGE:-...}`
+   fallback tag. It appears **twice** (the `control-server-migrate` one-shot service and the
+   `control-server` service) — grep for the old tag to make sure both are caught.
+5. **`distribution-kit/README.md`** (this file) — bump the tag in "Getting the images" and in the
+   `BAAS_CONTROL_SERVER_IMAGE` row of the configuration reference table.
+6. **`distribution-kit/upgrade.md`** — bump the `build-local-images.sh` example invocation and the
+   `BAAS_CONTROL_SERVER_IMAGE=` line in step 3's snippet. Then, **only if this release actually
+   changes required env vars, migrations, or upgrade-affecting behavior**, add a *new*, separately
+   dated/versioned bullet describing it — don't overwrite an earlier release's migration note by
+   blindly find/replacing its version number; that note stays attached to the release it actually
+   describes even after the "current tag" examples above it move on.
+
+Not part of a routine bump: `apps/control-server/src/admin-ui/views/security-report.hbs`'s
+"Versions audited" line is a dated audit snapshot, not a "current version" reference — leave it
+pointing at whatever version was actually audited.
+
+A quick sanity check after bumping: `grep -rn '<old-tag>' --include=*.md --include=*.sh
+--include=*.yml --include=*.json .` from the repo root should return nothing outside
+`security-report.hbs`/`package-lock.json`.

@@ -244,7 +244,7 @@ services:
   # starts, so a clean `docker compose up` doesn't need a manual migration step. Same image as
   # control-server, just a different command.
   control-server-migrate:
-    image: ${BAAS_CONTROL_SERVER_IMAGE:-personal-baas-control-server:0.8.0}
+    image: ${BAAS_CONTROL_SERVER_IMAGE:-personal-baas-control-server:0.8.1}
     environment:
       DATABASE_URL: postgres://baas_admin:${BAAS_ADMIN_PASSWORD}@postgres:5432/${POSTGRES_DB}
     working_dir: /repo/apps/control-server
@@ -256,7 +256,7 @@ services:
       - appnet
 
   control-server:
-    image: ${BAAS_CONTROL_SERVER_IMAGE:-personal-baas-control-server:0.8.0}
+    image: ${BAAS_CONTROL_SERVER_IMAGE:-personal-baas-control-server:0.8.1}
     environment:
       NODE_ENV: ${NODE_ENV:-development}
       PORT: 3000

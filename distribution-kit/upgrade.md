@@ -13,13 +13,13 @@ recreate the containers.
    ```
 2. **Get the new images.** Either rebuild from a newer monorepo checkout:
    ```bash
-   ./scripts/build-local-images.sh /path/to/personal-baas-monorepo 0.8.0 0.4.0
+   ./scripts/build-local-images.sh /path/to/personal-baas-monorepo 0.8.1 0.4.0
    ```
    or load the new release's tarballs (`docker load -i ...`) and update the `BAAS_*_IMAGE`
    tags in `.env` to match.
 3. **Point `.env` at the new tags** (unless your tarballs/builds reused the same tags):
    ```env
-   BAAS_CONTROL_SERVER_IMAGE=personal-baas-control-server:0.8.0
+   BAAS_CONTROL_SERVER_IMAGE=personal-baas-control-server:0.8.1
    BAAS_FUNCTION_RUNNER_IMAGE=personal-baas-function-runner:0.4.0
    BAAS_POSTGRES_IMAGE=personal-baas-postgres:0.4.0
    ```
@@ -27,11 +27,15 @@ recreate the containers.
    variable (e.g. `VAULT_MASTER_KEY_BASE64`, added when Secrets Vault shipped) — control-server
    fails fast at boot with `Invalid environment configuration` if a required variable is
    missing, so add any new ones (generate with the matching `scripts/generate-*.mjs` helper
-   where one exists) before recreating the stack in step 4. The 0.8.0/0.4.0 release adds
-   `SITES_PUBLIC_URL` and moves static site hosting to its own `sites.<PUBLIC_DOMAIN>` host
-   (security fix — tenant-uploaded site content no longer shares an origin with `/admin/*`); a
-   real deployment needs one extra DNS record for `sites.<PUBLIC_DOMAIN>` pointed at the same
-   host before recreating the stack (see the distribution kit README's TLS section).
+   where one exists) before recreating the stack in step 4. The 0.8.0/0.4.0 release added
+   `SITES_PUBLIC_URL` and moved static site hosting to its own `sites.<PUBLIC_DOMAIN>` host
+   (security fix — tenant-uploaded site content no longer shares an origin with `/admin/*`); if
+   you're upgrading from before 0.8.0, a real deployment needs one extra DNS record for
+   `sites.<PUBLIC_DOMAIN>` pointed at the same host before recreating the stack (see the
+   distribution kit README's TLS section).
+   - **0.8.1** is a control-server bugfix release (admin SQL console could poison a pooled
+     Postgres connection after a failed `begin`-scripted statement, surfacing as a 500 on
+     unrelated later queries) — no new required env vars, no migration, no config changes.
 4. **Recreate the stack.** Migrations run automatically: the `control-server-migrate` one-shot
    container runs `npm run migrate:up` against the platform/auth schemas before `control-server`
    is allowed to start, so a plain `up -d` is the whole upgrade:
