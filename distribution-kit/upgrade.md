@@ -13,13 +13,13 @@ recreate the containers.
    ```
 2. **Get the new images.** Either rebuild from a newer monorepo checkout:
    ```bash
-   ./scripts/build-local-images.sh /path/to/personal-baas-monorepo 0.8.1 0.4.0
+   ./scripts/build-local-images.sh /path/to/personal-baas-monorepo 0.8.2 0.4.0
    ```
    or load the new release's tarballs (`docker load -i ...`) and update the `BAAS_*_IMAGE`
    tags in `.env` to match.
 3. **Point `.env` at the new tags** (unless your tarballs/builds reused the same tags):
    ```env
-   BAAS_CONTROL_SERVER_IMAGE=personal-baas-control-server:0.8.1
+   BAAS_CONTROL_SERVER_IMAGE=personal-baas-control-server:0.8.2
    BAAS_FUNCTION_RUNNER_IMAGE=personal-baas-function-runner:0.4.0
    BAAS_POSTGRES_IMAGE=personal-baas-postgres:0.4.0
    ```
@@ -36,6 +36,10 @@ recreate the containers.
    - **0.8.1** is a control-server bugfix release (admin SQL console could poison a pooled
      Postgres connection after a failed `begin`-scripted statement, surfacing as a 500 on
      unrelated later queries) — no new required env vars, no migration, no config changes.
+   - **0.8.2** adds `users/v1/manage` (service-role-key-guarded `POST` create user, `PATCH
+     :id/email`, `POST :id/temporary-password`; project-scoped, no delete/disable) so a
+     project's own Function can manage its users without a platform-admin session — no new
+     required env vars, no migration, no config changes.
 4. **Recreate the stack.** Migrations run automatically: the `control-server-migrate` one-shot
    container runs `npm run migrate:up` against the platform/auth schemas before `control-server`
    is allowed to start, so a plain `up -d` is the whole upgrade:
