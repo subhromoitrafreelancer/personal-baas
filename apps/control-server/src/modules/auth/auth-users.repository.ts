@@ -58,6 +58,14 @@ export class AuthUsersRepository {
     );
   }
 
+  async updateEmail(id: string, email: string): Promise<AuthUserRow | null> {
+    const { rows } = await this.pool.query<AuthUserRow>(
+      'UPDATE auth.users SET email = $2, updated_at = now() WHERE id = $1 RETURNING *',
+      [id, email],
+    );
+    return rows[0] ?? null;
+  }
+
   async setStatus(id: string, status: 'active' | 'disabled'): Promise<AuthUserRow | null> {
     const { rows } = await this.pool.query<AuthUserRow>(
       'UPDATE auth.users SET status = $2, updated_at = now() WHERE id = $1 RETURNING *',

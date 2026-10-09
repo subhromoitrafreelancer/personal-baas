@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ApiKeysRepository } from '../api-keys/api-keys.repository';
 import { AuthModule } from '../auth/auth.module';
 import { UserDirectoryController } from './user-directory.controller';
+import { UserManagementController } from './user-management.controller';
 
 // Phase 22 (scope.md §36). AuthModule exports AuthUsersRepository and ServiceRoleBearerGuard, but
 // when a guard is attached via @UseGuards(ClassRef) in a *different* module, Nest resolves that
@@ -12,7 +13,7 @@ import { UserDirectoryController } from './user-directory.controller';
 // use for the identical reason.
 @Module({
   imports: [AuthModule],
-  controllers: [UserDirectoryController],
+  controllers: [UserDirectoryController, UserManagementController],
   providers: [ApiKeysRepository],
 })
 export class UserDirectoryModule {}
