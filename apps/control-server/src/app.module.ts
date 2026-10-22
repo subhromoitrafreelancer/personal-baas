@@ -1,3 +1,4 @@
+import { WorkerModule } from './modules/worker-integrations/worker.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
@@ -42,6 +43,18 @@ import { VaultModule } from './modules/vault/vault.module';
       inject: [ConfigService],
       useFactory: (config: ConfigService<EnvConfig, true>) => ({
         pinoHttp: {
+          redact: {
+            paths: [
+              'req.headers.authorization',
+              'req.headers.cookie',
+              'res.headers["set-cookie"]',
+              'req.body.credential',
+              'req.body.value',
+              'res.body.api_key',
+              'res.body.value',
+            ],
+            censor: '[REDACTED]',
+          },
           level: config.get('LOG_LEVEL', { infer: true }),
           transport:
             config.get('NODE_ENV', { infer: true }) === 'development'
@@ -51,6 +64,7 @@ import { VaultModule } from './modules/vault/vault.module';
       }),
     }),
     DatabaseModule,
+    WorkerModule,
     AdminDbModule,
     RateLimitModule,
     LandingModule,

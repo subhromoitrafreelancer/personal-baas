@@ -22,8 +22,11 @@ See [`scope.md`](./scope.md) for the full product/architecture spec,
 | Auth | Email/password signup & login, project-scoped JWTs, TOTP MFA with backup codes, rate limiting & brute-force lockout, service-role project user directory |
 | Storage & hosting | Per-user/per-bucket object storage, static site hosting |
 | Compute | Serverless JS/TS functions in an isolated worker (no separate deploy pipeline), cron-style scheduler |
+| Background workers (opt-in) | Machine identities, project grants, renewable project API credentials and allowlisted vault reads |
 | Platform services | Encrypted secrets vault, transactional email, on-demand PDF generation |
 | Multi-tenancy & ops | Multi-project isolation (separate schemas/roles per project), audit log of every operator action |
+
+Optional trusted background workers: see [enablement and API usage](docs/worker-integrations.md), [validation evidence](docs/worker-integrations-validation.md), and [deferred regression/recovery tests](docs/worker-integrations-follow-ups.md). The feature is disabled by default and currently API-only.
 
 ## Architecture
 

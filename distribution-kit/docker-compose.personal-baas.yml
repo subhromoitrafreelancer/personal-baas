@@ -261,6 +261,9 @@ services:
       NODE_ENV: ${NODE_ENV:-development}
       PORT: 3000
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Opt-in worker broker; ordinary auth/functions keep their existing paths.
+      WORKER_INTEGRATIONS_ENABLED: ${WORKER_INTEGRATIONS_ENABLED:-false}
+      WORKER_LEASE_TTL_SECONDS: ${WORKER_LEASE_TTL_SECONDS:-300}
       DATABASE_URL: postgres://baas_admin:${BAAS_ADMIN_PASSWORD}@postgres:5432/${POSTGRES_DB}
       ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET}
       INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-}

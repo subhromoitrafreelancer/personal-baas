@@ -1,0 +1,257 @@
+{
+  "checks": [
+    {
+      "check": "Rust has no published port",
+      "status": "pass"
+    },
+    {
+      "check": "Rust has no database/platform secrets",
+      "status": "pass"
+    },
+    {
+      "check": "internal machine routes are not public",
+      "status": "pass"
+    },
+    {
+      "check": "machine credential required",
+      "status": "pass"
+    },
+    {
+      "check": "previous fixture jobs drained",
+      "status": "pass"
+    },
+    {
+      "check": "lease scoped studio_spike_a",
+      "status": "pass"
+    },
+    {
+      "check": "worker JWT TTL is 20 seconds studio_spike_a",
+      "status": "pass"
+    },
+    {
+      "check": "lease scoped studio_spike_b",
+      "status": "pass"
+    },
+    {
+      "check": "worker JWT TTL is 20 seconds studio_spike_b",
+      "status": "pass"
+    },
+    {
+      "check": "cross-lease secret override rejected",
+      "status": "pass"
+    },
+    {
+      "check": "vault correlation studio_spike_a STUDIO_PROVIDER_TOKEN",
+      "status": "pass"
+    },
+    {
+      "check": "vault correlation studio_spike_a STUDIO_DEPLOY_KEY",
+      "status": "pass"
+    },
+    {
+      "check": "vault correlation studio_spike_b STUDIO_PROVIDER_TOKEN",
+      "status": "pass"
+    },
+    {
+      "check": "vault correlation studio_spike_b STUDIO_DEPLOY_KEY",
+      "status": "pass"
+    },
+    {
+      "check": "secret allowlist",
+      "status": "pass"
+    },
+    {
+      "check": "original user JWT TTL is 30 seconds studio_spike_a",
+      "status": "pass"
+    },
+    {
+      "check": "master CRUD studio_spike_a",
+      "status": "pass"
+    },
+    {
+      "check": "master update studio_spike_a",
+      "status": "pass"
+    },
+    {
+      "check": "master delete studio_spike_a",
+      "status": "pass"
+    },
+    {
+      "check": "short bridge studio_spike_a",
+      "status": "pass"
+    },
+    {
+      "check": "durable idempotent enqueue studio_spike_a",
+      "status": "pass"
+    },
+    {
+      "check": "tenant override rejected studio_spike_a",
+      "status": "pass"
+    },
+    {
+      "check": "original user JWT TTL is 30 seconds studio_spike_b",
+      "status": "pass"
+    },
+    {
+      "check": "master CRUD studio_spike_b",
+      "status": "pass"
+    },
+    {
+      "check": "master update studio_spike_b",
+      "status": "pass"
+    },
+    {
+      "check": "master delete studio_spike_b",
+      "status": "pass"
+    },
+    {
+      "check": "short bridge studio_spike_b",
+      "status": "pass"
+    },
+    {
+      "check": "durable idempotent enqueue studio_spike_b",
+      "status": "pass"
+    },
+    {
+      "check": "tenant override rejected studio_spike_b",
+      "status": "pass"
+    },
+    {
+      "check": "cross-schema user isolation",
+      "status": "pass"
+    },
+    {
+      "check": "worker schema isolation",
+      "status": "pass"
+    },
+    {
+      "check": "users cannot claim jobs",
+      "status": "pass"
+    },
+    {
+      "check": "original user expired studio_spike_a",
+      "status": "pass"
+    },
+    {
+      "check": "original worker API key expired studio_spike_a",
+      "status": "pass"
+    },
+    {
+      "check": "job still running before Rust restart studio_spike_a",
+      "status": "pass"
+    },
+    {
+      "check": "original user expired studio_spike_b",
+      "status": "pass"
+    },
+    {
+      "check": "original worker API key expired studio_spike_b",
+      "status": "pass"
+    },
+    {
+      "check": "job still running before Rust restart studio_spike_b",
+      "status": "pass"
+    },
+    {
+      "check": "both projects finish after restart and JWT expiry",
+      "status": "pass"
+    },
+    {
+      "check": "reclaimed generation studio_spike_a",
+      "status": "pass"
+    },
+    {
+      "check": "persisted checkpoints studio_spike_a",
+      "status": "pass"
+    },
+    {
+      "check": "single terminal event studio_spike_a",
+      "status": "pass"
+    },
+    {
+      "check": "private service-owned artifact denies direct user GET studio_spike_a",
+      "status": "pass"
+    },
+    {
+      "check": "checked artifact bytes studio_spike_a",
+      "status": "pass"
+    },
+    {
+      "check": "reclaimed generation studio_spike_b",
+      "status": "pass"
+    },
+    {
+      "check": "persisted checkpoints studio_spike_b",
+      "status": "pass"
+    },
+    {
+      "check": "single terminal event studio_spike_b",
+      "status": "pass"
+    },
+    {
+      "check": "private service-owned artifact denies direct user GET studio_spike_b",
+      "status": "pass"
+    },
+    {
+      "check": "checked artifact bytes studio_spike_b",
+      "status": "pass"
+    },
+    {
+      "check": "cross-project artifact ID denied",
+      "status": "pass"
+    },
+    {
+      "check": "atomic concurrent claim",
+      "status": "pass"
+    },
+    {
+      "check": "expired claim takeover increments generation",
+      "status": "pass"
+    },
+    {
+      "check": "stale checkpoint fenced",
+      "status": "pass"
+    },
+    {
+      "check": "stale completion fenced",
+      "status": "pass"
+    },
+    {
+      "check": "stale completion wrote no artifact",
+      "status": "pass"
+    },
+    {
+      "check": "foreign integration cannot renew lease",
+      "status": "pass"
+    },
+    {
+      "check": "foreign integration cannot read secret",
+      "status": "pass"
+    },
+    {
+      "check": "renew preserves key identity",
+      "status": "pass"
+    },
+    {
+      "check": "leases survive control-server restart",
+      "status": "pass"
+    },
+    {
+      "check": "revoked grant denies REST immediately",
+      "status": "pass"
+    },
+    {
+      "check": "revoked grant denies storage immediately",
+      "status": "pass"
+    },
+    {
+      "check": "revoked grant denies renewal",
+      "status": "pass"
+    },
+    {
+      "check": "project B continues",
+      "status": "pass"
+    }
+  ],
+  "scope": "real disposable BaaS; not all S01-S25 scenarios automated"
+}

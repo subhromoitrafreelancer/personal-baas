@@ -1,0 +1,23 @@
+{
+  "date": "2026-10-22",
+  "scope": "review packaging checks; full-stack regression/recovery explicitly deferred",
+  "checks": {
+    "control_server_build": "pass",
+    "worker_unit_tests": {
+      "status": "pass",
+      "count": 5
+    },
+    "existing_sdk_unit_tests": {
+      "status": "pass",
+      "count": 18
+    },
+    "compose_source_default_and_opt_in": "pass",
+    "compose_distribution_default_and_opt_in": "pass",
+    "worker_source_matches_live_tested_worktree": "pass",
+    "documentation_links_and_json": "pass"
+  },
+  "deferred": [
+    "WI-REG-01",
+    "WI-REC-02"
+  ]
+}

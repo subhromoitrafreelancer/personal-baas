@@ -79,6 +79,25 @@ export class AuthJwtService implements OnModuleInit {
       .sign(this.privateKey);
   }
 
+  // Worker-only API identity: ordinary keys keep their existing ten-year lifetime.
+  async signWorkerApiKeyToken(
+    role: string,
+    kid: string,
+    projectId: string,
+    ttlSeconds: number,
+  ): Promise<string> {
+    if (!Number.isInteger(ttlSeconds) || ttlSeconds < 5 || ttlSeconds > 3600) {
+      throw new Error('Invalid worker token lifetime');
+    }
+    return new SignJWT({ role, kid, project_id: projectId })
+      .setProtectedHeader({ alg: ALG })
+      .setIssuer(ISSUER)
+      .setAudience(AUDIENCE)
+      .setIssuedAt()
+      .setExpirationTime(`${ttlSeconds}s`)
+      .sign(this.privateKey);
+  }
+
   // Mints a short-lived token for control-server's own internal-purpose calls to PostgREST —
   // originally the admin-only OpenAPI spec viewer proxy, now also the Scheduler's (Phase 13,
   // scope.md §27 point 3) synthetic service_role identity for a scheduled function's ctx.rest

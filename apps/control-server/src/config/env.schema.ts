@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
 export const envSchema = z.object({
+  WORKER_INTEGRATIONS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  WORKER_LEASE_TTL_SECONDS: z.coerce.number().int().min(5).max(3600).default(300),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),

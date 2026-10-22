@@ -1,0 +1,24 @@
+{
+  "date": "2026-10-22",
+  "operator_report": {
+    "project_b_master_add_delete": "pass",
+    "project_b_json_artifact_visible": "pass",
+    "project_b_ui_errors": "none reported",
+    "reload_recovery": "not separately confirmed",
+    "project_a_browser_signin": "pass with project A credentials"
+  },
+  "agent_http_checks": {
+    "project_a_login": {
+      "status": 201,
+      "project_claim_matches": true
+    },
+    "project_b_login": {
+      "status": 201,
+      "project_claim_matches": true
+    },
+    "project_a_master_read": {
+      "status": 200
+    }
+  },
+  "interpretation": "Browser signin works for both projects using their own fixture credentials. Revoking the project A worker grant does not disable its application user account."
+}
