@@ -126,3 +126,15 @@ describe('worker integration compatibility', () => {
     expect(db.release).toHaveBeenCalled();
   });
 });
+
+describe('worker admin credential generation', () => {
+  it('generates credentials the register/guard regex accepts, and hashes them consistently', () => {
+    const { generateCredential, credentialHash } = jest.requireActual(
+      '../src/modules/worker-integrations/worker.controller',
+    );
+    const a = generateCredential();
+    expect(a).toMatch(/^[A-Za-z0-9_-]{43,128}$/);
+    expect(generateCredential()).not.toBe(a);
+    expect(credentialHash(a)).toMatch(/^[a-f0-9]{64}$/);
+  });
+});

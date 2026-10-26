@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  {{> theme_init}}
+  <title>Workers — Personal BaaS Admin</title>
+  <link rel="stylesheet" href="/admin/static/css/admin.css" />
+  <link rel="stylesheet" href="/admin/static/css/workers.css" />
+</head>
+<body>
+  {{> topbar}}
+
+  <main class="page workers-page">
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1>Workers</h1>
+        <p class="page-description">Trusted background services that obtain short-lived project API credentials and read allowlisted vault secrets.</p>
+      </div>
+      <div class="page-header-actions">
+        <button id="register-btn" type="button" class="btn btn-primary" data-icon="add">Register integration</button>
+        <span id="workers-status" class="run-status" role="status"></span>
+      </div>
+    </div>
+
+    <div id="secret-banner" class="secret-banner" hidden></div>
+
+    <div id="disabled-state" class="banner banner-warning" hidden>
+      Worker integrations are turned off. Set <code>WORKER_INTEGRATIONS_ENABLED=true</code> on the control-server container and recreate it. See <code>docs/worker-integrations.md</code>.
+    </div>
+
+    <div id="list-section" class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Status</th>
+            <th>Projects</th>
+            <th>Active leases</th>
+            <th>Last lease activity</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="integrations-tbody"></tbody>
+      </table>
+    </div>
+
+    <section id="detail-section" class="detail-section" hidden>
+      <div class="detail-header">
+        <div>
+          <h2 id="detail-name"></h2>
+          <p class="hint"><code id="detail-id"></code> <span id="detail-status" class="badge"></span></p>
+        </div>
+        <div class="detail-actions">
+          <button id="rotate-btn" type="button" class="btn btn-outline btn-sm" data-icon="refresh">Rotate credential</button>
+          <button id="toggle-btn" type="button" class="btn btn-outline btn-sm"></button>
+          <button id="delete-btn" type="button" class="btn btn-danger btn-sm" data-icon="delete">Delete</button>
+          <button id="close-detail-btn" type="button" class="btn btn-outline btn-sm" data-icon="close">Close</button>
+        </div>
+      </div>
+
+      <div class="section-label-row">
+        <h3>Project grants</h3>
+        <button id="add-grant-btn" type="button" class="btn btn-outline btn-sm" data-icon="add">Add grant</button>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr><th>Project</th><th>Allowed secrets</th><th>Status</th><th>Updated</th><th>Actions</th></tr>
+          </thead>
+          <tbody id="grants-tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="section-label-row"><h3>Leases</h3></div>
+      <div class="table-wrap">
+        <table class="table leases-table">
+          <thead>
+            <tr>
+              <th>Lease</th><th>Project</th><th>API key</th><th>State</th><th>Issued</th>
+              <th>Last renewed</th><th>Expires</th><th>Revoked</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="leases-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  {{> confirm_modal}}
+
+  {{> footer}}
+
+  <script src="/admin/static/js/icons.js"></script>
+  <script src="/admin/static/js/toast.js"></script>
+  <script src="/admin/static/js/topbar.js"></script>
+  <script src="/admin/static/js/clipboard.js"></script>
+  <script src="/admin/static/js/confirm-modal.js"></script>
+  <script src="/admin/static/js/workers.js"></script>
+</body>
+</html>

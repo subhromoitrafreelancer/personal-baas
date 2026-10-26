@@ -40,4 +40,4 @@ The completed consumer spike restarted Rust during active work and restarted con
 
 ## Other known follow-ups (outside these two tests)
 
-Admin list/detail UI/API, machine credential rotation, integration re-enable, lease/key cleanup, log/browser inspection, and replacement of retired upstream MinIO distribution image references remain separate work. They are not silently included in this review branch or marked tested.
+Lease/key cleanup, log/browser inspection, and replacement of retired upstream MinIO distribution image references remain separate work. They are not silently included in this review branch or marked tested.

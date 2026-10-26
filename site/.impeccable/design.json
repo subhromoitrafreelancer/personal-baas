@@ -1,0 +1,270 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-18T13:11:32.277603+00:00",
+  "title": "Design System: Stead",
+  "extensions": {
+    "colorMeta": {
+      "linen-paper": {
+        "role": "neutral",
+        "displayName": "Linen Paper",
+        "canonical": "#f1ece0",
+        "tonalRamp": [
+          "#3a362b",
+          "#5a5444",
+          "#7d7561",
+          "#a39b86",
+          "#c4bca6",
+          "#dcd5c1",
+          "#e8e1d0",
+          "#f1ece0"
+        ]
+      },
+      "linen-paper-shade": {
+        "role": "neutral",
+        "displayName": "Linen Shade",
+        "canonical": "#e8e1d0",
+        "tonalRamp": [
+          "#38342a",
+          "#57513f",
+          "#7a725b",
+          "#9d9479",
+          "#bdb398",
+          "#d3cab4",
+          "#e8e1d0",
+          "#f1ece0"
+        ]
+      },
+      "survey-ink": {
+        "role": "primary",
+        "displayName": "Survey Ink",
+        "canonical": "#1d3b34",
+        "tonalRamp": [
+          "#0b1714",
+          "#122520",
+          "#1d3b34",
+          "#2f5a4f",
+          "#4b7a6e",
+          "#7aa095",
+          "#a9c4bb",
+          "#d6e4df"
+        ]
+      },
+      "body-graphite": {
+        "role": "neutral",
+        "displayName": "Body Graphite",
+        "canonical": "#2b2b2b",
+        "tonalRamp": [
+          "#111111",
+          "#1c1c1c",
+          "#2b2b2b",
+          "#4a4a4a",
+          "#6b6b6b",
+          "#8f8f8f",
+          "#b8b8b8",
+          "#e0e0e0"
+        ]
+      },
+      "muted-lichen": {
+        "role": "neutral",
+        "displayName": "Muted Lichen",
+        "canonical": "#4d5a54",
+        "tonalRamp": [
+          "#1a1f1d",
+          "#2b332f",
+          "#3c4640",
+          "#4d5a54",
+          "#697770",
+          "#8a968f",
+          "#b0b9b4",
+          "#d6dbd8"
+        ]
+      },
+      "boundary-rust": {
+        "role": "accent",
+        "displayName": "Boundary Rust",
+        "canonical": "#a8431f",
+        "tonalRamp": [
+          "#3a1809",
+          "#5c2812",
+          "#7e3419",
+          "#a8431f",
+          "#c46a45",
+          "#d98f6f",
+          "#ebb9a3",
+          "#f6ddd1"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "One h1 per page, Josefin Sans 700; hero steps down to clamp(2.3rem, 4.8vw, 4.1rem)."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Section h2."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "h3 and lot names."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Source Serif 4 prose, max 68ch."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Tracked uppercase Josefin for nav, buttons, table heads, form labels, tags."
+      },
+      "code": {
+        "displayName": "Code",
+        "purpose": "Commands, schema names, lot bearings and edge labels, code blocks."
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "ease",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "All state transitions and the lot wipe."
+      },
+      {
+        "name": "button-transition",
+        "value": "0.18s on background-color, color, transform",
+        "purpose": "Button hover and press."
+      },
+      {
+        "name": "survey-wipe",
+        "value": "0.9s clip-path inset reveal, stagger 0.12s per lot",
+        "purpose": "Lots draw in left to right; only under prefers-reduced-motion: no-preference."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "collapse",
+        "value": "900px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Solid Button",
+      "kind": "button",
+      "refersTo": "button-solid",
+      "description": "Standard ink-filled primary action.",
+      "html": "<a class=\"ds-btn-solid\" href=\"#\">Send a survey request</a>",
+      "css": ".ds-btn-solid{display:inline-flex;align-items:center;justify-content:center;font-family:'Josefin Sans',sans-serif;font-weight:700;letter-spacing:.1em;text-transform:uppercase;font-size:.9rem;padding:14px 22px;min-height:48px;text-decoration:none;cursor:pointer;border:2px solid #1d3b34;transition:background-color .18s cubic-bezier(.16,1,.3,1),color .18s cubic-bezier(.16,1,.3,1);background:#1d3b34;color:#f1ece0}.ds-btn-solid:hover{background:transparent;color:#1d3b34}.ds-btn-solid:focus-visible{outline:3px solid #1d3b34;outline-offset:3px}"
+    },
+    {
+      "name": "GitHub Button",
+      "kind": "button",
+      "refersTo": "button-github",
+      "description": "The only rust button; one per page.",
+      "html": "<a class=\"ds-btn-github\" href=\"#\">Get it on GitHub</a>",
+      "css": ".ds-btn-github{display:inline-flex;align-items:center;justify-content:center;font-family:'Josefin Sans',sans-serif;font-weight:700;letter-spacing:.1em;text-transform:uppercase;font-size:.9rem;padding:14px 22px;min-height:48px;text-decoration:none;cursor:pointer;border:2px solid #1d3b34;transition:background-color .18s cubic-bezier(.16,1,.3,1),color .18s cubic-bezier(.16,1,.3,1);background:#a8431f;border-color:#a8431f;color:#fbf7ee}.ds-btn-github:hover{background:#1d3b34;border-color:#1d3b34;color:#f1ece0}.ds-btn-github:focus-visible{outline:3px solid #1d3b34;outline-offset:3px}"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Secondary action: ink outline, fills on hover.",
+      "html": "<a class=\"ds-btn\" href=\"#\">Read the article</a>",
+      "css": ".ds-btn{display:inline-flex;align-items:center;justify-content:center;font-family:'Josefin Sans',Arial,sans-serif;font-weight:700;letter-spacing:.1em;text-transform:uppercase;font-size:.9rem;padding:14px 22px;min-height:48px;text-decoration:none;border:2px solid #1d3b34;background:transparent;color:#1d3b34;transition:background-color .18s,color .18s}.ds-btn:hover{background:#1d3b34;color:#f1ece0}.ds-btn:focus-visible{outline:3px solid #1d3b34;outline-offset:3px}"
+    },
+    {
+      "name": "Navigation",
+      "kind": "nav",
+      "refersTo": "navigation",
+      "description": "Wordmark left, tracked-caps links right; current page is a 2px ink underline.",
+      "html": "<nav class=\"ds-nav\"><a href=\"#\" aria-current=\"page\">The article</a><a href=\"#\">GitHub</a><a href=\"#\">Contact</a></nav>",
+      "css": ".ds-nav{display:flex;gap:28px;align-items:center;padding:18px 0;border-bottom:1px solid #1d3b34}.ds-nav a{font-family:'Josefin Sans',Arial,sans-serif;font-weight:600;letter-spacing:.12em;text-transform:uppercase;font-size:.8125rem;text-decoration:none;color:#1d3b34;padding:10px 2px}.ds-nav a:hover{color:#1d3b34}.ds-nav a:focus-visible{outline:3px solid #1d3b34;outline-offset:3px}.ds-nav a[aria-current=page]{border-bottom:2px solid #1d3b34}"
+    },
+    {
+      "name": "Title Block",
+      "kind": "custom",
+      "refersTo": "title-block",
+      "description": "Survey title block closing the plat: pitch with install command beside GitHub button and contact link.",
+      "html": "<aside class=\"ds-tb\"><div class=\"ds-pitch\"><p class=\"ds-label\">Stead \u00b7 one install, many projects</p><p>Postgres, PostgREST, a NestJS control service and Caddy, started with one command.</p><code class=\"ds-cmd\">docker compose up --build</code></div><div class=\"ds-act\"><a class=\"ds-gh\" href=\"#\">Get it on GitHub</a><a class=\"ds-plain\" href=\"#\">Or talk to me about your project</a></div></aside>",
+      "css": ".ds-tb{display:grid;grid-template-columns:1.3fr 1fr;border-top:1.5px solid #1d3b34;border-left:1.5px solid #1d3b34;background:#f1ece0;color:#2b2b2b}.ds-pitch{padding:18px 22px;border-right:1px solid rgba(29,59,52,.28)}.ds-pitch p{margin:0 0 12px}.ds-label{font-family:'Josefin Sans',sans-serif;font-weight:600;letter-spacing:.14em;text-transform:uppercase;font-size:.8125rem;color:#1d3b34}.ds-cmd{display:block;font-family:'JetBrains Mono',monospace;font-size:.84rem;padding:10px 12px;border:1px solid #1d3b34;background:#e8e1d0;white-space:nowrap;overflow-x:auto}.ds-act{display:grid;gap:10px;padding:18px 22px;align-content:center}.ds-gh{display:flex;justify-content:center;align-items:center;min-height:48px;background:#a8431f;border:2px solid #a8431f;color:#fbf7ee;font-family:'Josefin Sans',sans-serif;font-weight:700;letter-spacing:.1em;text-transform:uppercase;font-size:.9rem;text-decoration:none}.ds-gh:hover{background:#1d3b34;border-color:#1d3b34;color:#f1ece0}.ds-gh:focus-visible{outline:3px solid #1d3b34;outline-offset:3px}.ds-plain{text-align:center;font-family:'Josefin Sans',sans-serif;font-weight:600;letter-spacing:.1em;text-transform:uppercase;font-size:.8125rem;color:#1d3b34;padding:8px}"
+    },
+    {
+      "name": "Live Lot",
+      "kind": "card",
+      "refersTo": "lot-tag",
+      "description": "Built project: solid border with a rust corner marker. Unbuilt lots use a dashed border and hatching.",
+      "html": "<article class=\"ds-lot\"><span class=\"ds-bearing\">LOT 1</span><h3>Recruitment tracker</h3><p class=\"ds-schema\">api_ats</p><ul><li>Sign-in</li><li>Roles</li></ul></article>",
+      "css": ".ds-lot{position:relative;padding:22px;border:1.5px solid #1d3b34;background:#f1ece0}.ds-lot::after{content:'';position:absolute;left:-2px;top:-2px;width:10px;height:10px;background:#a8431f}.ds-lot h3{font-family:'Josefin Sans',Arial,sans-serif;font-weight:600;font-size:1.35rem;color:#1d3b34;margin:.25rem 0 .2rem}.ds-bearing{position:absolute;right:12px;top:8px;font-family:'JetBrains Mono',monospace;font-size:.68rem;color:#4d5a54}.ds-schema{font-family:'JetBrains Mono',monospace;font-size:.82rem;color:#4d5a54;margin:0 0 12px}.ds-lot ul{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:8px}.ds-lot li{font-family:'Josefin Sans',Arial,sans-serif;font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:.75rem;border:1px solid #1d3b34;padding:6px 10px;color:#1d3b34;background:#f1ece0}"
+    },
+    {
+      "name": "Form Field",
+      "kind": "input",
+      "refersTo": "field-input",
+      "description": "Ruled field with tracked-caps label and ink focus outline.",
+      "html": "<div class=\"ds-field\"><label for=\"n\">Your name</label><input id=\"n\" type=\"text\"></div>",
+      "css": ".ds-field{padding:14px 16px 16px;border-bottom:1px solid rgba(29,59,52,.28);background:#f1ece0}.ds-field label{display:block;font-family:'Josefin Sans',Arial,sans-serif;font-weight:700;letter-spacing:.12em;text-transform:uppercase;font-size:.75rem;color:#1d3b34;margin-bottom:8px}.ds-field input{width:100%;font:inherit;font-size:1rem;color:#2b2b2b;background:#e8e1d0;border:1px solid #1d3b34;padding:11px 12px;min-height:46px;border-radius:0;caret-color:#1d3b34}.ds-field input:focus{outline:3px solid #1d3b34;outline-offset:0}"
+    },
+    {
+      "name": "Schedule Table",
+      "kind": "custom",
+      "refersTo": "schedule-head",
+      "description": "Ink-headed comparison table.",
+      "html": "<table class=\"ds-sched\"><thead><tr><th>Job</th><th>Normally you build</th><th>In Stead</th></tr></thead><tbody><tr><th>Sign-in</th><td>Passwords, sessions</td><td>Built in</td></tr></tbody></table>",
+      "css": ".ds-sched{width:100%;border-collapse:collapse;border:2px solid #1d3b34;background:#f1ece0;font-family:'Source Serif 4',Georgia,serif}.ds-sched th,.ds-sched td{text-align:left;vertical-align:top;padding:12px 16px;border-bottom:1px solid rgba(29,59,52,.28)}.ds-sched thead th{font-family:'Josefin Sans',Arial,sans-serif;font-weight:700;letter-spacing:.12em;text-transform:uppercase;font-size:.78rem;background:#1d3b34;color:#f1ece0;border-bottom:0}.ds-sched tbody th{font-family:'Josefin Sans',Arial,sans-serif;font-weight:700;color:#1d3b34}.ds-sched td:nth-child(2){color:#4d5a54}.ds-sched td:last-child{color:#1d3b34;font-weight:600}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Survey Plat",
+    "overview": "Every page is a sheet from a land surveyor's drawer. Linen paper carries a faint 48px drafting grid, a double-ruled map border frames the content, and deep green survey ink does all the drawing. Projects are lots, schema boundaries are fence lines, the compose stack is a title block. The voice is exact, hand-measured and calm: hairline and 2px rules, square corners, uppercase draughtsman lettering for labels, and a readable book serif for everything that is prose.\n\nDensity is moderate and structural. Content is organised by ruled boxes (title block, plat, schedule table, survey form) rather than by cards floating on a surface. Rust is the only warm voice and it is rationed to two marks: the GitHub button and the corner marker of the live lot. Everything else, including focus, links, nav state and every other button, is ink on paper. A dark variant (\"night plat\") follows `prefers-color-scheme` with the same roles remapped.",
+    "keyCharacteristics": [
+      "Linen paper with a 7%-ink 48px grid; ink-only linework",
+      "Double-ruled sheet border (1px outer, 5px gap, 2.5px inner)",
+      "Square corners everywhere; no shadows",
+      "Three-face system: Josefin Sans for lettering, Source Serif 4 for prose, JetBrains Mono for commands and schema names",
+      "Solid line = built, dashed or hatched = not yet built",
+      "Fonts self-hosted from assets/fonts via assets/fonts.css (no third-party font requests)"
+    ],
+    "rules": [
+      {
+        "name": "The Rust Is Rationed Rule",
+        "body": "Rust appears only on the GitHub button and the live-lot corner marker. Focus, nav current page, link hover, form accents and error text are ink. Every other primary button is ink-filled (`.btn-solid`). Never rust on headings, decoration, dividers or other buttons.",
+        "section": "colors"
+      },
+      {
+        "name": "The Ink-Only Linework Rule",
+        "body": "Every rule, border and grid line is Survey Ink at full strength or at a stated alpha. No grays, no tinted dividers of another hue.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two Voices Rule",
+        "body": "Josefin letters things; Source Serif explains them. Never set a paragraph in Josefin or a label in the serif. Italic serif is reserved for hints and article standfirsts. Placeholder text is marked with `mark.todo`: Josefin 600 in ink inside a 2px dashed ink box, no fill.",
+        "section": "typography"
+      },
+      {
+        "name": "The Mono Is Literal Rule",
+        "body": "JetBrains Mono appears only for text a reader could type or find in a repo: commands, schema names, code, bearing marks and survey edge labels.",
+        "section": "typography"
+      },
+      {
+        "name": "The Line-Weight Hierarchy Rule",
+        "body": "Importance is expressed by rule weight and fill, never by shadow. Panels are 2px ink, dividers 1px, inner borders of a panel 1px at the Rule alpha.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** frame every page in the double-ruled sheet and keep the 48px grid visible behind it.",
+      "**Do** draw with Survey Ink only; reserve rust for the GitHub button and the live-lot marker.",
+      "**Do** keep corners square and depth flat; vary rule weight instead.",
+      "**Do** set labels in tracked uppercase Josefin and prose in Source Serif 4 capped at 68ch.",
+      "**Do** mark built things with solid lines and unbuilt things with dashes or hatching.",
+      "**Do** keep 3px ink focus outlines and 46 to 48px minimum control heights.",
+      "**Do** gate the lot wipe behind `prefers-reduced-motion: no-preference`."
+    ],
+    "donts": [
+      "**Don't** use rust for headings, decoration, dividers, focus, links, nav state or any button other than GitHub.",
+      "**Don't** introduce shadows, rounded cards, glassmorphism or gradient fills.",
+      "**Don't** set paragraphs in Josefin or labels in the serif; don't use a default-list display face.",
+      "**Don't** lay content out as a headline-over-subcopy plus feature-card grid; use ruled lots, tables and the title block.",
+      "**Don't** add a third accent hue; extra emphasis comes from ink weight, not new color."
+    ]
+  }
+}

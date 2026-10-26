@@ -3,6 +3,7 @@ import {
   Body,
   CanActivate,
   Controller,
+  Delete,
   ExecutionContext,
   Get,
   Header,
@@ -16,7 +17,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { EnvConfig } from '../../config/env.schema';
 import { AuthAuditService } from '../auth/auth-audit.service';
@@ -31,6 +32,7 @@ function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   if (!p.success) throw new BadRequestException('Invalid worker request');
   return p.data;
 }
+export const generateCredential = () => randomBytes(48).toString('base64url');
 export const credentialHash = (value: string) => createHash('sha256').update(value).digest('hex');
 interface WorkerRequest extends Request {
   workerIntegration?: string;
@@ -93,6 +95,23 @@ export class WorkerAdminController {
     if (!this.config.get('WORKER_INTEGRATIONS_ENABLED', { infer: true }))
       throw new NotFoundException();
   }
+  // Feature-flag probe for the admin page: deliberately does not 404 when the feature is off,
+  // so /admin/workers can render an explanatory state instead of an error.
+  @Get()
+  @Header('Cache-Control', 'no-store')
+  async list() {
+    if (!this.config.get('WORKER_INTEGRATIONS_ENABLED', { infer: true }))
+      return { featureEnabled: false, integrations: [] };
+    return { featureEnabled: true, integrations: await this.repo.list() };
+  }
+  @Get(':integration')
+  @Header('Cache-Control', 'no-store')
+  async detail(@Param('integration') integration: string) {
+    this.enabled();
+    return this.repo.detail(parse(uuid, integration));
+  }
+  // `credential` is optional: when omitted the server generates one (48 random bytes,
+  // base64url = 64 chars) and returns it exactly once. Only its SHA-256 is stored.
   @Post()
   @Header('Cache-Control', 'no-store')
   async register(@Body() body: unknown, @Req() req: RequestWithAdmin) {
@@ -101,14 +120,69 @@ export class WorkerAdminController {
       z
         .object({
           name: z.string().min(1).max(100),
-          credential: z.string().regex(/^[A-Za-z0-9_-]{43,128}$/),
+          credential: z
+            .string()
+            .regex(/^[A-Za-z0-9_-]{43,128}$/)
+            .optional(),
         })
         .strict(),
       body,
     );
-    const result = await this.repo.register(data.name, credentialHash(data.credential));
+    const generated = data.credential === undefined;
+    const credential = data.credential ?? generateCredential();
+    const result = await this.repo.register(data.name, credentialHash(credential));
     this.audit.record(null, 'worker.integration_registered', null, null, {
       integrationId: result.id,
+      generated,
+      by: req.admin!.email,
+    });
+    return generated ? { ...result, credential } : result;
+  }
+  @Post(':integration/enable')
+  async enable(@Param('integration') integration: string, @Req() req: RequestWithAdmin) {
+    this.enabled();
+    const result = await this.repo.enable(parse(uuid, integration));
+    this.audit.record(null, 'worker.integration_enabled', null, null, {
+      integrationId: integration,
+      by: req.admin!.email,
+    });
+    return result;
+  }
+  // Hard swap: the previous credential stops authenticating immediately. Issued leases and
+  // their API keys are unaffected (they are separate credentials); revoke them explicitly.
+  @Post(':integration/credential')
+  @Header('Cache-Control', 'no-store')
+  async rotate(@Param('integration') integration: string, @Req() req: RequestWithAdmin) {
+    this.enabled();
+    const credential = generateCredential();
+    await this.repo.rotateCredential(parse(uuid, integration), credentialHash(credential));
+    this.audit.record(null, 'worker.credential_rotated', null, null, {
+      integrationId: integration,
+      by: req.admin!.email,
+    });
+    return { credential };
+  }
+  @Post(':integration/leases/:lease/revoke')
+  async revokeLease(
+    @Param('integration') integration: string,
+    @Param('lease') lease: string,
+    @Req() req: RequestWithAdmin,
+  ) {
+    this.enabled();
+    const result = await this.repo.revokeLease(parse(uuid, integration), parse(uuid, lease));
+    this.audit.record(null, 'worker.lease_revoked', null, null, {
+      integrationId: integration,
+      leaseId: lease,
+      by: req.admin!.email,
+    });
+    return result;
+  }
+  @Delete(':integration')
+  async remove(@Param('integration') integration: string, @Req() req: RequestWithAdmin) {
+    this.enabled();
+    const result = await this.repo.remove(parse(uuid, integration));
+    this.audit.record(null, 'worker.integration_deleted', null, null, {
+      integrationId: integration,
       by: req.admin!.email,
     });
     return result;

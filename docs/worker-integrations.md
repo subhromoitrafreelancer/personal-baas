@@ -2,7 +2,9 @@
 
 This is a generic personal-baas feature for trusted background services. It lets a Rust server, Python worker or other internal service discover its assigned projects, obtain short-lived project API credentials and resolve approved project vault secrets after a browser request has ended.
 
-The first implementation is API-only. There is no new admin page or UI toggle. The feature is prepared on the `feature/worker-integrations` review branch. It is not part of the published 0.8.2 image. Build an explicitly tagged review image; do not overwrite a stable release tag.
+The admin console has a **Workers** page (`/admin/workers`, under Integrations) for managing integrations, grants and leases; everything it does is also available through the admin API below. It always appears in the nav and explains how to enable the feature when the flag is off. The feature is prepared on the `feature/worker-integrations` review branch. It is not part of the published 0.8.2 image; it is planned to ship in control-server 0.8.3 together with the admin UI. Build an explicitly tagged review image; do not overwrite a stable release tag.
+
+Planned admin-console work for this feature is scoped in [worker-integrations-ui-scope.md](worker-integrations-ui-scope.md).
 
 See [validation evidence](worker-integrations-validation.md), [deferred tests](worker-integrations-follow-ups.md), and the [review notes](worker-integrations-review.md). Full-stack regression and failure-recovery tests are explicitly deferred; production rollout is not approved by the spike alone.
 
@@ -38,7 +40,7 @@ The global flag gates the new admin/broker endpoints. It does **not** automatica
 
 Generate one cryptographically random machine credential. The provisioner uses Python's `secrets.token_urlsafe(48)`. The API accepts URL-safe characters (`A–Z`, `a–z`, digits, underscore, hyphen), length 43–128.
 
-Provision it through a protected file or secret mount for the worker. Send it once to the BaaS registration endpoint using an existing platform-admin session:
+Provision it through a protected file or secret mount for the worker. In the console, use **Workers → Register integration**: the server generates the credential and shows it once. For scripted setups, send your own once to the BaaS registration endpoint using an existing platform-admin session:
 
 ```http
 POST /admin/v1/worker-integrations
@@ -52,7 +54,7 @@ Content-Type: application/json
 }
 ```
 
-Save the returned integration `id`. BaaS stores a SHA-256 verifier, not the plaintext credential, and does not return the credential in the registration response. It is separate from user JWTs, project API keys and provider secrets. This bootstrap credential is the one credential the worker needs before it can ask BaaS for project-specific access.
+Omit `credential` to have the server generate one; it is returned once as `credential` in the response. Save the returned integration `id`. BaaS stores a SHA-256 verifier, not the plaintext credential, and does not return the credential in the registration response. It is separate from user JWTs, project API keys and provider secrets. This bootstrap credential is the one credential the worker needs before it can ask BaaS for project-specific access.
 
 All admin operations below require the existing admin-session cookie. No admin cookie belongs in the browser application or Rust worker.
 
@@ -131,11 +133,28 @@ To disable all project access for one integration:
 POST /admin/v1/worker-integrations/<integration-id>/disable
 ```
 
-Integration disablement currently has no corresponding re-enable endpoint. Credential rotation also has no dedicated API yet. A replacement identity can be registered under a new name, granted its projects, and provisioned to the worker before disabling the old identity.
+Further admin operations (all `/admin/v1/worker-integrations/...`, all audited):
+
+| Operation | Request |
+|---|---|
+| List (always 200; `featureEnabled:false` when the flag is off) | `GET /` |
+| Detail with grants and every lease field | `GET /<id>` |
+| Re-enable (revoked keys are not resurrected; workers need new leases) | `POST /<id>/enable` |
+| Rotate credential (hard swap, old one stops immediately; new one returned once) | `POST /<id>/credential` |
+| Revoke one lease and its API key | `POST /<id>/leases/<lease-id>/revoke` |
+| Delete (revokes issued keys, cascades grants/leases) | `DELETE /<id>` |
+
+Leases already issued are separate credentials: rotating the machine credential does not revoke them.
 
 A worker grant does not disable normal application users or master-data access. This was verified in the spike: project A sign-in and ordinary reads still worked after A's worker access was revoked.
 
 PostgREST 12.2.3 allows 30 seconds of JWT clock skew; natural token-expiry acceptance can therefore differ from strict lease/broker/storage checks. Explicit key revocation is checked through the existing REST/storage revocation paths and was validated by the live harness.
+
+### Concurrency note (post-0.8.2 fix)
+
+Lease mint/renew and secret resolution run inside one transaction that holds row locks on the integration and grant. Project lookup and vault reads inside that transaction reuse the same locked connection (`ProjectsService.getById(id, db)`, `VaultService.resolveForFunction(project, name, db)`). Earlier builds of this branch borrowed a second pool connection for those lookups; under concurrent worker traffic every pooled connection could end up waiting on a row lock held by a request that was itself waiting for a free connection, stalling the control server. Regression coverage is in `apps/control-server/test/worker-pool.spec.ts`. Any new code called from inside `WorkerRepository.authorized()` must accept and use the supplied `PoolClient` rather than the shared pool.
+
+Audit events written by this feature: `worker.integration_registered`, `worker.integration_enabled`, `worker.integration_disabled`, `worker.integration_deleted`, `worker.credential_rotated`, `worker.grant_updated`, `worker.lease_created`, `worker.lease_renewed`, `worker.lease_revoked`, `worker.secret_read` (secret reads are audited here, unlike invocation-scoped function reads).
 
 ## 7. What remains application responsibility
 
@@ -164,6 +183,6 @@ The distribution kit already uses `BAAS_CONTROL_SERVER_IMAGE` for both the migra
 
 The consumer spike already has a registered integration and two project grants. Its final test deliberately disables A's worker grant while leaving B active. Re-enable an existing project via its grant endpoint, rather than registering everything again.
 
-There are no admin list/detail, credential rotation, or integration re-enable APIs yet. Expired lease/key retention is also deferred. The registration/grant/disable API supports scripted provisioning; it is not a complete admin management UI. See [follow-ups](worker-integrations-follow-ups.md).
+Expired lease/key retention (cleanup) is still deferred. See [follow-ups](worker-integrations-follow-ups.md).
 
 The spike's Chainguard MinIO adaptation was an application deployment override, separate from this feature branch. The inherited BaaS distribution still contains the old MinIO registry references; see the [validation notes](worker-integrations-validation.md) before reproducing a fresh full stack. Worker Integrations does not alter the existing storage API.

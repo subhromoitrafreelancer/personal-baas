@@ -71,3 +71,5 @@ config drift) the snapshot restore above is the reliable path.
 See [worker-integrations.md](worker-integrations.md) before enabling the new API-only broker. Its platform migration is additive; runtime defaults remain disabled. Both supported Compose files forward `WORKER_INTEGRATIONS_ENABLED` and `WORKER_LEASE_TTL_SECONDS` from the environment. Use the same feature-enabled image for migrations and control-server; retain existing signing/vault keys during an upgrade.
 
 Full-stack compatibility and migration down/up acceptance are [parked as WI-REG-01](worker-integrations-follow-ups.md). Do not interpret existing SDK tests or the external consumer spike as completing that work. Test the migration rollback only against a disposable database.
+
+The worker feature also includes a post-0.8.2 fix for a connection-pool deadlock during concurrent lease/secret requests (see the concurrency note in [worker-integrations.md](worker-integrations.md)). Use an image built from a commit at or after `5ee60e9`; earlier review builds should not be run with multiple active workers.

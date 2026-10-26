@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 450" role="img" aria-labelledby="t1 d1" font-family="'Josefin Sans','Helvetica Neue',Arial,sans-serif">
+  <title id="t1">Stead architecture, simplified</title>
+  <desc id="d1">An app sends requests to Caddy, the one public door. Inside your server, Caddy forwards data requests to PostgREST and everything else to the control service. PostgREST and the control service use Postgres. The control service also uses MinIO for files and a function runner for serverless code.</desc>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#1d3b34"/></marker>
+    <marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#1d3b34"/></marker>
+  </defs>
+  <rect width="900" height="450" fill="#f1ece0"/>
+  <rect x="8" y="8" width="884" height="434" fill="none" stroke="#1d3b34" stroke-width="1"/>
+  <rect x="13" y="13" width="874" height="424" fill="none" stroke="#1d3b34" stroke-width="2.5"/>
+  <!-- fence -->
+  <rect x="215" y="42" width="650" height="340" fill="none" stroke="#1d3b34" stroke-width="1.5" stroke-dasharray="9 5"/>
+  <text x="229" y="66" font-size="14" letter-spacing="2" fill="#1d3b34" font-weight="600">YOUR SERVER · DOCKER COMPOSE</text>
+  <g fill="#f1ece0" stroke="#1d3b34" stroke-width="1.6">
+    <rect x="34" y="190" width="140" height="64"/>
+    <rect x="245" y="190" width="130" height="64" stroke="#1d3b34" stroke-width="3.2"/>
+    <rect x="455" y="92" width="150" height="64"/>
+    <rect x="455" y="190" width="150" height="64"/>
+    <rect x="455" y="288" width="150" height="64" stroke-dasharray="5 3"/>
+    <rect x="685" y="92" width="150" height="64"/>
+    <rect x="685" y="190" width="150" height="64"/>
+    <rect x="685" y="288" width="150" height="64"/>
+  </g>
+  <g fill="#1d3b34" text-anchor="middle" font-size="19" font-weight="700">
+    <text x="104" y="218">Your app</text>
+    <text x="310" y="218" fill="#1d3b34">Caddy</text>
+    <text x="530" y="120">PostgREST</text>
+    <text x="530" y="218">Control service</text>
+    <text x="530" y="316">Function runner</text>
+    <text x="760" y="120">Postgres</text>
+    <text x="760" y="218">MinIO</text>
+    <text x="760" y="316">Admin console</text>
+  </g>
+  <g fill="#2b2b2b" text-anchor="middle" font-size="13">
+    <text x="104" y="238">browser · SDK · curl</text>
+    <text x="310" y="238">the one public door</text>
+    <text x="530" y="140">tables become REST</text>
+    <text x="530" y="238">sign-in · files · jobs</text>
+    <text x="530" y="336">isolated worker</text>
+    <text x="760" y="140">data + row-level rules</text>
+    <text x="760" y="238">object storage</text>
+    <text x="760" y="336">SQL editor · API explorer</text>
+  </g>
+  <g fill="none" stroke="#1d3b34" stroke-width="1.8" marker-end="url(#a)">
+    <path d="M174 222H243" stroke="#1d3b34" marker-end="url(#r)"/>
+    <path d="M375 214L420 214L420 124L453 124"/>
+    <path d="M375 230H453"/>
+    <path d="M605 124H683"/>
+    <path d="M605 204L645 204L645 140L683 140"/>
+    <path d="M605 222H683"/>
+    <path d="M530 254V286" />
+  </g>
+  <text x="34" y="420" font-size="13" fill="#1d3b34" letter-spacing="2">FIG. 1 · THE WHOLE STACK, SIMPLIFIED. DASHED BOX = YOUR HARDWARE</text>
+</svg>

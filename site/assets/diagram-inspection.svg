@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 400" role="img" aria-labelledby="t2 d2" font-family="'Josefin Sans','Helvetica Neue',Arial,sans-serif">
+  <title id="t2">Field inspection flow</title>
+  <desc id="d2">A technician ticks a checklist and uploads photos to storage. The submitted inspection is saved in Postgres under row-level rules. A function totals failed items and flags the site, then a PDF report goes to the office. Separately, a daily scheduler finds overdue inspections and emails the technician.</desc>
+  <defs>
+    <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#1d3b34"/></marker>
+    <marker id="r2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#1d3b34"/></marker>
+  </defs>
+  <rect width="900" height="400" fill="#f1ece0"/>
+  <rect x="8" y="8" width="884" height="384" fill="none" stroke="#1d3b34" stroke-width="1"/>
+  <rect x="13" y="13" width="874" height="374" fill="none" stroke="#1d3b34" stroke-width="2.5"/>
+  <text x="34" y="52" font-size="14" letter-spacing="2" fill="#1d3b34" font-weight="600">LOT api_inspections · AN IDEA, NOT YET BUILT</text>
+  <g fill="#f1ece0" stroke="#1d3b34" stroke-width="1.6">
+    <rect x="30" y="80" width="150" height="82"/>
+    <rect x="212" y="80" width="150" height="82"/>
+    <rect x="394" y="80" width="150" height="82"/>
+    <rect x="576" y="80" width="150" height="82"/>
+    <rect x="740" y="80" width="130" height="82" stroke="#1d3b34" stroke-width="3.2"/>
+    <rect x="30" y="240" width="170" height="82" stroke-dasharray="5 3"/>
+    <rect x="292" y="240" width="170" height="82"/>
+    <rect x="554" y="240" width="170" height="82"/>
+  </g>
+  <g fill="#1d3b34" text-anchor="middle" font-size="17" font-weight="700">
+    <text x="105" y="114">Technician</text>
+    <text x="287" y="114">Storage</text>
+    <text x="469" y="114">Postgres</text>
+    <text x="651" y="114">Function</text>
+    <text x="805" y="114" fill="#1d3b34">PDF report</text>
+    <text x="115" y="274">Scheduler</text>
+    <text x="377" y="274">Function</text>
+    <text x="639" y="274">Email</text>
+  </g>
+  <g fill="#2b2b2b" text-anchor="middle" font-size="13">
+    <text x="105" y="136">ticks the checklist</text>
+    <text x="105" y="152">on a phone</text>
+    <text x="287" y="136">defect photos</text>
+    <text x="287" y="152">in a bucket</text>
+    <text x="469" y="136">saved inspection,</text>
+    <text x="469" y="152">only their sites</text>
+    <text x="651" y="136">totals failed items,</text>
+    <text x="651" y="152">flags the site</text>
+    <text x="805" y="136">goes to the office</text>
+    <text x="805" y="152">as a signed PDF</text>
+    <text x="115" y="296">every morning</text>
+    <text x="115" y="312">at 07:00</text>
+    <text x="377" y="296">finds overdue</text>
+    <text x="377" y="312">inspections</text>
+    <text x="639" y="296">reminds the</text>
+    <text x="639" y="312">technician</text>
+  </g>
+  <g fill="none" stroke="#1d3b34" stroke-width="1.8" marker-end="url(#a2)">
+    <path d="M180 121H210"/><path d="M362 121H392"/><path d="M544 121H574"/>
+    <path d="M726 121H738" stroke="#1d3b34" marker-end="url(#r2)"/>
+    <path d="M200 281H290"/><path d="M462 281H552"/>
+    <path d="M724 281H760V190H105V164" stroke-dasharray="6 4"/>
+  </g>
+  <text x="34" y="372" font-size="13" fill="#1d3b34" letter-spacing="2">FIG. 2 · A FIELD-INSPECTION APP BUILT FROM THE PARTS ALREADY IN THE BOX</text>
+</svg>

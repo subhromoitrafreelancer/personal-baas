@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="assets/fonts.css">
+<title>Stead: a backend you run yourself</title>
+<meta name="description" content="Point Stead at a Postgres schema and get a REST API, sign-in, file storage, functions and PDFs on a server you own.">
+<link rel="canonical" href="https://stead.dataharmoni.com/">
+<meta property="og:title" content="Stead: a backend you run yourself">
+<meta property="og:description" content="A REST API, sign-in, storage, functions and PDFs from a Postgres schema, on your own server.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://stead.dataharmoni.com/">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="sheet"><div class="sheet-inner">
+<header class="topbar">
+  <a class="wordmark" href="./"><svg class="north" viewBox="0 0 30 38" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M15 2L24 30L15 24L6 30Z" fill="currentColor"/><path d="M15 24V37"/></svg> STEAD</a>
+  <nav class="nav" aria-label="Main"><a href="article/">The article</a><a href="https://github.com/subhromoitrafreelancer/personal-baas">GitHub</a><a href="contact/">Contact</a></nav>
+</header>
+<main id="main">
+<section class="hero" aria-labelledby="h">
+  <h1 id="h">A steady backend you run yourself.</h1>
+  <p class="lede">Point Stead at a Postgres schema. You get a REST API, sign-in, file storage, serverless functions and PDFs, running on a server you own. No vendor account, no bill that grows with your users.</p>
+</section>
+
+<h2 class="sr-only">One install, many projects</h2>
+<section class="plat" aria-label="One install, many projects. Each project is a lot with its own schema.">
+  <article class="lot lot-live">
+    <span class="bearing" aria-hidden="true">LOT 1</span>
+    <h3>Recruitment tracker</h3>
+    <p class="schema">api_ats</p>
+    <p>Clients, team leads and recruiters, each seeing only their own slice. A React front end and no custom backend. In the repo as an example.</p>
+    <ul><li>Sign-in</li><li>Roles</li><li>Row-level rules</li><li>REST API</li></ul>
+    <span class="edge" aria-hidden="true">N 84°12′ E · 120.0 ft</span>
+  </article>
+  <article class="lot lot-b lot-idea">
+    <span class="bearing" aria-hidden="true">LOT 2</span>
+    <h3>Field inspections</h3>
+    <p class="schema">api_inspections</p>
+    <p>An app idea, drawn out in the article: photos, a checklist, a PDF report and a morning reminder.</p>
+    <ul><li>Storage</li><li>PDF</li><li>Scheduler</li></ul>
+    <span class="edge" aria-hidden="true">S 02°40′ E · 96.5 ft</span>
+  </article>
+  <article class="lot lot-c lot-idea">
+    <span class="bearing" aria-hidden="true">LOT 3</span>
+    <h3>Your next app</h3>
+    <p class="schema">api_yours</p>
+    <p>Each project gets its own schema and database roles, so one install can serve many apps without them seeing each other's rows.</p>
+    <ul><li>Functions</li><li>Vault</li><li>Email</li><li>Audit log</li></ul>
+    <span class="edge" aria-hidden="true">S 87°05′ W · 118.2 ft</span>
+  </article>
+  <div class="legend">
+    <svg class="north-big" viewBox="0 0 30 38" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M15 2L24 30L15 24L6 30Z" fill="currentColor"/><path d="M15 24V37"/></svg>
+    <p><span class="swatch"></span>Solid lot: an app that exists</p>
+    <p><span class="swatch hatch"></span>Hatched lot: an app not built yet</p>
+    <p class="label">Every capability on the lots is in the repo</p>
+  </div>
+  <aside class="titleblock" aria-label="Get Stead">
+    <div class="pitch">
+      <p>Postgres, PostgREST, a NestJS control service and Caddy, started with one command.</p>
+      <code class="cmd">docker compose up --build</code>
+    </div>
+    <div class="actions">
+      <a class="btn btn-github" href="https://github.com/subhromoitrafreelancer/personal-baas">Get it on GitHub</a>
+      <a class="plain" href="contact/">Or talk to me about your project</a>
+    </div>
+  </aside>
+</section>
+
+<section aria-labelledby="inside">
+  <h2 id="inside">What you stop building</h2>
+  <p>Most projects spend their first weeks on the same plumbing. Here is the plumbing, and what replaces it.</p>
+  <table class="schedule">
+    <caption class="label">Schedule of work you skip</caption>
+    <thead><tr><th scope="col">Job</th><th scope="col">Normally you build</th><th scope="col">In Stead</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Data API</th><td>Controllers and serializers per table</td><td>Generated from your Postgres schema</td></tr>
+      <tr><th scope="row">Who sees what</th><td>Checks scattered across endpoints</td><td>Row-level rules, in the database</td></tr>
+      <tr><th scope="row">Sign-in</th><td>Passwords, sessions, resets, MFA</td><td>Built in, with TOTP MFA and lockout</td></tr>
+      <tr><th scope="row">Files</th><td>An upload endpoint and storage wiring</td><td>Buckets with per-user access</td></tr>
+      <tr><th scope="row">Server logic</th><td>A service to deploy and keep alive</td><td>Functions in an isolated worker</td></tr>
+      <tr><th scope="row">Scheduled work</th><td>A cron host</td><td>A built-in scheduler</td></tr>
+      <tr><th scope="row">Documents</th><td>A PDF pipeline</td><td>PDFs generated on demand</td></tr>
+      <tr><th scope="row">Secrets</th><td>Env files passed around</td><td>An encrypted vault</td></tr>
+      <tr><th scope="row">Several apps</th><td>A fresh stack per client</td><td>Isolated projects on one install</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="split" aria-labelledby="know">
+  <h2 id="know">Know this before you install it</h2>
+  <ul class="notes">
+    <li>You run the server. That means backups and upgrades are yours. If nobody on your team wants that job, a managed service is the better call.</li>
+    <li>After you create a new project, PostgREST needs a restart to see its schema. It is one command.</li>
+    <li>It is early software, built by one person. I would like to hear what breaks.</li>
+    <li>Comfort with SQL helps a lot, because the database is where the rules live.</li>
+  </ul>
+</section>
+
+<section class="band" aria-labelledby="read">
+  <div>
+    <h2 id="read">How I use it, with real examples</h2>
+    <p>A short read on what changes for development time, docs and testing, why I built it, and one app you could build on it this weekend.</p>
+    <p><a class="btn" href="article/">Read the article</a></p>
+  </div>
+  <div class="stack">
+    <h2 class="h2-small">Tell me what you think</h2>
+    <p>What backend work do you rebuild on every project? What would stop you from trying this? I read every message.</p>
+    <p><a class="btn btn-solid" href="contact/">Send a survey request</a></p>
+  </div>
+</section>
+</main>
+<footer class="foot">
+  <p><span class="label">Stead</span> &nbsp;A backend you run yourself.</p>
+  <p><a href="https://github.com/subhromoitrafreelancer/personal-baas">Source on GitHub</a> · <a href="article/">Article</a> · <a href="contact/">Contact</a></p>
+</footer>
+</div></div>
+</body>
+</html>

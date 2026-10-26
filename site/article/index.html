@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="../assets/fonts.css">
+<title>I got tired of rebuilding the same backend, so I built one I own</title>
+<meta name="description" content="How Stead, a backend you run yourself, cuts the repeated work in a project: development time, docs and testing, with a worked example.">
+<link rel="canonical" href="https://stead.dataharmoni.com/article/">
+<meta property="og:title" content="I got tired of rebuilding the same backend, so I built one I own"><meta property="og:type" content="article"><meta property="og:url" content="https://stead.dataharmoni.com/article/">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="sheet"><div class="sheet-inner">
+<header class="topbar"><a class="wordmark" href="../"><svg class="north" viewBox="0 0 30 38" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M15 2L24 30L15 24L6 30Z" fill="currentColor"/><path d="M15 24V37"/></svg> STEAD</a>
+<nav class="nav" aria-label="Main"><a href="./" aria-current="page">The article</a><a href="https://github.com/subhromoitrafreelancer/personal-baas">GitHub</a><a href="../contact/">Contact</a></nav></header>
+<main id="main"><article class="article">
+<h1>I got tired of rebuilding the same backend, so I built one I own</h1>
+<p class="byline">By Subhro · 6 min read</p>
+<p><em>How Stead cuts the repeated work in a project, and what that does to dev time, docs and testing.</em></p>
+<p>Every project I take on starts the same way. Someone describes a screen. I nod. Then I spend the first two weeks on things nobody asked for: login, password resets, roles, a file upload endpoint, a CRUD API for tables I already designed, and a document nobody will read that explains the API.</p>
+<p>None of it is hard. That&#39;s the problem. It&#39;s work you can&#39;t skip and can&#39;t be proud of, and it eats the budget before the real product shows up.</p>
+<p>So I built a backend I could reuse and keep. It&#39;s called Stead. You point it at a Postgres schema and you get a REST API, user accounts, file storage, serverless functions, a scheduler and PDF generation, all running on a server you control. This post is about what that changed for me, with real examples, and where it doesn&#39;t fit.</p>
+<h2>What you actually get</h2>
+<p>Stead is a few well-known pieces wired together. Postgres holds your data. PostgREST turns your tables and views into a REST API. A small NestJS service handles everything that isn&#39;t a plain data call: sign-in, MFA, storage, functions, the scheduler and the admin console. Caddy sits in front as the one public door.</p>
+<figure><img src="../assets/diagram-architecture.svg" alt="Diagram: your app talks to Caddy, the one public door, which forwards data requests to PostgREST and everything else to the control service; both use Postgres, and the control service also uses file storage and a function runner." width="900" height="450"></figure>
+<p>You start it with Docker Compose. You create a project, run your schema in the SQL editor, and the API exists. Each project gets its own schema and its own database roles, so one install can serve several apps without them seeing each other&#39;s rows.</p>
+<p>The part I care about most is where the rules live. Who can read what is decided by Postgres, through row-level security, not by code in some service I wrote at 11pm. If a rule is wrong, it&#39;s wrong in one place, and I can read it.</p>
+<p>One honest caveat: after you create a new project, PostgREST needs a restart to see the new schema. It&#39;s a single command, but you do have to run it.</p>
+<h2>The first real test: a recruitment app</h2>
+<p>My first proper test was an applicant-tracking app. It has a hierarchy (client, then business development, department, team leads, recruiters, candidates), and every level should see only its own slice.</p>
+<p>The whole thing is a React front end on top of Stead. There is no custom backend. The database side is a 603-line SQL file: 15 tables, 30 row-level security policies and 6 SQL functions. The front end is about 30 components talking to the API through a small typed client.</p>
+<p>The 30 policies are the interesting number. In a conventional build, those rules end up scattered across controllers and middleware, and the only way to know they work is to hit every endpoint as every role. Here they sit in one file next to the tables they protect. When someone asked &quot;can a recruiter see another department&#39;s candidates?&quot;, I opened the file and answered in a minute.</p>
+<p>I&#39;ve used the same setup for an approval workflow at an automotive-parts manufacturer. Different industry, same shape: people sign in, see what&#39;s theirs, push a record through stages, and print it. I can&#39;t name the client or show screens, and I won&#39;t. What I can say is that nobody asked me to build a login page, and that saved a lot of time.</p>
+<h2>Where the time goes (and doesn&#39;t)</h2>
+<p>I&#39;m wary of invented benchmarks, so here are my own numbers, labelled as what they are.</p>
+<p><mark class="todo">[ESTIMATE: how long the auth, roles, CRUD API and file upload layer took you on previous projects, e.g. &quot;about two weeks&quot;]</mark>. On the ATS app, that layer was already there, so the work started at the schema and the screens. <mark class="todo">[ESTIMATE: how long the ATS app took end to end]</mark>.</p>
+<p>That&#39;s one developer&#39;s estimate across a couple of projects, not a study. Your mileage depends on how much of your project is the generic part. If most of it is clever domain logic, you&#39;ll save less.</p>
+<h2>Docs and testing are where it quietly pays</h2>
+<p>I didn&#39;t expect this part to matter as much as it does.</p>
+<p><strong>Docs.</strong> Stead generates an OpenAPI spec for the public integration surface, and the API explorer in the admin console lets a new teammate try calls without a separate tool. The API shape follows the schema, so the schema file is the documentation that can&#39;t go out of date. I still write about business rules. I no longer write about endpoints.</p>
+<p><strong>Testing.</strong> Most of what you&#39;d test in a hand-built API is permissions: can role A do X, can role B not do Y. When those rules are database policies, you test them where they live, with plain SQL, as a given role against a known set of rows. There&#39;s less mock-heavy plumbing, because there&#39;s less plumbing. I&#39;d be overselling it to say you need no other tests. You still test your functions and your front end. But the largest, most boring category gets smaller.</p>
+<h2>A use case you could build this weekend</h2>
+<p>Here&#39;s something I haven&#39;t built yet but would start tomorrow: a field-inspection app for a small maintenance company. Technicians walk a site, tick through a checklist, photograph defects, and the office gets a signed PDF report. Missed inspections get a reminder.</p>
+<p>It&#39;s a good fit because it touches almost everything Stead has:</p>
+<ul>
+<li><strong>Data:</strong> inspections, checklist items and findings in Postgres, with a policy so a technician only sees their own assigned sites.</li>
+<li><strong>Storage:</strong> defect photos uploaded to a bucket, linked to the finding.</li>
+<li><strong>Functions:</strong> when an inspection is submitted, a function totals the failed items and flags the site as needing follow-up.</li>
+<li><strong>PDF:</strong> the report is generated on demand from the same data, so the office never reformats anything by hand.</li>
+<li><strong>Scheduler and email:</strong> every morning, any inspection that&#39;s overdue triggers a reminder to the technician.</li>
+</ul>
+<figure><img src="../assets/diagram-inspection.svg" alt="Diagram: a technician ticks a checklist and uploads photos; the inspection is saved in Postgres, a function flags failures and a PDF report goes to the office; a daily scheduler emails the technician about overdue inspections." width="900" height="400"></figure>
+<p>The core of the access rule is short:</p>
+<pre><code class="language-sql">create policy &quot;technicians_own_sites&quot; on api_inspections.inspections
+  for select using (
+    technician_id = auth.uid()
+    or api_inspections.current_role() = &#39;OFFICE&#39;
+  );
+</code></pre>
+<p>Everything else is a schema, a few functions and a front end. No server code to write, deploy or keep alive.</p>
+<h2>Why self-host at all</h2>
+<p>Hosted backend services are good, and for plenty of projects they&#39;re the right call. I wanted three things they can&#39;t promise: my data on hardware I choose, no usage-based bill that grows with success, and the freedom to fix a problem myself instead of filing a ticket.</p>
+<p>The cost is yours too. You run the server, you handle backups, you apply upgrades. If nobody on your team is willing to do that, don&#39;t self-host. Pay for the managed option and move on. I&#39;d rather you know that before you try anything.</p>
+<h2>When Stead isn&#39;t the answer</h2>
+<ul>
+<li>You need a global, multi-region setup with automatic failover from day one.</li>
+<li>Your product is mostly unusual real-time infrastructure, not forms, records and files.</li>
+<li>Nobody on the team is comfortable with SQL.</li>
+<li>You want a vendor to call at 3am.</li>
+</ul>
+<p>If none of that is you, you may save real time.</p>
+<h2>Questions I&#39;d like answered</h2>
+<p>Stead is early. I&#39;d rather hear what&#39;s wrong with it than be told it&#39;s great.</p>
+<ul>
+<li>What backend work do you rebuild on every project?</li>
+<li>Do you self-host, or do you avoid it? Why?</li>
+<li>What would stop you from trying this on your next project?</li>
+<li>Which app of yours would you point it at first?</li>
+</ul>
+<p>You can find the code on <a href="https://github.com/subhromoitrafreelancer/personal-baas">GitHub</a>. If you&#39;d rather talk it through, or you have a project you want help with, use the contact form on this site. I read every message.</p>
+
+<hr>
+<p><a class="btn btn-solid" href="../contact/">Answer a question or ask one</a></p>
+</article></main>
+<footer class="foot"><p><span class="label">Stead</span> &nbsp;A backend you run yourself.</p><p><a href="https://github.com/subhromoitrafreelancer/personal-baas">Source on GitHub</a> · <a href="../">Home</a> · <a href="../contact/">Contact</a></p></footer>
+</div></div>
+</body></html>
