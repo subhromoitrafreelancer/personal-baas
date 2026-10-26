@@ -84,7 +84,8 @@ describe('worker integration compatibility', () => {
   });
   it('derives vault project from the authorized lease and enforces its secret-name allowlist', async () => {
     const grant = { id: 'g', project_id: 'canonical', allowed_secret_names: ['ALLOWED'] };
-    const repo = { authorized: jest.fn((_i, _p, _l, op) => op({}, grant, {})) };
+    const db = {};
+    const repo = { authorized: jest.fn((_i, _p, _l, op) => op(db, grant, {})) };
     const vault = { resolveForFunction: jest.fn().mockResolvedValue('dummy') };
     const audit = { record: jest.fn() };
     const service = new WorkerService(
@@ -98,7 +99,7 @@ describe('worker integration compatibility', () => {
     await expect(service.resolve('integration', 'lease', 'DENIED')).rejects.toThrow();
     expect(vault.resolveForFunction).not.toHaveBeenCalled();
     expect(await service.resolve('integration', 'lease', 'ALLOWED')).toEqual({ value: 'dummy' });
-    expect(vault.resolveForFunction).toHaveBeenCalledWith('canonical', 'ALLOWED');
+    expect(vault.resolveForFunction).toHaveBeenCalledWith('canonical', 'ALLOWED', db);
     expect(audit.record).toHaveBeenCalledWith(null, 'worker.secret_read', null, null, {
       integrationId: 'integration',
       leaseId: 'lease',

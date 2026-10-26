@@ -1,3 +1,4 @@
+import type { PoolClient } from 'pg';
 import {
   ConflictException,
   Injectable,
@@ -88,8 +89,10 @@ export class ProjectsService {
    * row's own project_id column). Throws rather than returning null since a project_id stored
    * on another row is a foreign key — a miss here means referential integrity was violated.
    */
-  async getById(projectId: string): Promise<ProjectRow> {
-    const project = await this.repository.findById(projectId);
+  async getById(projectId: string, db?: PoolClient): Promise<ProjectRow> {
+    const project = db
+      ? await this.repository.findById(projectId, db)
+      : await this.repository.findById(projectId);
     if (!project) {
       throw new InternalServerErrorException(`Project '${projectId}' not found`);
     }

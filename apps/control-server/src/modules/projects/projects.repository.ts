@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../database/database.module';
 
 export interface ProjectRow {
@@ -36,8 +36,8 @@ export class ProjectsRepository {
     return rows[0] ?? null;
   }
 
-  async findById(id: string): Promise<ProjectRow | null> {
-    const { rows } = await this.pool.query<ProjectRow>(
+  async findById(id: string, db: Pool | PoolClient = this.pool): Promise<ProjectRow | null> {
+    const { rows } = await db.query<ProjectRow>(
       'SELECT * FROM platform.projects WHERE id = $1',
       [id],
     );
