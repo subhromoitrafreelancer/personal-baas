@@ -1,3 +1,4 @@
+import type { PoolClient } from 'pg';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuthAuditService } from '../auth/auth-audit.service';
 import { VaultCryptoService } from './vault-crypto.service';
@@ -67,8 +68,14 @@ export class VaultService {
   // also happens inside control-server's own process. Never called from any admin-facing
   // controller. Deliberately no audit event per call (scope.md §30 point 7): a per-invocation
   // read is potentially high-volume, unlike every other event this platform audits today.
-  async resolveForFunction(projectId: string, name: string): Promise<string | null> {
-    const row = await this.repo.findByProjectAndName(projectId, name);
+  async resolveForFunction(
+    projectId: string,
+    name: string,
+    db?: PoolClient,
+  ): Promise<string | null> {
+    const row = db
+      ? await this.repo.findByProjectAndName(projectId, name, db)
+      : await this.repo.findByProjectAndName(projectId, name);
     if (!row) {
       return null;
     }

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { VaultSecretRow } from './vault.types';
 
@@ -22,8 +22,12 @@ export class VaultRepository {
   // Scoped to (projectId, name), never name alone — the actual cross-project isolation
   // boundary for the internal resolve endpoint (scope.md §30 point 5), mirroring how
   // functions.functions is looked up (scope.md §26 point 7a).
-  async findByProjectAndName(projectId: string, name: string): Promise<VaultSecretRow | null> {
-    const { rows } = await this.pool.query<VaultSecretRow>(
+  async findByProjectAndName(
+    projectId: string,
+    name: string,
+    db: Pool | PoolClient = this.pool,
+  ): Promise<VaultSecretRow | null> {
+    const { rows } = await db.query<VaultSecretRow>(
       'SELECT * FROM vault.secrets WHERE project_id = $1 AND name = $2',
       [projectId, name],
     );

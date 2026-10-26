@@ -24,7 +24,9 @@ export class WorkerService {
       projectId,
       leaseId,
       async (db, grant, existing) => {
-        const project = await this.projects.getById(grant.project_id);
+        // Reuse the locked transaction connection. Borrowing a second pool connection here
+        // deadlocks when other worker requests occupy the pool waiting for this row lock.
+        const project = await this.projects.getById(grant.project_id, db);
         const ttl = this.config.get('WORKER_LEASE_TTL_SECONDS', { infer: true });
         let key = existing?.api_key_id;
         if (!key) {
@@ -72,10 +74,10 @@ export class WorkerService {
     return result;
   }
   async resolve(integration: string, lease: string, name: string) {
-    return this.repo.authorized(integration, null, lease, async (_db, grant) => {
+    return this.repo.authorized(integration, null, lease, async (db, grant) => {
       if (!grant.allowed_secret_names.includes(name))
         throw new NotFoundException('Worker resource unavailable');
-      const value = await this.vault.resolveForFunction(grant.project_id, name);
+      const value = await this.vault.resolveForFunction(grant.project_id, name, db);
       if (value === null) throw new NotFoundException('Worker resource unavailable');
       this.audit.record(null, 'worker.secret_read', null, null, {
         integrationId: integration,
