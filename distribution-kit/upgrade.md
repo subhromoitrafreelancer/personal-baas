@@ -13,13 +13,13 @@ recreate the containers.
    ```
 2. **Get the new images.** Either rebuild from a newer monorepo checkout:
    ```bash
-   ./scripts/build-local-images.sh /path/to/personal-baas-monorepo 0.8.2 0.4.0
+   ./scripts/build-local-images.sh /path/to/personal-baas-monorepo 0.8.3 0.4.0
    ```
    or load the new release's tarballs (`docker load -i ...`) and update the `BAAS_*_IMAGE`
    tags in `.env` to match.
 3. **Point `.env` at the new tags** (unless your tarballs/builds reused the same tags):
    ```env
-   BAAS_CONTROL_SERVER_IMAGE=personal-baas-control-server:0.8.2
+   BAAS_CONTROL_SERVER_IMAGE=personal-baas-control-server:0.8.3
    BAAS_FUNCTION_RUNNER_IMAGE=personal-baas-function-runner:0.4.0
    BAAS_POSTGRES_IMAGE=personal-baas-postgres:0.4.0
    ```
@@ -40,6 +40,13 @@ recreate the containers.
      :id/email`, `POST :id/temporary-password`; project-scoped, no delete/disable) so a
      project's own Function can manage its users without a platform-admin session — no new
      required env vars, no migration, no config changes.
+   - **0.8.3** adds opt-in **Worker Integrations** (trusted background services get short-lived
+     project API credentials and allowlisted vault reads) with an admin **Workers** page, plus a
+     fix for a connection-pool deadlock under concurrent worker requests. It includes one new
+     additive platform migration (applied automatically by `control-server-migrate`) and two
+     optional env vars, `WORKER_INTEGRATIONS_ENABLED` (default `false`) and
+     `WORKER_LEASE_TTL_SECONDS` (default `300`). Disabled by default; see
+     `docs/worker-integrations.md` in the monorepo before enabling.
 4. **Recreate the stack.** Migrations run automatically: the `control-server-migrate` one-shot
    container runs `npm run migrate:up` against the platform/auth schemas before `control-server`
    is allowed to start, so a plain `up -d` is the whole upgrade:
